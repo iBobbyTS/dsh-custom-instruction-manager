@@ -3,9 +3,7 @@
 [English](README.md) | [中文版](README.zh.md)
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/dsh-skill-hub"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-skill-hub?color=2f81f7&label=npm"></a>
-  <img alt="downloads" src="https://img.shields.io/npm/dm/dsh-skill-hub">
-  <img alt="license" src="https://img.shields.io/npm/l/dsh-skill-hub">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
   <img alt="node" src="https://img.shields.io/badge/node-%3E%3D22.19-339933">
 </p>
 
@@ -19,12 +17,17 @@
 
 ## 快速开始
 
-```bash
-dsh plugin --profile web add dsh-skill-hub
-# 重启 dsh web → 侧边栏 → 技能 → 市场 → 扫描 → 导入
+**此 Fork 仅通过 GitHub 分发，不发布 npm 安装包。** npm 上名为 `dsh-skill-hub` 的包属于上游版本，不包含本 Fork 的修改。
+
+在 DSH 桌面版打开 **插件 → 添加 → Git 仓库**，输入：
+
+```text
+https://github.com/iBobbyTS/dsh-skill-hub.git
 ```
 
-要求 `Node ^22.19 || >=24` + dsh web `>=0.1.7-alpha.1 <0.3`。
+如有提示，重启 DSH；随后打开 **侧边栏 → 技能**。在 **市场 → 扫描 → 导入** 中安装技能。
+
+要求 `Node ^22.19 || >=24` + dsh web `>=0.1.7-alpha.1 <0.3`。Git 安装时运行本仓库的 `prepare` 脚本编译 `lib/` 入口文件。
 
 两个界面 —— 管理面板在 **侧边栏 → 技能**；本插件自身的配置卡片在 **插件管理页** 的插件自有页面上（侧边栏「插件」→ dsh-skill-hub）。该卡片由本插件自己注册进 `plugins.bundle.config` 槽位（dsh 没有自动生成的配置页），覆盖总开关、向 Agent 公告、圆点颜色、用量显示与统计窗口/间隔。
 
@@ -115,6 +118,9 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 > 同一 `$DSH_HOME` + cwd 下勿开两个 `dsh web` — 无会话日志锁，会 `seq gap` 损坏。换 `DSH_HOME` 或先关旧实例。
 
 ## 故障排查
+
+- Git 安装后出现 `ERR_MODULE_NOT_FOUND`，提示缺少 `dsh-skill-hub/lib/index.js` — 旧提交没有随 Git 提供构建产物。卸载旧版本并安装最新提交；现在 Git 依赖打包前会运行 `npm run build`。
+- 出现 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` — pnpm 阻止未经批准的 Git 依赖构建脚本。先审查本仓库的 `prepare` / `build` 命令，再根据 pnpm 错误中**提供的完整 Git 依赖键**，在 `~/.dsh/profiles/desktop/pnpm-workspace.yaml` 的 `allowBuilds` 下设为 `true`，然后重试安装（也可在对应 profile 使用 `pnpm approve-builds`）。不要全局放开所有依赖构建。
 
 - `duplicate loader entry id: skill-hub` — 删掉重复安装（只留一种 `dsh plugin add`）。
 - 技能不出现 — 看诊断区（缺 frontmatter / 名称不一致 / 描述过短 / 两种发现形态抢同一个名字：`<name>/SKILL.md` 目录包与 `<name>.md` 扁平文件可以并存，注册表只会留一个）。

@@ -3,9 +3,7 @@
 [中文版](README.zh.md) | [English](README.md)
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/dsh-skill-hub"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-skill-hub?color=2f81f7&label=npm"></a>
-  <img alt="downloads" src="https://img.shields.io/npm/dm/dsh-skill-hub">
-  <img alt="license" src="https://img.shields.io/npm/l/dsh-skill-hub">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
   <img alt="node" src="https://img.shields.io/badge/node-%3E%3D22.19-339933">
 </p>
 
@@ -19,12 +17,17 @@ In-GUI skill hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-
 
 ## Quick start
 
-```bash
-dsh plugin --profile web add dsh-skill-hub
-# restart dsh web → sidebar → Skills → Market → scan → import
+**This fork is distributed from GitHub only; it does not publish an npm package.** The package named `dsh-skill-hub` on npm is the upstream release and does not contain this fork's changes.
+
+In DSH Desktop, open **Plugins → Add → Git repository** and enter:
+
+```text
+https://github.com/iBobbyTS/dsh-skill-hub.git
 ```
 
-Requires `Node ^22.19 || >=24` + dsh web `>=0.1.7-alpha.1 <0.3`.
+Restart DSH if prompted, then open **sidebar → Skills**. Use **Market → Scan → Import** to add skills.
+
+Requires `Node ^22.19 || >=24` + dsh web `>=0.1.7-alpha.1 <0.3`. Git installations run this repository's `prepare` script to compile the `lib/` entrypoints.
 
 Two surfaces — the hub panel opens from the **Skills** entry in the main sidebar, and this plugin's own configuration card sits on the plugin's page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub). The card is registered by the plugin itself into the `plugins.bundle.config` slot — dsh has no auto-generated config page — and covers the master switch, announce-to-agent, dot colors, usage display and the stats window/interval.
 
@@ -115,6 +118,9 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 > Don't run two `dsh web` on the same `$DSH_HOME` + cwd — no session-log lock (`seq gap` corruption). Use separate `DSH_HOME`.
 
 ## Troubleshooting
+
+- `ERR_MODULE_NOT_FOUND` for `dsh-skill-hub/lib/index.js` after installing from Git — older commits omitted built files. Remove the old installation and install the latest commit: Git preparation now runs `npm run build` before packaging.
+- `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` — pnpm requires explicit approval before executing a Git dependency's build scripts. Review this repository's `prepare` / `build` commands first. Then, in `~/.dsh/profiles/desktop/pnpm-workspace.yaml`, set **the exact Git-dependency key printed by pnpm** under `allowBuilds` to `true` and retry the installation (or use `pnpm approve-builds` for the relevant profile). Do not enable all dependency builds indiscriminately.
 
 - `duplicate loader entry id: skill-hub` — remove the duplicate install (keep one `dsh plugin add` method).
 - Skill missing — check the diagnostics section (frontmatter / name mismatch / short description / two discovery forms claiming the same name: a `<name>/SKILL.md` bundle and a `<name>.md` file can coexist on disk, and the registry keeps only one of them).

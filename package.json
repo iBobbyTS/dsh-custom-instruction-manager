@@ -175,14 +175,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prebuild": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\""
+    "prebuild": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\"",
+    "prepare": "npm run build"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cheshireez/dsh-skill-hub.git"
+    "url": "git+https://github.com/iBobbyTS/dsh-skill-hub.git"
   },
   "bugs": {
-    "url": "https://github.com/cheshireez/dsh-skill-hub/issues"
+    "url": "https://github.com/iBobbyTS/dsh-skill-hub/issues"
   },
-  "homepage": "https://github.com/cheshireez/dsh-skill-hub"
+  "homepage": "https://github.com/iBobbyTS/dsh-skill-hub"
 }
