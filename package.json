@@ -75,7 +75,7 @@
     "capability": {
       "id": "skill-hub-settings-panel",
       "kind": "ui",
-      "invocation": "Open Settings → Skills panel; GET /api/skill-hub/catalog",
+      "invocation": "Open sidebar → Skills panel; GET /api/skill-hub/catalog",
       "expected": "The full local skill catalog (all roots) renders as groups and toggles persist an enabled/disabled row without a restart."
     },
     "evidence": {

@@ -3,8 +3,8 @@
  * web GUI.
  *
  * Registers the dsh-skill-hub locale dictionaries and mounts:
- *  - a top-level Settings section (Settings → 技能) hosting the skill hub
- *    panel: catalog, search, enable/disable, diagnostics, new-skill form;
+ *  - a global Skills sidebar entry plus its main panel: catalog, search,
+ *    enable/disable, diagnostics, new-skill form;
  *  - the chat "/" menu skill dots, colored from the same config the panel reads.
  *
  *  - a configuration card in the `plugins.bundle.config` slot, keyed by the
@@ -26,7 +26,7 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-// Type-only: pulls the configForms service merge and the settings.section slot.
+// Type-only: pulls the configForms service merge used by the plugin's config card.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the LocaleNamespaceMap merge table.
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
@@ -47,7 +47,7 @@ declare module '@deepseek-ai/cordis' {
 import { HUB_ENTRY_ID, type HubSettingsValue } from '../protocol.ts'
 import { SkillHubApi } from './api.ts'
 import { en, zh, type HubKey } from './locales.ts'
-import { applySettingsNavIcon } from './settings-nav-icon.ts'
+import { IconSkillOutline16 } from './icons.tsx'
 import { setupSkillSlashDots } from './slash-dots.tsx'
 import { SkillHubSettingsCard, SkillHubSettingsCardController } from './SkillHubSettingsCard.tsx'
 import { SkillHubPanel } from './panel/SkillHubPanel.tsx'
@@ -77,7 +77,7 @@ export type { SkillHubSettingsState } from './SkillHubSettingsCard.tsx'
 export type { HubKey } from './locales.ts'
 
 /**
- * Mount the settings card and the skill hub section.
+ * Mount the plugin settings card and the global Skills management page.
  * @param ctx - client root context (slots, locale).
  */
 export function apply(ctx: ClientContext): void {
@@ -110,19 +110,25 @@ export function apply(ctx: ClientContext): void {
     'dsh-skill-hub: plugin config',
   )
 
-  // Top-level Settings section: the skill management page.
+  // Pair the root-scoped main panel with the sidebar entry under the same id.
+  // Register the main page first so a visible sidebar entry is always navigable.
   ctx.effect(
-    () => ctx.slots.inject('settings.section', () => ctx.slots.register({
-      name: 'settings.section',
-      id: 'skill-hub',
-      order: 12,
-      label: () => t('entry.label'),
+    () => ctx.slots.inject('main', () => ctx.slots.register({
+      name: 'main',
+      key: 'skill-hub',
       locale: NS,
-      inject: () => ({}),
     }, () => <SkillHubPanel api={api} />)),
-    'dsh-skill-hub: settings section',
+    'dsh-skill-hub: main panel',
   )
 
-  // Host shell has no section-icon registration; keep the nav gear swapped for the skill icon.
-  ctx.effect(() => applySettingsNavIcon(), 'dsh-skill-hub: settings nav icon')
+  ctx.effect(
+    () => ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+      name: 'sidebar.panellist',
+      id: 'skill-hub',
+      order: 20,
+      label: () => t('entry.label'),
+      locale: NS,
+    }, IconSkillOutline16)),
+    'dsh-skill-hub: sidebar entry',
+  )
 }

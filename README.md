@@ -21,16 +21,16 @@ In-GUI skill hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-
 
 ```bash
 dsh plugin --profile web add dsh-skill-hub
-# restart dsh web → Settings → 技能 → Market → scan → import
+# restart dsh web → sidebar → Skills → Market → scan → import
 ```
 
 Requires `Node ^22.19 || >=24` + dsh web `>=0.1.7-alpha.1 <0.3`.
 
-Two surfaces — the hub panel lives at **Settings → 技能**, and this plugin's own configuration card sits on the plugin's page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub). The card is registered by the plugin itself into the `plugins.bundle.config` slot — dsh has no auto-generated config page — and covers the master switch, announce-to-agent, dot colors, usage display and the stats window/interval.
+Two surfaces — the hub panel opens from the **Skills** entry in the main sidebar, and this plugin's own configuration card sits on the plugin's page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub). The card is registered by the plugin itself into the `plugins.bundle.config` slot — dsh has no auto-generated config page — and covers the master switch, announce-to-agent, dot colors, usage display and the stats window/interval.
 
 ## Features
 
-**Settings → 技能** — 3 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update).
+**Sidebar → Skills** — 3 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding.
 - **Toggle** — per-skill switches and per-group tri-state switches with a conflict dialog (close all / keep on). Disabling renames the discovery file (never deletes); disabled skills stay inspectable and re-enableable from their detail page. Only `~/.dsh/skills` & `~/.agents/skills` are writable; everything else is read-only.
@@ -74,7 +74,7 @@ GitHub repo ──scan/import──▶ ~/.dsh/skills
      └─check/sync/delete── ctx.skills ◀─ provider
                                 │ snapshot/get
                                 ▼
-                    /api/skill-hub/* ──▶ Panel (Settings → 技能)
+                    /api/skill-hub/* ──▶ Panel (sidebar → Skills)
 ```
 
 Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemPrompt.section`. Routes sit behind dsh's own `/api` trust fence (loopback / the listener's bind address / `--trusted-host`), JSON.
