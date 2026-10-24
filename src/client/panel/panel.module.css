@@ -14,7 +14,77 @@
    .select inherits light text, i.e. invisible (issue #13). Inheriting from the
    root keeps both dark paths (manual + system) correct. */
 
-.panel { padding: 28px 20px 44px; display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; -webkit-font-smoothing: antialiased; /* Dot colors mirror src/client/SkillHubSettingsCard.tsx (DEFAULT_DOT_MODEL_COLOR / DEFAULT_DOT_USER_COLOR) — CSS cannot import TS, so keep the two in sync. */ --hub-model: #2f81f7; --hub-user: #3fb950; /* Host theme tokens (--dsw-alias-*, dsh-client-ui-theme). Each var() carries the pre-token colour of this file as its fallback, so a missing theme package changes nothing. */ --hub-accent: var(--dsw-alias-state-business-primary, #2f81f7); --hub-text: var(--dsw-alias-label-primary, currentColor); --hub-text-2: var(--dsw-alias-label-secondary, #61666b); --hub-text-3: var(--dsw-alias-label-tertiary, #81858c); --hub-text-4: var(--dsw-alias-label-caption, #adb2b8); --hub-surface: var(--dsw-alias-bg-module-platform, rgba(128,128,128,.06)); --hub-hover: var(--dsw-alias-interactive-bg-hover, rgba(128,128,128,.08)); --hub-active: var(--dsw-alias-interactive-bg-active, rgba(128,128,128,.16)); --hub-border: var(--dsw-alias-border-l2, rgba(128,128,128,.13)); --hub-border-2: var(--dsw-alias-border-l3, rgba(128,128,128,.2)); --hub-danger: var(--dsw-alias-state-error-primary, #d1242f); --hub-success: var(--dsw-alias-state-success-primary, #3fb950); --hub-warn: var(--dsw-alias-state-warn-primary, #d29922); --hub-on-accent: var(--dsw-alias-label-primary-foreground, #fff); --hub-skeleton: var(--dsw-alias-bg-skeleton, rgba(128,128,128,.1)); }
+/* Page shell (adapted from dsh ui-conversation ConversationRoot.module.css,
+   MIT License, Copyright (c) 2026 DeepSeek — see THIRD_PARTY_NOTICES.md):
+   relative band owning the scroll area plus the two width handles. The
+   shared width axis rides --hub-content-width: --hub-user-width when the
+   user has dragged a preference (published by PanelWidthControls), else the
+   720px fallback this panel always used. */
+.pageShell { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; --hub-content-width: var(--hub-user-width, 720px); }
+
+.scrollArea { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; /* 滚动条槽永久预留（同官方 ConversationRoot .scrollBody）：auto 会让滚动条出现/消失时把居中的内容列顶偏一个滚动条宽（本主题 5px）。 */ scrollbar-gutter: stable; }
+
+/* Width drag strips: invisible until hovered/dragged; positioned 24px outside
+   the content column, extending 10px outward, clamped so a 24px safe zone
+   stays drag-free against the column edges. When the margin cannot fit
+   inset + strip + safe zone the computed width goes negative and the strip
+   resolves to zero. */
+.widthHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: min(10px, calc((100% - var(--hub-content-width)) / 2 - 24px - 24px));
+  cursor: col-resize;
+}
+
+.widthHandle[data-side='left'] {
+  right: calc(50% + var(--hub-content-width) / 2 + 24px);
+}
+
+.widthHandle[data-side='right'] {
+  left: calc(50% + var(--hub-content-width) / 2 + 24px);
+}
+
+/* The glow: a short 2px bar following the captured pointer's Y, centered in
+   the strip, fading over 28px each side (72px total); a solid core, not a
+   lone peak. Before the first drag move the fallback centers at 50% height. */
+.widthHandle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent calc(var(--hub-width-handle-pointer-y, 50%) - 36px),
+    var(--dsw-alias-scrollbar-bg-l1, rgba(128,128,128,.35)) calc(var(--hub-width-handle-pointer-y, 50%) - 8px),
+    var(--dsw-alias-scrollbar-bg-l1, rgba(128,128,128,.35)) calc(var(--hub-width-handle-pointer-y, 50%) + 8px),
+    transparent calc(var(--hub-width-handle-pointer-y, 50%) + 36px)
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
+.widthHandle[data-side='left']::after {
+  right: 4px;
+}
+
+.widthHandle[data-side='right']::after {
+  left: 4px;
+}
+
+.widthHandle:hover::after,
+.widthHandle[data-dragging]::after {
+  opacity: 1;
+}
+
+.widthHandle[data-dragging] {
+  z-index: 8;
+}
+
+.panel { padding: 28px 20px 44px; display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: var(--hub-content-width); margin: 0 auto; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; -webkit-font-smoothing: antialiased; /* Dot colors mirror src/client/SkillHubSettingsCard.tsx (DEFAULT_DOT_MODEL_COLOR / DEFAULT_DOT_USER_COLOR) — CSS cannot import TS, so keep the two in sync. */ --hub-model: #2f81f7; --hub-user: #3fb950; /* Host theme tokens (--dsw-alias-*, dsh-client-ui-theme). Each var() carries the pre-token colour of this file as its fallback, so a missing theme package changes nothing. */ --hub-accent: var(--dsw-alias-state-business-primary, #2f81f7); --hub-text: var(--dsw-alias-label-primary, currentColor); --hub-text-2: var(--dsw-alias-label-secondary, #61666b); --hub-text-3: var(--dsw-alias-label-tertiary, #81858c); --hub-text-4: var(--dsw-alias-label-caption, #adb2b8); --hub-surface: var(--dsw-alias-bg-module-platform, rgba(128,128,128,.06)); --hub-hover: var(--dsw-alias-interactive-bg-hover, rgba(128,128,128,.08)); --hub-active: var(--dsw-alias-interactive-bg-active, rgba(128,128,128,.16)); --hub-border: var(--dsw-alias-border-l2, rgba(128,128,128,.13)); --hub-border-2: var(--dsw-alias-border-l3, rgba(128,128,128,.2)); --hub-danger: var(--dsw-alias-state-error-primary, #d1242f); --hub-success: var(--dsw-alias-state-success-primary, #3fb950); --hub-warn: var(--dsw-alias-state-warn-primary, #d29922); --hub-on-accent: var(--dsw-alias-label-primary-foreground, #fff); --hub-skeleton: var(--dsw-alias-bg-skeleton, rgba(128,128,128,.1)); }
 .header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
 .hint { font-size: 12px; color: var(--hub-text-3); }

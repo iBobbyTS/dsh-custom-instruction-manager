@@ -13,13 +13,14 @@
  * early returns are safe.
  */
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { WritableRoot } from '../../protocol.ts'
 import { IconSkillOutline16 } from '../icons.tsx'
 import type { SkillHubApi } from '../api.ts'
 import { tt } from '../helpers.ts'
 import { PRIVATE_SOURCE, type SortKey } from '../grouping.ts'
 import { dotStyle, relativeTimeText } from './format.ts'
+import { PanelWidthControls } from './PanelWidthControls.tsx'
 import { SkillDetailView } from './SkillDetailView.tsx'
 import { TagEditorView } from './TagEditorView.tsx'
 import { SourcesView } from './SourcesView.tsx'
@@ -39,6 +40,9 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   const [workspaceDraft, setWorkspaceDraft] = useState('')
   /** 「筛选」面板开合（来源 + 调用方式收进这里；搜索/排序/视图切换始终可见）。 */
   const [filtersOpen, setFiltersOpen] = useState(false)
+  /** 页壳元素（宽度手柄的挂载目标与 ResizeObserver 观察对象）。 */
+  const [shell, setShell] = useState<HTMLDivElement | null>(null)
+  const refShell = useCallback((node: HTMLDivElement | null): void => { setShell(node) }, [])
   const {
     catalog, loading, loadError, successBanner, updateState, detail, detailLoading, showForm, formName, formDesc,
     formRoot, formBusy, formMessage, hubConfig, tab, skillView, sourceFilter, sortKey, search,
@@ -61,49 +65,59 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   if (detail !== null) {
     const disabledRecord = catalog?.disabled.find((record) => record.name === detail.name)
     return (
-      <SkillDetailView
-        detail={detail}
-        hubConfig={hubConfig}
-        uses={uses}
-        groupsState={groupsState}
-        sourcesState={sourcesState}
-        sourceCheck={sourceCheck}
-        checkingSource={checkingSource}
-        syncingSource={syncingSource}
-        disabled={disabledRecord !== undefined}
-        onEnable={disabledRecord !== undefined ? () => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}
-        onBack={() => { setDetail(null) }}
-        onCheck={(repo) => { void checkSources(repo) }}
-        onSync={requestSync}
-        onFollowDelete={requestDelete}
-      />
+      <div className={css.pageShell} ref={refShell}>
+        <div className={css.scrollArea} data-hub-scroll="">
+          <SkillDetailView
+            detail={detail}
+            hubConfig={hubConfig}
+            uses={uses}
+            groupsState={groupsState}
+            sourcesState={sourcesState}
+            sourceCheck={sourceCheck}
+            checkingSource={checkingSource}
+            syncingSource={syncingSource}
+            disabled={disabledRecord !== undefined}
+            onEnable={disabledRecord !== undefined ? () => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}
+            onBack={() => { setDetail(null) }}
+            onCheck={(repo) => { void checkSources(repo) }}
+            onSync={requestSync}
+            onFollowDelete={requestDelete}
+          />
+        </div>
+        <PanelWidthControls container={shell} />
+      </div>
     )
   }
 
   if (editingTag !== null) {
     return (
-      <TagEditorView
-        tag={editingTag}
-        editName={editName}
-        membersDraft={membersDraft}
-        editSearch={editSearch}
-        catalog={catalog}
-        tagBusy={tagBusy}
-        onBack={() => { setEditingTag(null) }}
-        onEditName={setEditName}
-        onEditSearch={setEditSearch}
-        onToggleMember={(name, checked) => {
-          setMembersDraft((previous) => {
-            const next = new Set(previous)
-            if (checked) next.add(name)
-            else next.delete(name)
-            return next
-          })
-        }}
-        onRename={() => { void saveTag(editingTag.id, editName, null) }}
-        onDelete={() => { void deleteTag(editingTag.id) }}
-        onSaveMembers={() => { void saveTag(editingTag.id, editName, [...membersDraft]) }}
-      />
+      <div className={css.pageShell} ref={refShell}>
+        <div className={css.scrollArea} data-hub-scroll="">
+          <TagEditorView
+            tag={editingTag}
+            editName={editName}
+            membersDraft={membersDraft}
+            editSearch={editSearch}
+            catalog={catalog}
+            tagBusy={tagBusy}
+            onBack={() => { setEditingTag(null) }}
+            onEditName={setEditName}
+            onEditSearch={setEditSearch}
+            onToggleMember={(name, checked) => {
+              setMembersDraft((previous) => {
+                const next = new Set(previous)
+                if (checked) next.add(name)
+                else next.delete(name)
+                return next
+              })
+            }}
+            onRename={() => { void saveTag(editingTag.id, editName, null) }}
+            onDelete={() => { void deleteTag(editingTag.id) }}
+            onSaveMembers={() => { void saveTag(editingTag.id, editName, [...membersDraft]) }}
+          />
+        </div>
+        <PanelWidthControls container={shell} />
+      </div>
     )
   }
 
@@ -125,7 +139,9 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   })()
 
   return (
-    <div className={css.panel} aria-busy={batchBusy || tagBusy}>
+    <div className={css.pageShell} ref={refShell}>
+      <div className={css.scrollArea} data-hub-scroll="">
+        <div className={css.panel} aria-busy={batchBusy || tagBusy}>
       <div className={css.header}>
         <h2 className={css.title}><IconSkillOutline16 size={16} className={css.titleIcon} /> {tt('panel.title')}{catalog !== null ? <span className={css.pluginVersion}>v{catalog.pluginVersion}</span> : null}</h2>
         {catalog !== null
@@ -372,6 +388,9 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         setConfirmClearTrash={setConfirmClearTrash}
         clearTrash={clearTrash}
       />
+        </div>
+      </div>
+      <PanelWidthControls container={shell} />
     </div>
   )
 }
