@@ -2,9 +2,8 @@
  * Pure grouping helpers for the skill-hub panel (no React/DOM deps, so the
  * merge/classify/filter logic stays unit-testable).
  *
- * The "分组" view unifies two ways a skill can belong to a group:
- *  - user tags (sidecar SkillTag)
- *  - origin collections (sidecar sources → backend-aggregated CollectionGroup)
+ * The "分组" view groups a skill by its origin collection (sidecar sources →
+ * backend-aggregated CollectionGroup).
  *
  * Switch semantics: a skill's enabled state is global (the file is renamed
  * once), so a group switch is derived from its members' actual states:
@@ -13,7 +12,7 @@
  * GUI resolves with a dialog; the helpers below compute both sides.
  */
 
-import type { CatalogSkill, CollectionGroup, DisabledSkill, SkillTag } from '../protocol.ts'
+import type { CatalogSkill, CollectionGroup, DisabledSkill } from '../protocol.ts'
 import { isProjectSource } from '../protocol.ts'
 
 export { isProjectSource }
@@ -46,10 +45,9 @@ export function groupSwitchView(members: readonly string[], enabledNames: Readon
   return { state, enabled, disabled }
 }
 
-/** Names of every group a skill belongs to (tags + collections). */
-export function groupNamesOf(name: string, tags: readonly SkillTag[], collections: readonly CollectionGroup[]): string[] {
+/** Names of every source collection a skill belongs to. */
+export function groupNamesOf(name: string, collections: readonly CollectionGroup[]): string[] {
   const names: string[] = []
-  for (const tag of tags) if (tag.skillNames.includes(name)) names.push(tag.name)
   for (const collection of collections) if (collection.skillNames.includes(name)) names.push(collection.name)
   return names
 }

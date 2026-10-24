@@ -231,8 +231,7 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             continue
           }
           try {
-            // 入回收站前快照来源与场景归属，恢复时挂回（见 sourceRestore）。
-            const tagIds = (await deps.store.listTags()).filter((tag) => tag.skillNames.includes(name)).map((tag) => tag.id)
+            // 入回收站前快照来源归属，恢复时挂回（见 sourceRestore）。
             const { path, source: trashSource } = await trashSkill(existing)
             await deps.store.addTrash({
               name,
@@ -240,10 +239,8 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
               movedAt: Date.now(),
               sourcePath: trashSource,
               origin: { repo: source.repo, root: source.root, ...(source.ref !== undefined && source.ref !== '' ? { ref: source.ref } : {}), commitSha: source.commitSha },
-              ...(tagIds.length > 0 ? { tagIds } : {}),
             })
             await deps.store.removeDisabled(name)
-            await deps.store.removeSkillFromTags(name)
             trashed.push(name)
           } catch (error) {
             failed.push({ name, error: errorText(error) })
@@ -274,13 +271,10 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           return
         }
         const path = await restoreSkill(entry, home)
-        // 恢复来源归属（入回收站前快照的来源记录）与场景成员，否则恢复后
-        // 的技能会变成「个人技能」并脱离原场景。
+        // 恢复来源归属（入回收站前快照的来源记录），否则恢复后的技能会变成
+        // 「个人技能」。
         if (entry.origin !== undefined) {
           await deps.store.addSourceSkill(entry.origin.repo, entry.origin.root, entry.origin.commitSha, entry.origin.ref, name)
-        }
-        for (const tagId of entry.tagIds ?? []) {
-          await deps.store.addSkillToTag(tagId, name)
         }
         await deps.store.removeTrash(entry.path)
         deps.invalidate?.()
@@ -301,8 +295,6 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         for (const entry of entries) {
           try {
             await clearTrash(entry, home)
-            // A permanently deleted skill must not linger in user groups.
-            await deps.store.removeSkillFromTags(entry.name)
             deleted.push(entry.name)
             removedPaths.push(entry.path)
           } catch (error) {

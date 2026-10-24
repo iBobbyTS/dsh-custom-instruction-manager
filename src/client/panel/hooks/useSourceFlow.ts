@@ -88,24 +88,24 @@ export function useSourceFlow(
 
   /** 从回收站恢复一个技能。 */
   const restoreTrash = useCallback(async (name: string): Promise<void> => {
-    shared.setTagBusy(true)
+    shared.setListBusy(true)
     await runFlow(shared, async () => {
       await api.restoreSource(name)
       await Promise.all([reloadCatalog(), reloadGroups(), loadSources()])
-    }, () => shared.setTagBusy(false))
+    }, () => shared.setListBusy(false))
   }, [api, reloadCatalog, reloadGroups, loadSources, shared])
 
   /** 确认后永久删除回收站里的全部技能。 */
   const clearTrash = useCallback(async (): Promise<void> => {
     setConfirmClearTrash(false)
-    shared.setTagBusy(true)
+    shared.setListBusy(true)
     await runFlow(shared, async () => {
       const result = await api.clearTrash()
       if (result.failed.length > 0) {
         shared.fail('clear trash: ' + result.failed.map((failure) => failure.name + ': ' + failure.error).join('; '))
       }
       await Promise.all([reloadCatalog(), loadSources()])
-    }, () => shared.setTagBusy(false))
+    }, () => shared.setListBusy(false))
   }, [api, reloadCatalog, loadSources, shared])
 
   /** 打开单个技能的删除确认（移入回收站，可恢复）。 */
@@ -118,11 +118,11 @@ export function useSourceFlow(
     const name = deleteSkillDialog
     if (name === null) return
     setDeleteSkillDialog(null)
-    shared.setTagBusy(true)
+    shared.setListBusy(true)
     await runFlow(shared, async () => {
       await api.deleteSkill(name)
       await Promise.all([reloadCatalog(), reloadGroups(), loadSources()])
-    }, () => shared.setTagBusy(false))
+    }, () => shared.setListBusy(false))
   }, [api, deleteSkillDialog, reloadCatalog, reloadGroups, loadSources, shared])
 
   /** 打开整组删除确认（来源分组一键删除）。 */
@@ -135,7 +135,7 @@ export function useSourceFlow(
     const dialog = deleteGroupDialog
     if (dialog === null) return
     setDeleteGroupDialog(null)
-    shared.setTagBusy(true)
+    shared.setListBusy(true)
     shared.clearFail()
     const failures: string[] = []
     let done = 0
@@ -149,7 +149,7 @@ export function useSourceFlow(
       }
     }
     await Promise.all([reloadCatalog(), reloadGroups(), loadSources()])
-    shared.setTagBusy(false)
+    shared.setListBusy(false)
     if (failures.length > 0) {
       shared.fail(`删除整组 "${dialog.name}"：成功 ${done} 个，失败 ${failures.length} 个：` + failures.join('; '))
     } else if (done > 0) {

@@ -1,4 +1,4 @@
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
 import { isValidRepoRoot } from '../protocol/repo.ts'
 import { STORE_VERSION } from './paths.ts'
 
@@ -7,7 +7,6 @@ export interface MigratedStore {
   version: number
   disabled: unknown
   config?: unknown
-  tags?: unknown
   sources?: unknown
   marketSources?: unknown
   trash?: unknown
@@ -24,6 +23,8 @@ export interface MigratedStore {
  * value, commit snapshot empty — the first update check backfills it).
  * v2 to v3: market sources become records ({ repo, ref?, commitSha? })
  * instead of bare repo slugs, so a source can pin a release/branch version.
+ * v4 to v5: the scene system is gone — `tags` and trash `tagIds` are simply
+ * not read any more, so a loaded v4 file is rewritten without them.
  * Returns null when the file claims a newer schema than this plugin
  * understands, so the caller starts empty instead of risking data loss.
  */
@@ -34,7 +35,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
   if (version > STORE_VERSION) return null
   const disabled = Array.isArray(record.disabled) ? record.disabled : []
   const config = typeof record.config === 'object' && record.config !== null && !Array.isArray(record.config) ? record.config : undefined
-  const tags = Array.isArray(record.tags) ? record.tags : undefined
   const trash = Array.isArray(record.trash) ? record.trash : undefined
   // v2 stored bare slugs; v3 stores records. Normalize both shapes here.
   const marketSources = Array.isArray(record.marketSources)
@@ -69,7 +69,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
     version: STORE_VERSION,
     disabled,
     ...(config !== undefined ? { config } : {}),
-    ...(tags !== undefined ? { tags } : {}),
     ...(sources !== undefined ? { sources } : {}),
     ...(marketSources !== undefined ? { marketSources } : {}),
     ...(trash !== undefined ? { trash } : {}),
@@ -87,7 +86,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
 export interface HydratedState {
   entries: Map<string, DisabledSkill>
   config: Partial<HubConfig>
-  tagsById: Map<string, SkillTag>
   sourcesByRepo: Map<string, SourceRecord>
   marketSources: MarketSourceRecord[]
   trashByPath: Map<string, TrashEntry>
@@ -127,21 +125,6 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
     if (typeof saved.showUseCount === 'boolean') config.showUseCount = saved.showUseCount
     if (typeof saved.showUseTime === 'boolean') config.showUseTime = saved.showUseTime
     if (typeof saved.showGroupSummary === 'boolean') config.showGroupSummary = saved.showGroupSummary
-  }
-
-  const tagsById = new Map<string, SkillTag>()
-  if (Array.isArray(migrated.tags)) {
-    for (const entry of migrated.tags as unknown[]) {
-      const tag = entry as { id?: unknown; name?: unknown; skillNames?: unknown; default?: unknown } | null
-      if (tag !== null && typeof tag === 'object' && typeof tag.id === 'string' && typeof tag.name === 'string' && Array.isArray(tag.skillNames)) {
-        tagsById.set(tag.id, {
-          id: tag.id,
-          name: tag.name,
-          skillNames: tag.skillNames.filter((n): n is string => typeof n === 'string'),
-          ...(tag.default === true ? { default: true } : {}),
-        })
-      }
-    }
   }
 
   const sourcesByRepo = new Map<string, SourceRecord>()
@@ -185,7 +168,6 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
       const item = entry as { name?: unknown; path?: unknown; movedAt?: unknown; sourcePath?: unknown } | null
       if (item !== null && typeof item === 'object' && typeof item.name === 'string' && typeof item.path === 'string') {
         const origin = (item as Record<string, unknown>).origin as { repo?: unknown; root?: unknown; ref?: unknown; commitSha?: unknown } | undefined
-        const tagIds = (item as Record<string, unknown>).tagIds
         // 按 path 建索引：回收站里同名可以有多条（跨形态/先后两次入站），按名字
         // 索引会让后一条静默覆盖前一条、把前一份目录留成谁都指不到的孤儿。
         trashByPath.set(item.path, {
@@ -203,7 +185,6 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
                 },
               }
             : {}),
-          ...(Array.isArray(tagIds) ? { tagIds: tagIds.filter((id): id is string => typeof id === 'string') } : {}),
         })
       }
     }
@@ -296,5 +277,5 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
   const collectionOrder = cleanStringList(migrated.collectionOrder)
   const sourceGroupOrder = cleanStringList(migrated.sourceGroupOrder)
 
-  return { entries, config, tagsById, sourcesByRepo, marketSources, trashByPath, skillStats, marketStats, collectionOrder, sourceGroupOrder }
+  return { entries, config, sourcesByRepo, marketSources, trashByPath, skillStats, marketStats, collectionOrder, sourceGroupOrder }
 }

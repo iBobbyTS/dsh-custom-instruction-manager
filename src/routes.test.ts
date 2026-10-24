@@ -549,8 +549,6 @@ describe('skill-hub routes', () => {
     const dir = join(home, 'skills', 'delete-me')
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'SKILL.md'), '---\nname: delete-me\ndescription: x\n---\n\nbody', 'utf8')
-    const tag = await store.saveTag({ name: 'web' })
-    await store.setTagMembers(tag.id, ['delete-me'])
     await store.addSourceSkill('repo/a', 'skills', 'sha', undefined, 'delete-me')
     skills.get = async () => definition({ name: 'delete-me', path: join(dir, 'SKILL.md'), source: 'user-dsh' })
     const invalidate = vi.fn()
@@ -562,7 +560,6 @@ describe('skill-hub routes', () => {
     const body = res.json() as import('./protocol.ts').SkillDeleteResponse
     expect(body.path.startsWith(join(home, 'skills', '.trash', 'delete-me-'))).toBe(true)
     await expect(access(dir)).rejects.toThrow()
-    expect((await store.listTags())[0].skillNames).toEqual([])
     expect(await store.listSources()).toEqual([])
     expect(await store.listOrigins()).toEqual({})
     expect(invalidate).toHaveBeenCalledTimes(1)
@@ -571,9 +568,8 @@ describe('skill-hub routes', () => {
     await routeFor(SKILL_HUB_API.sourceRestore).handler(fakeReq('POST', SKILL_HUB_API.sourceRestore, { name: 'delete-me' }), restore as never)
     expect(restore.status).toBe(200)
     await expect(access(join(dir, 'SKILL.md'))).resolves.toBeUndefined()
-    // 恢复后来源归属与场景成员一并恢复（不再变成「个人技能」）。
+    // 恢复后来源归属一并恢复（不再变成「个人技能」）。
     expect((await store.getSource('repo/a'))?.skills).toEqual(['delete-me'])
-    expect((await store.listTags()).find((tag) => tag.name === 'web')?.skillNames).toEqual(['delete-me'])
   })
 
   it('deletes and restores a flat skill file', async () => {
@@ -932,8 +928,6 @@ describe('skill-hub routes', () => {
         'skills/code-review/SKILL.md': 60,
         'skills/code-review/helper.py': 20,
       })
-      // 导入的技能自动归入默认场景「通用」，场景 tab 里可见。
-      expect((await store.getDefaultTag())?.skillNames).toEqual(['code-review'])
     } finally {
       vi.unstubAllGlobals()
     }
@@ -1059,75 +1053,20 @@ describe('skill-hub routes', () => {
   })
 
   // -------------------------------------------------------------- groups
-  it('serves groups: user tags + system collections + origins', async () => {
-    const tag = await store.saveTag({ name: 'web' })
-    await store.setTagMembers(tag.id, ['demo-skill'])
+  it('serves groups: system collections + origins', async () => {
     await store.addSourceSkill('superpowers', 'skills', '', undefined, 'demo-skill')
     await store.addSourceSkill('anthropics/skills', 'skills', '', undefined, 'pdf')
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.groups).handler(fakeReq('GET', SKILL_HUB_API.groups), res as never)
     expect(res.status).toBe(200)
     const body = res.json() as import('./protocol.ts').GroupsResponse
-    expect(body.tags.filter((t) => t.default !== true)).toHaveLength(1)
-    expect(body.tags.find((t) => t.default !== true)).toMatchObject({ name: 'web', skillNames: ['demo-skill'] })
+    // 场景系统已移除：groups 只剩集合组与 origin 映射。
+    expect(body).not.toHaveProperty('tags')
     expect(body.collections).toEqual([
       { name: 'anthropics/skills', skillNames: ['pdf'] },
       { name: 'superpowers', skillNames: ['demo-skill'] },
     ])
     expect(body.origins).toEqual({ 'demo-skill': 'superpowers', pdf: 'anthropics/skills' })
-  })
-
-  // ---------------------------------------------------------- tag
-  it('creates and renames a tag', async () => {
-    const created = new FakeResponse()
-    await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { name: 'web' }), created as never)
-    expect(created.status).toBe(200)
-    const createdBody = created.json() as import('./protocol.ts').TagSaveResponse
-    // 响应里含默认场景「通用」，新建的排在它后面。
-    const createdTag = createdBody.tags.find((t) => t.default !== true)
-    expect(createdTag).toMatchObject({ name: 'web' })
-    const id = createdTag!.id
-    const renamed = new FakeResponse()
-    await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { id, name: 'frontend' }), renamed as never)
-    expect(renamed.status).toBe(200)
-    const renamedBody = renamed.json() as import('./protocol.ts').TagSaveResponse
-    expect(renamedBody.tags.find((t) => t.id === id)).toMatchObject({ id, name: 'frontend' })
-    const empty = new FakeResponse()
-    await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { name: '  ' }), empty as never)
-    expect(empty.status).toBe(400)
-  })
-
-  it('reports a 404 when renaming a tag that does not exist', async () => {
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { id: 'no-such-id', name: 'x' }), res as never)
-    expect(res.status).toBe(404)
-  })
-
-  it('deletes a tag', async () => {
-    const created = new FakeResponse()
-    await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { name: 'tmp' }), created as never)
-    const createdBody = created.json() as import('./protocol.ts').TagSaveResponse
-    const id = createdBody.tags.find((t) => t.default !== true)!.id
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.tagDelete).handler(fakeReq('POST', SKILL_HUB_API.tagDelete, { id }), res as never)
-    expect(res.status).toBe(200)
-    // 默认场景「通用」不可删，删普通 tag 后只剩它。
-    const after = (res.json() as import('./protocol.ts').TagDeleteResponse).tags
-    expect(after.filter((t) => t.default !== true)).toEqual([])
-    expect(after.some((t) => t.default === true)).toBe(true)
-  })
-
-  it('sets tag members and drops names absent from the catalog', async () => {
-    skills.snapshot = async () => ({ skills: [summary()], complete: true })
-    const created = new FakeResponse()
-    await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { name: 'web' }), created as never)
-    const createdBody = created.json() as import('./protocol.ts').TagSaveResponse
-    const id = createdBody.tags.find((t) => t.default !== true)!.id
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.tagMembers).handler(fakeReq('POST', SKILL_HUB_API.tagMembers, { id, skillNames: ['demo-skill', 'ghost-skill'] }), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as import('./protocol.ts').TagMembersResponse
-    expect(body.tags.find((t) => t.id === id)?.skillNames).toEqual(['demo-skill'])
   })
 
   // ------------------------------------------------------------- sources
@@ -1328,14 +1267,11 @@ describe('skill-hub routes', () => {
   })
 
   it('deletes a stale disabled record instead of failing on the missing file', async () => {
-    const tag = await store.saveTag({ name: 'scene-x' })
-    await store.setTagMembers(tag.id, ['ghost'])
     await store.addDisabled({ name: 'ghost', description: 'x', path: join(home, 'skills', 'ghost', 'SKILL.md.disabled'), root: 'user-dsh', disabledAt: 1 })
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'ghost' }), res as never)
     expect(res.status).toBe(200)
     expect(await store.getDisabled('ghost')).toBeUndefined()
-    expect((await store.getTag(tag.id))?.skillNames).toEqual([])
   })
 
   it('flags two discovery forms occupying the same skill name in one root', async () => {

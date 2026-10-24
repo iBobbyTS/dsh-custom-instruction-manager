@@ -18,8 +18,8 @@ export interface FlowNotices {
   clearFail: () => void
   /** 成功条幅（null = 清掉）。 */
   succeed: (message: string | null) => void
-  /** tag 域忙碌开关（多域共用）。 */
-  setTagBusy: (busy: boolean) => void
+  /** 列表级忙碌开关（分组/市场/技能行共用）。 */
+  setListBusy: (busy: boolean) => void
   /** 整组操作忙碌开关（toggle-batch 与全部更新共用）。 */
   setBatchBusy: (busy: boolean) => void
 }

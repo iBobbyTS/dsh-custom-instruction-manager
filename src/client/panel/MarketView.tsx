@@ -17,7 +17,7 @@ import css from './panel.module.css'
 
 export function MarketView(props: { hub: SkillHubState }): JSX.Element {
   const { hub } = props
-  const { marketState, sourceCheck, scanningRepo, newSourceName, setNewSourceName, tagBusy, addSource, addMarketSource, checkMarket, checkSources, updateAllDialog, setUpdateAllDialog, updateAll } = hub
+  const { marketState, sourceCheck, scanningRepo, newSourceName, setNewSourceName, listBusy, addSource, addMarketSource, checkMarket, checkSources, updateAllDialog, setUpdateAllDialog, updateAll } = hub
   /** 有可更新技能的来源（全部更新按钮与确认列表共用）。 */
   const updatableRepos = Object.entries(sourceCheck).filter(([, check]) => check.changed && check.updated.length > 0)
 
@@ -34,7 +34,7 @@ export function MarketView(props: { hub: SkillHubState }): JSX.Element {
     if (record !== undefined) {
       rows.push({ key: entry.repo, element: <MarketSourceRow hub={hub} record={record} /> })
     } else {
-      const busy = scanningRepo !== null || tagBusy
+      const busy = scanningRepo !== null || listBusy
       rows.push({
         key: entry.repo,
         element: (
@@ -66,7 +66,7 @@ export function MarketView(props: { hub: SkillHubState }): JSX.Element {
           <button
             type='button'
             className={css.opBtn + (updatableRepos.length > 0 ? ' ' + css.opDanger : '')}
-            disabled={updatableRepos.length === 0 || tagBusy}
+            disabled={updatableRepos.length === 0 || listBusy}
             onClick={() => { setUpdateAllDialog(true) }}
           >{tt('market.updateAll')}</button>
         </div>

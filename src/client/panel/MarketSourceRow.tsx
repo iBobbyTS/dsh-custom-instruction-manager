@@ -13,7 +13,7 @@ import css from './panel.module.css'
 
 export function MarketSourceRow(props: { hub: SkillHubState; record: MarketSourceRecord }): JSX.Element {
   const { hub, record } = props
-  const { marketCheck, sourceCheck, sourcesState, scanningRepo, syncingMarket, checkingSource, tagBusy, checkSources, checkMarket, syncMarketSource, scanRepo, removeMarketSource } = hub
+  const { marketCheck, sourceCheck, sourcesState, scanningRepo, syncingMarket, checkingSource, listBusy, checkSources, checkMarket, syncMarketSource, scanRepo, removeMarketSource } = hub
   const releaseCheck = marketCheck[record.repo]
   const skillCheck = sourceCheck[record.repo]
   const installedCount = sourcesState?.sources.find((source) => source.repo === record.repo)?.skills.length ?? 0
@@ -97,7 +97,7 @@ export function MarketSourceRow(props: { hub: SkillHubState; record: MarketSourc
       <button
         type='button'
         className={css.opBtn}
-        disabled={tagBusy}
+        disabled={listBusy}
         title={tt('market.removeHint')}
         aria-label={tt('market.deleteSource')}
         onClick={() => { void removeMarketSource(record.repo) }}

@@ -33,16 +33,16 @@ https://github.com/iBobbyTS/dsh-skill-hub.git
 
 ## 功能
 
-**侧边栏 → 其他插件 → Skill** — 3 个 tab：**来源**（技能，平铺/分组+项目树，其中「个人」卡片按技能提供者二级分类）、**场景**（自定义分组）、**市场**（安装与更新）。
+**侧边栏 → 其他插件 → Skill** — 2 个 tab：**来源**（技能，平铺/分组+项目树，其中「个人」卡片按技能提供者二级分类）、**市场**（安装与更新）。
 
 - **浏览** — `ctx.skills` 注册表全量：项目/用户/内置+第三方。按名称、描述、`displayName` 搜索；按来源、按调用方式（模型/用户）筛选；按名称/添加时间/调用次数排序。不同来源的同名技能挂重名徽标，不再静默隐藏。
 - **开关** — 单技能开关 + 整组三态开关，跨组冲突弹窗（全部关闭/保留开启）。禁用只重命名发现文件（不删除）；禁用的技能仍可查看正文、可一键重新启用。仅 `~/.dsh/skills` 与 `~/.agents/skills` 可写，其余只读。
 - **调用方式** — 详情页两个 checkbox 直接改写 `SKILL.md` 的 `disable-model-invocation` / `user-invocable`（缺键即默认允许，写回默认值会把键删掉）。用户根与项目根可写；内置/插件 provider 注册的技能没有文件，置灰只读。
-- **整理** — 场景（tag）+ 自动聚合的来源集合，全部可拖拽排序并持久化到 `~/.dsh/dsh-skill-hub.json`。编辑模式收敛删除/排序控件，阅读视图保持干净。
+- **整理** — 自动聚合的来源集合，可拖拽排序并持久化到 `~/.dsh/dsh-skill-hub.json`。编辑模式收敛删除/排序控件，阅读视图保持干净。
 - **诊断与修复** — provider 跳过的文件给出原因（缺 frontmatter、YAML 非法、名称不一致、描述过短）；可自动修复的（如描述里未加引号的 `:`）一键 Fix 落盘。
 - **新建** — 新技能向导，写入 `~/.dsh/skills` 或 `~/.agents/skills`（`SKILL.md` 模板见下）。
 - **市场** — 内置精选仓库 + 自定义 `owner/repo`。任何含 `SKILL.md` 的顶层目录都可扫描（无白名单）；`SKILL.md` 直接放在仓库根时，整个仓库算一个技能，技能名取仓库名（`.github/` 等仓库基建不计入）。异步导入，字节级进度+取消。每个源钉一个版本 —— 点 ref 徽标可在发布版/分支/手输之间切换。
-- **跟踪更新** — 导入的技能记录 repo+commit 快照。检查全部/一键全更；每源徽章（已装/可更新/上游已删/新版本）。同步覆盖本地修改（先确认）；上游删除跟进移入回收站，恢复保留来源与场景归属。
+- **跟踪更新** — 导入的技能记录 repo+commit 快照。检查全部/一键全更；每源徽章（已装/可更新/上游已删/新版本）。同步覆盖本地修改（先确认）；上游删除跟进移入回收站，恢复保留来源归属。
 - **统计** — 会话日志的调用次数+最近使用，分组头汇总；窗口与扫描间隔在设置卡片实时可调。
 - **设置卡片** — 注册在 **插件管理页** 的插件自有页面上（侧边栏「插件」→ dsh-skill-hub，默认折叠，点标题展开）：总开关、向 Agent 公告、调用圆点颜色、用量显示开关、统计窗口/间隔。
 
@@ -89,15 +89,14 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 | --- | --- | --- |
 | `/api/skill-hub/catalog?cwd=` | GET | 技能+禁用+诊断+重名 |
 | `/api/skill-hub/skill?name=&cwd=` | GET | 技能正文（禁用的也可） |
-| `/api/skill-hub/skill/delete` | POST | 移入回收站（快照来源+场景） |
+| `/api/skill-hub/skill/delete` | POST | 移入回收站（快照来源） |
 | `/api/skill-hub/toggle` | POST | `{name, enabled}` |
 | `/api/skill-hub/toggle-batch` | POST | `{names, enabled}` |
 | `/api/skill-hub/create` | POST | `{name, description?, root?}` |
 | `/api/skill-hub/diagnostic/fix` | POST | `{path}` 自动修 frontmatter |
 | `/api/skill-hub/stats` | GET | 调用次数 |
 | `/api/skill-hub/config` | GET/POST | 运行时配置（`null` 清除） |
-| `/api/skill-hub/groups` | GET | tags+集合+排序 |
-| `/api/skill-hub/tag` 等 | POST | 新建/重命名、删除、设成员、排序 |
+| `/api/skill-hub/groups` | GET | 集合+排序 |
 | `/api/skill-hub/market` 等 | GET/POST | 市场源 列表/添加/删除/钉 ref；`…/source/check` + `…/source/sync` 检查与同步 |
 | `/api/skill-hub/market/source/versions?repo=` | GET | 版本选择器的 releases+branches |
 | `/api/skill-hub/repo?repo=` | GET | 发现（任意根） |
@@ -112,7 +111,7 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 295 tests, 16 suites
+npm test           # 306 tests, 16 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 

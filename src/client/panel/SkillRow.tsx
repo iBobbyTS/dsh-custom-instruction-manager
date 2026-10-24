@@ -21,8 +21,8 @@ export interface SkillRowProps {
   busyNames: ReadonlySet<string>
   /** Whether the edit affordances (delete) are shown. */
   editMode: boolean
-  /** True while a tag operation runs (also blocks row deletes). */
-  tagBusy: boolean
+  /** True while a list operation runs (also blocks row deletes). */
+  listBusy: boolean
   /** Names that collide with another skill (duplicate badge). */
   duplicateNames: ReadonlySet<string>
   toggle: (skill: CatalogSkill, enabled: boolean) => Promise<void>
@@ -31,7 +31,7 @@ export interface SkillRowProps {
 }
 
 export function SkillRow(props: SkillRowProps): JSX.Element {
-  const { skill, uses, hubConfig, busyNames, editMode, tagBusy, duplicateNames, toggle, openDetail, requestDeleteSkill } = props
+  const { skill, uses, hubConfig, busyNames, editMode, listBusy, duplicateNames, toggle, openDetail, requestDeleteSkill } = props
   const stat = uses.get(skill.name)
   const count = stat?.count ?? 0
   const lastUsed = stat?.lastUsed
@@ -84,7 +84,7 @@ export function SkillRow(props: SkillRowProps): JSX.Element {
             {editMode ? <button
               type='button'
               className={css.opBtn + ' ' + css.opDanger + ' ' + css.iconBtn}
-              disabled={busyNames.has(skill.name) || tagBusy}
+              disabled={busyNames.has(skill.name) || listBusy}
               title={tt('row.delete')}
               aria-label={tt('row.delete')}
               onClick={(event) => { event.stopPropagation(); requestDeleteSkill(skill.name) }}

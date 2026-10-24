@@ -28,9 +28,9 @@ export function buildCollections(origins: Readonly<Record<string, string>>, coll
     })
 }
 
-/** 系统集合组 + 用户 tag + origin 映射（groups 路由的数据源）。 */
+/** 系统集合组 + origin 映射（groups 路由的数据源）。 */
 export async function buildGroups(deps: SkillHubRouteDeps): Promise<GroupsResponse> {
-  const [tags, origins, collectionOrder, sourceGroupOrder] = await Promise.all([deps.store.listTags(), deps.store.listOrigins(), deps.store.getCollectionOrder(), deps.store.getSourceGroupOrder()])
+  const [origins, collectionOrder, sourceGroupOrder] = await Promise.all([deps.store.listOrigins(), deps.store.getCollectionOrder(), deps.store.getSourceGroupOrder()])
   const collections = buildCollections(origins, collectionOrder)
-  return { ok: true, tags, collections, origins, ...(sourceGroupOrder.length > 0 ? { sourceGroupOrder } : {}), ...(collectionOrder.length > 0 ? { collectionOrder } : {}) }
+  return { ok: true, collections, origins, ...(sourceGroupOrder.length > 0 ? { sourceGroupOrder } : {}), ...(collectionOrder.length > 0 ? { collectionOrder } : {}) }
 }

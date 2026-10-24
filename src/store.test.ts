@@ -21,10 +21,8 @@ describe('SkillHubStore', () => {
 
   it('starts empty when no state file exists', async () => {
     expect(await store.listDisabled()).toEqual([])
-    // 空 store 自动拥有默认场景「通用」。
-    const tags = await store.listTags()
-    expect(tags).toHaveLength(1)
-    expect(tags[0]).toMatchObject({ name: '通用', default: true })
+    expect(await store.listTrash()).toEqual([])
+    expect(await store.listSources()).toEqual([])
   })
 
   it('persists disabled entries and reloads them', async () => {
@@ -48,64 +46,6 @@ describe('SkillHubStore', () => {
     await store.addDisabled({ name: 'x', description: '', path: '/tmp/x.md.disabled', root: 'user-agents', disabledAt: 2 })
     const raw = JSON.parse(await readFile(file, 'utf8')) as { disabled: unknown[] }
     expect(raw.disabled).toHaveLength(1)
-  })
-
-  // ------------------------------------------------------- tag 分组
-  it('persists tag groups and reloads them', async () => {
-    const tag = await store.saveTag({ name: 'web' })
-    expect(tag.id).toBeTruthy()
-    expect(tag.skillNames).toEqual([])
-    await store.setTagMembers(tag.id, ['a', 'b', 'b', ''])
-    const reloaded = new SkillHubStore(file)
-    const tags = await reloaded.listTags()
-    // 默认场景「通用」始终存在。
-    expect(tags.some((t) => t.default === true)).toBe(true)
-    const saved = tags.find((t) => t.id === tag.id)
-    expect(saved).toMatchObject({ id: tag.id, name: 'web' })
-    // 成员去重 + 去空
-    expect(saved?.skillNames).toEqual(['a', 'b'])
-  })
-
-  it('renames a tag keeping its members', async () => {
-    const tag = await store.saveTag({ name: 'old' })
-    await store.setTagMembers(tag.id, ['x'])
-    const renamed = await store.saveTag({ id: tag.id, name: 'new' })
-    expect(renamed.name).toBe('new')
-    expect(renamed.skillNames).toEqual(['x'])
-  })
-
-  it('deletes a tag and rejects empty names, and refuses to delete the default scene', async () => {
-    const tag = await store.saveTag({ name: 'tmp' })
-    await store.deleteTag(tag.id)
-    const after = await store.listTags()
-    expect(after.find((t) => t.id === tag.id)).toBeUndefined()
-    // 默认场景不可删除。
-    const def = await store.getDefaultTag()
-    expect(def).toBeDefined()
-    await expect(store.deleteTag(def!.id)).rejects.toThrow(/default scene/)
-    await expect(store.saveTag({ name: '  ' })).rejects.toThrow()
-  })
-
-  it('adds a skill to a tag (deduplicated) and persists the default scene', async () => {
-    const def = await store.getDefaultTag()
-    expect(def).toBeDefined()
-    await store.addSkillToTag(def!.id, 'a')
-    await store.addSkillToTag(def!.id, 'a')
-    const tags = await new SkillHubStore(file).listTags()
-    expect(tags.find((t) => t.default === true)?.skillNames).toEqual(['a'])
-  })
-
-  it('removes one skill from every tag group', async () => {
-    const first = await store.saveTag({ name: 'web' })
-    const second = await store.saveTag({ name: 'cli' })
-    await store.setTagMembers(first.id, ['a', 'b'])
-    await store.setTagMembers(second.id, ['a'])
-    await store.removeSkillFromTags('a')
-    const tags = await store.listTags()
-    expect(tags.find((tag) => tag.id === first.id)?.skillNames).toEqual(['b'])
-    expect(tags.find((tag) => tag.id === second.id)?.skillNames).toEqual([])
-    const reloaded = new SkillHubStore(file)
-    expect((await reloaded.listTags()).find((tag) => tag.id === first.id)?.skillNames).toEqual(['b'])
   })
 
   // ------------------------------------------------------- 来源记录
@@ -259,20 +199,39 @@ describe('SkillHubStore', () => {
     expect(await reloaded.getTrash('flat-gone')).toMatchObject({ name: 'flat-gone', sourcePath: '/tmp/skills/flat-gone.md' })
   })
 
-  it('persists the trash origin snapshot and scene ids (restore keeps grouping)', async () => {
+  it('persists the trash origin snapshot (restore keeps the source)', async () => {
     await store.addTrash({
       name: 'tracked-gone',
       path: '/tmp/.trash/tracked-gone-1',
       movedAt: 5,
       origin: { repo: 'repo/x', root: 'skills', ref: 'v1.0.0', commitSha: 'abc123' },
-      tagIds: ['tag-1', 'tag-2'],
     })
     const reloaded = new SkillHubStore(file)
     expect(await reloaded.getTrash('tracked-gone')).toMatchObject({
       name: 'tracked-gone',
       origin: { repo: 'repo/x', root: 'skills', ref: 'v1.0.0', commitSha: 'abc123' },
-      tagIds: ['tag-1', 'tag-2'],
     })
+  })
+
+  it('migrates a v4 file to v5 on load, dropping scenes and trash tagIds', async () => {
+    await writeFile(file, JSON.stringify({
+      version: 4,
+      disabled: [{ name: 'kept', description: 'x', path: '/tmp/kept/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1 }],
+      tags: [
+        { id: 't1', name: '通用', skillNames: ['kept'], default: true },
+        { id: 't2', name: 'web', skillNames: ['kept'] },
+      ],
+      trash: [{ name: 'gone', path: '/tmp/trash/gone-1', movedAt: 3, tagIds: ['t1', 't2'], origin: { repo: 'repo/x', root: 'skills', commitSha: 'sha' } }],
+    }), 'utf8')
+    // 装载即迁移：读取任一状态都会把旧文件按 v5 重写到磁盘。
+    expect(await store.listDisabled()).toHaveLength(1)
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; tags?: unknown; trash?: Array<Record<string, unknown>> }
+    expect(raw.version).toBe(5)
+    expect(raw.tags).toBeUndefined()
+    expect(raw.trash?.[0]).not.toHaveProperty('tagIds')
+    // 丢弃的只有场景数据：禁用记录与回收站来源快照都保留。
+    expect(await store.listDisabled()).toMatchObject([{ name: 'kept' }])
+    expect((await store.getTrash('gone'))?.origin).toMatchObject({ repo: 'repo/x', commitSha: 'sha' })
   })
 
   // ------------------------------------------------------- 显示配置
@@ -341,12 +300,11 @@ describe('SkillHubStore', () => {
     expect(entry?.origin).toMatchObject({ repo: 'blader/humanizer', root: '' })
   })
 
-  it('migrates a v3 file (no skillStats) and persists a checkpoint round-trip at v4', async () => {
+  it('migrates a v3 file (no skillStats) and persists a checkpoint round-trip at the current version', async () => {
     // v3 旧文件：无 skillStats 字段 → 装载后检查点为空，写盘时版本升到当前。
     await writeFile(file, JSON.stringify({
       version: 3,
       disabled: [],
-      tags: [{ id: 't1', name: '通用', skillNames: [], default: true }],
     }), 'utf8')
     expect(await store.getSkillStatsState()).toBeUndefined()
     const checkpoint = {
@@ -360,7 +318,7 @@ describe('SkillHubStore', () => {
     const reloaded = new SkillHubStore(file)
     expect(await reloaded.getSkillStatsState()).toEqual(checkpoint)
     const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; skillStats?: unknown }
-    expect(raw.version).toBe(4)
+    expect(raw.version).toBe(5)
     expect(raw.skillStats).toEqual(checkpoint)
   })
 

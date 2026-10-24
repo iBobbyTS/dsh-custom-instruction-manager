@@ -36,8 +36,6 @@ export interface TrashEntry {
     ref?: string
     commitSha: string
   }
-  /** 移入回收站前所属的场景（tag）ID；恢复时重新加回这些场景。 */
-  tagIds?: string[]
 }
 
 /** GET /api/skill-hub/sources */

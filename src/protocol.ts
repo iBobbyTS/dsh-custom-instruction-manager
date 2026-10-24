@@ -59,17 +59,8 @@ export type {
   UpdateCheckResponse,
 } from './protocol/repo.ts'
 export type {
-  SkillTag,
   CollectionGroup,
   GroupsResponse,
-  TagSaveRequest,
-  TagSaveResponse,
-  TagDeleteRequest,
-  TagDeleteResponse,
-  TagMembersRequest,
-  TagMembersResponse,
-  TagReorderRequest,
-  TagReorderResponse,
   CollectionReorderRequest,
   CollectionReorderResponse,
   SourceGroupReorderRequest,

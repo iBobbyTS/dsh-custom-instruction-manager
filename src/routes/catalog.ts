@@ -189,7 +189,7 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
       },
     },
     // -------------------------------------------------------- skill/delete
-    // 把单个技能（目录或平面文件）移入回收站（可恢复），并清理禁用记录、tag 成员与来源映射。
+    // 把单个技能（目录或平面文件）移入回收站（可恢复），并清理禁用记录与来源映射。
     {
       path: SKILL_HUB_API.skillDelete,
       methods: ['POST'],
@@ -214,7 +214,6 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           // 只是残留，清掉即算删除完成，否则它会永久占住这个名字。
           if (!await pathExists(disabled.path)) {
             await deps.store.removeDisabled(name)
-            await deps.store.removeSkillFromTags(name)
             deps.invalidate?.()
             writeJson(res, 200, { ok: true, name, path: disabled.path } satisfies SkillDeleteResponse)
             return
@@ -226,10 +225,9 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             writeError(res, resolved.status, resolved.error); return
           }
         }
-        // 入回收站前快照来源归属与场景成员：恢复时把它们加回来，否则恢复
-        // 后的技能会丢失来源（变成「个人技能」）和场景分组。
+        // 入回收站前快照来源归属：恢复时挂回去，否则恢复后的技能会丢失来源
+        // （变成「个人技能」）。
         const tracked = await deps.store.getSourceForSkill(name)
-        const tagIds = (await deps.store.listTags()).filter((tag) => tag.skillNames.includes(name)).map((tag) => tag.id)
         const { path, source } = trashResult ?? await trashSkill((resolved as { ok: true; path: string }).path)
         await deps.store.addTrash({
           name,
@@ -239,11 +237,9 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           ...(tracked !== undefined
             ? { origin: { repo: tracked.repo, root: tracked.root, ...(tracked.ref !== undefined && tracked.ref !== '' ? { ref: tracked.ref } : {}), commitSha: tracked.commitSha } }
             : {}),
-          ...(tagIds.length > 0 ? { tagIds } : {}),
         })
         await deps.store.removeDisabled(name)
         await deps.store.removeSkillFromSources(name)
-        await deps.store.removeSkillFromTags(name)
         deps.invalidate?.()
         writeJson(res, 200, { ok: true, name, path } satisfies SkillDeleteResponse)
       },
@@ -368,9 +364,6 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           return
         }
         const path = await createSkill(root, name, readString(body, 'description'), homeOf(deps))
-        // 新技能自动归入默认场景（「通用」）。
-        const defaultTag = await deps.store.getDefaultTag()
-        if (defaultTag !== undefined) await deps.store.addSkillToTag(defaultTag.id, name)
         deps.invalidate?.()
         writeJson(res, 201, { ok: true, path, root } satisfies CreateResponse)
       },

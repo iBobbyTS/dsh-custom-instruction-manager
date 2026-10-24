@@ -6,14 +6,14 @@
  */
 
 import { useEffect, useState, type JSX, type ReactNode } from 'react'
-import type { CollectionGroup, SkillTag } from '../../protocol.ts'
+import type { CollectionGroup } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import { groupNamesOf } from '../grouping.ts'
 import css from './panel.module.css'
 
 /** A group-close conflict waiting for the user's decision. */
 export interface ConflictDialogState {
-  /** Group key: 'tag:<id>' or 'col:<name>'. */
+  /** Group key: 'col:<name>'. */
   key: string
   name: string
   /** Conflicting skill names (enabled here and in other groups). */
@@ -107,13 +107,12 @@ export function ConfirmDialog(props: {
 /** Group-close conflict: which skills stay on, and which other groups also enable them. */
 export function ConflictDialog(props: {
   dialog: ConflictDialogState
-  tags: readonly SkillTag[]
   collections: readonly CollectionGroup[]
   onClose: () => void
   onKeepOn: () => void
   onCloseAll: () => void
 }): JSX.Element {
-  const { dialog, tags, collections, onClose, onKeepOn, onCloseAll } = props
+  const { dialog, collections, onClose, onKeepOn, onCloseAll } = props
   return (
     <DialogShell onClose={onClose}>
       <h3 className={css.dialogTitle}>{tt('groups.conflictTitle')}</h3>
@@ -122,7 +121,7 @@ export function ConflictDialog(props: {
         {dialog.conflicts.map((name) => (
           <li key={name}>
             <span className={css.rowNameText}>{name}</span>
-            {' — ' + groupNamesOf(name, [...tags], [...collections]).join(', ')}
+            {' — ' + groupNamesOf(name, [...collections]).join(', ')}
           </li>
         ))}
       </ul>

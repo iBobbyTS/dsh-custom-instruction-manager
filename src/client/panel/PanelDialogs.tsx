@@ -6,7 +6,7 @@
  */
 
 import type { JSX } from 'react'
-import type { CollectionGroup, SkillTag } from '../../protocol.ts'
+import type { CollectionGroup } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import { BranchChoiceDialog, ConfirmDialog, ConflictDialog, MarketSyncDialog, VersionChoiceDialog } from './dialogs.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
@@ -14,7 +14,6 @@ import type { SkillHubState } from './useSkillHub.ts'
 export interface PanelDialogsProps {
   /** 分组开关冲突（groupsState 未加载时传空数组）。 */
   conflictDialog: SkillHubState['conflictDialog']
-  tags: readonly SkillTag[]
   collections: readonly CollectionGroup[]
   setConflictDialog: SkillHubState['setConflictDialog']
   resolveConflict: SkillHubState['resolveConflict']
@@ -53,7 +52,7 @@ export interface PanelDialogsProps {
 
 export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
   const {
-    conflictDialog, tags, collections, setConflictDialog, resolveConflict,
+    conflictDialog, collections, setConflictDialog, resolveConflict,
     confirmDialog, setConfirmDialog, runConfirmed,
     branchChoice, branchBusy, setBranchChoice, confirmBranchChoice,
     versionDialog, versionBusy, setVersionDialog, confirmVersionDialog,
@@ -67,7 +66,6 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
       {conflictDialog !== null ? (
         <ConflictDialog
           dialog={conflictDialog}
-          tags={tags}
           collections={collections}
           onClose={() => { setConflictDialog(null) }}
           onKeepOn={() => { void resolveConflict(false) }}

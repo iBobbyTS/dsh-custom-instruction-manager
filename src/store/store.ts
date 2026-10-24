@@ -1,16 +1,15 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
 import { skillDirPrefix } from '../repo/discovery.ts'
 import { StoreError } from './errors.ts'
 import { hydrateMigratedState, migrateStore } from './migrate.ts'
-import { DEFAULT_SCENE_NAME, STORE_VERSION, statePath, type StoreFile } from './paths.ts'
+import { STORE_VERSION, statePath, type StoreFile } from './paths.ts'
 
 /** Sidecar state owner. */
 export class SkillHubStore {
   private entries = new Map<string, DisabledSkill>()
   private config: Partial<HubConfig> = {}
-  private tagsById = new Map<string, SkillTag>()
   private sourcesByRepo = new Map<string, SourceRecord>()
   private marketSources: MarketSourceRecord[] = []
   private trashByPath = new Map<string, TrashEntry>()
@@ -31,6 +30,7 @@ export class SkillHubStore {
     try {
       const raw = await readFile(this.file, 'utf8')
       const parsed: unknown = JSON.parse(raw)
+      const fileVersion = typeof (parsed as { version?: unknown }).version === 'number' ? (parsed as { version: number }).version : 0
       const migrated = migrateStore(parsed)
       if (migrated === null) {
         console.warn('[dsh-skill-hub] sidecar state uses a newer schema than this plugin supports; starting empty')
@@ -38,7 +38,6 @@ export class SkillHubStore {
         const state = hydrateMigratedState(migrated)
         this.entries = state.entries
         this.config = state.config
-        this.tagsById = state.tagsById
         this.sourcesByRepo = state.sourcesByRepo
         this.marketSources = state.marketSources
         this.trashByPath = state.trashByPath
@@ -46,6 +45,10 @@ export class SkillHubStore {
         this.marketStats = state.marketStats
         this.collectionOrder = state.collectionOrder
         this.sourceGroupOrder = state.sourceGroupOrder
+        // A file from an older schema is rewritten at the current version once
+        // on load, so a dropped field (v4 scenes / trash tagIds) really leaves
+        // the disk instead of lingering until the next unrelated mutation.
+        if (fileVersion < STORE_VERSION) await this.persist()
       }
     } catch (error) {
       // Missing or unreadable state starts empty; never crash the plugin.
@@ -54,18 +57,6 @@ export class SkillHubStore {
         console.warn('[dsh-skill-hub] sidecar state unreadable, starting empty:', error instanceof Error ? error.message : error)
       }
     }
-    await this.ensureDefaultTag()
-  }
-
-  /**
-   * 保证存在默认场景：没有任何 default 标记的 tag 时创建「通用」。
-   * 新技能创建后自动归入它；用户可改名，但默认场景不可删除。
-   */
-  private async ensureDefaultTag(): Promise<void> {
-    if ([...this.tagsById.values()].some((tag) => tag.default === true)) return
-    const tag: SkillTag = { id: crypto.randomUUID(), name: DEFAULT_SCENE_NAME, skillNames: [], default: true }
-    this.tagsById.set(tag.id, tag)
-    await this.persist()
   }
 
   async listDisabled(): Promise<DisabledSkill[]> {
@@ -110,112 +101,6 @@ export class SkillHubStore {
     }
     this.config = next
     await this.persist()
-  }
-
-  /** All user-defined tag groups, in creation order. */
-  async listTags(): Promise<SkillTag[]> {
-    await this.ensureLoaded()
-    return [...this.tagsById.values()]
-  }
-
-  /** One tag by id (undefined when absent). */
-  async getTag(id: string): Promise<SkillTag | undefined> {
-    await this.ensureLoaded()
-    return this.tagsById.get(id)
-  }
-
-  /**
-   * Create (no id) or rename (with id) a tag. Returns the saved tag.
-   * Creating assigns a fresh UUID; renaming keeps members.
-   */
-  async saveTag(input: { id?: string; name: string }): Promise<SkillTag> {
-    await this.ensureLoaded()
-    const name = input.name.trim()
-    if (name === '') throw new StoreError('validation', 'tag name must not be empty')
-    let tag: SkillTag
-    if (input.id !== undefined) {
-      const existing = this.tagsById.get(input.id)
-      if (existing === undefined) throw new StoreError('not-found', 'tag not found: ' + input.id)
-      tag = { ...existing, name }
-    } else {
-      tag = { id: crypto.randomUUID(), name, skillNames: [] }
-    }
-    this.tagsById.set(tag.id, tag)
-    await this.persist()
-    return tag
-  }
-
-  /** Delete a tag by id (no-op when absent). The default scene cannot be deleted. */
-  async deleteTag(id: string): Promise<void> {
-    await this.ensureLoaded()
-    const tag = this.tagsById.get(id)
-    if (tag?.default === true) throw new StoreError('conflict', 'the default scene cannot be deleted')
-    if (!this.tagsById.delete(id)) return
-    await this.persist()
-  }
-
-  /** The default scene (「通用」), guaranteed to exist after ensureLoaded. */
-  async getDefaultTag(): Promise<SkillTag | undefined> {
-    await this.ensureLoaded()
-    return [...this.tagsById.values()].find((tag) => tag.default === true)
-  }
-
-  /** Append one skill name to a tag (deduplicated; no-op when already a member). */
-  async addSkillToTag(id: string, name: string): Promise<SkillTag | undefined> {
-    await this.ensureLoaded()
-    const existing = this.tagsById.get(id)
-    if (existing === undefined || name.trim() === '' || existing.skillNames.includes(name)) return existing
-    const tag: SkillTag = { ...existing, skillNames: [...existing.skillNames, name] }
-    this.tagsById.set(id, tag)
-    await this.persist()
-    return tag
-  }
-
-  /**
-   * Replace a tag's member list wholesale (idempotent). Deduplicates and
-   * drops blank names; unknown skill names are kept (they may arrive later),
-   * the routes layer filters against the live catalog before persisting.
-   */
-  async setTagMembers(id: string, skillNames: readonly string[]): Promise<SkillTag | undefined> {
-    await this.ensureLoaded()
-    const existing = this.tagsById.get(id)
-    if (existing === undefined) return undefined
-    const names = [...new Set(skillNames.filter((n) => n.trim() !== ''))]
-    const tag: SkillTag = { ...existing, skillNames: names }
-    this.tagsById.set(id, tag)
-    await this.persist()
-    return tag
-  }
-
-  /** Remove one skill from every tag group (used when the skill is deleted). */
-  async removeSkillFromTags(name: string): Promise<void> {
-    await this.ensureLoaded()
-    let changed = false
-    for (const tag of this.tagsById.values()) {
-      if (!tag.skillNames.includes(name)) continue
-      tag.skillNames = tag.skillNames.filter((n) => n !== name)
-      changed = true
-    }
-    if (changed) await this.persist()
-  }
-
-  /** Reorder tag groups by orderedIds (drag-and-drop). */
-  async reorderTags(orderedIds: string[]): Promise<SkillTag[]> {
-    await this.ensureLoaded()
-    const currentIds = [...this.tagsById.keys()]
-    if (orderedIds.length !== currentIds.length) throw new StoreError('validation', 'orderedIds length mismatch')
-    const seen = new Set<string>()
-    for (const id of orderedIds) {
-      if (typeof id !== 'string' || id === '') throw new StoreError('validation', 'invalid tag id')
-      if (seen.has(id)) throw new StoreError('validation', 'duplicate tag id: ' + id)
-      if (!this.tagsById.has(id)) throw new StoreError('not-found', 'tag not found: ' + id)
-      seen.add(id)
-    }
-    const newMap = new Map<string, SkillTag>()
-    for (const id of orderedIds) newMap.set(id, this.tagsById.get(id)!)
-    this.tagsById = newMap
-    await this.persist()
-    return [...this.tagsById.values()]
   }
 
   /** Collection order for 来源分组拖拽 */
@@ -543,7 +428,6 @@ export class SkillHubStore {
         version: STORE_VERSION,
         disabled: [...this.entries.values()],
         config: this.config,
-        ...(this.tagsById.size > 0 ? { tags: [...this.tagsById.values()] } : {}),
         ...(this.sourcesByRepo.size > 0 ? { sources: [...this.sourcesByRepo.values()] } : {}),
         ...(this.marketSources.length > 0 ? { marketSources: [...this.marketSources] } : {}),
         ...(this.trashByPath.size > 0 ? { trash: [...this.trashByPath.values()] } : {}),

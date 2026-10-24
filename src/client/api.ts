@@ -31,7 +31,6 @@ import {
   type SkillInvocationResponse,
   type SkillDeleteRequest,
   type SkillDeleteResponse,
-  type SkillTag,
   type SourceCheckRequest,
   type SourceCheckResponse,
   type SourceDeleteRequest,
@@ -45,14 +44,6 @@ import {
   type SourceSyncRequest,
   type SourceSyncResponse,
   type StatsResponse,
-  type TagDeleteRequest,
-  type TagDeleteResponse,
-  type TagMembersRequest,
-  type TagMembersResponse,
-  type TagReorderRequest,
-  type TagReorderResponse,
-  type TagSaveRequest,
-  type TagSaveResponse,
   type ToggleBatchRequest,
   type ToggleBatchResponse,
   type ToggleRequest,
@@ -265,33 +256,9 @@ export class SkillHubApi {
     return this.get<ConfigResponse>(SKILL_HUB_API.config)
   }
 
-  /** 用户 tag 分组 + 系统集合组 + origin 映射。 */
+  /** 系统集合组 + origin 映射。 */
   groups(): Promise<GroupsResponse> {
     return this.get<GroupsResponse>(SKILL_HUB_API.groups)
-  }
-
-  /** 新建（无 id）或重命名（带 id）一个 tag 分组；返回全部 tag。 */
-  async saveTag(payload: TagSaveRequest): Promise<SkillTag[]> {
-    const body = await this.post<TagSaveResponse>(SKILL_HUB_API.tag, payload)
-    return body.tags
-  }
-
-  /** 删除一个 tag 分组；返回全部 tag。 */
-  async deleteTag(id: string): Promise<SkillTag[]> {
-    const body = await this.post<TagDeleteResponse>(SKILL_HUB_API.tagDelete, { id } satisfies TagDeleteRequest)
-    return body.tags
-  }
-
-  /** 直接设置某 tag 的完整成员列表；返回全部 tag。 */
-  async setTagMembers(id: string, skillNames: string[]): Promise<SkillTag[]> {
-    const body = await this.post<TagMembersResponse>(SKILL_HUB_API.tagMembers, { id, skillNames } satisfies TagMembersRequest)
-    return body.tags
-  }
-
-  /** 拖拽重排场景分组 */
-  async reorderTags(orderedIds: string[]): Promise<SkillTag[]> {
-    const body = await this.post<TagReorderResponse>(SKILL_HUB_API.tagReorder, { orderedIds } satisfies TagReorderRequest)
-    return body.tags
   }
 
   /** 拖拽重排来源顶层分组（project / collections / personal） */

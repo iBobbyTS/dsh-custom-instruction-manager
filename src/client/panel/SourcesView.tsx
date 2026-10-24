@@ -85,7 +85,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
     void hub.reorderSourceGroups(next)
   }
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
-  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, editMode: hub.editMode, tagBusy: hub.tagBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill }
+  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, editMode: hub.editMode, listBusy: hub.listBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill }
 
   if (skillView === 'flat') {
     return <>{sourceFiltered.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}</>

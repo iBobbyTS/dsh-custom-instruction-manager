@@ -33,16 +33,16 @@ Two surfaces — the hub panel opens from the **Skills** entry in the main sideb
 
 ## Features
 
-**Sidebar → Other Plugins → Skill** — 3 tabs: **Sources** (skills, flat/grouped + project tree, with the personal card split by skill provider), **Scenes** (custom tag groups), **Market** (install + update).
+**Sidebar → Other Plugins → Skill** — 2 tabs: **Sources** (skills, flat/grouped + project tree, with the personal card split by skill provider), **Market** (install + update).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding.
 - **Toggle** — per-skill switches and per-group tri-state switches with a conflict dialog (close all / keep on). Disabling renames the discovery file (never deletes); disabled skills stay inspectable and re-enableable from their detail page. Only `~/.dsh/skills` & `~/.agents/skills` are writable; everything else is read-only.
 - **Invocation** — two checkboxes on the skill detail page rewrite `SKILL.md`'s `disable-model-invocation` / `user-invocable` (absent key means allowed; writing a default back removes the key). User and project roots are writable; bundled or plugin-provided skills have no file, so theirs stay greyed out.
-- **Organize** — scenes (tags) plus auto-aggregated source collections, all drag-reorderable and persisted in `~/.dsh/dsh-skill-hub.json`. Edit mode reveals delete/reorder without cluttering the read view.
+- **Organize** — auto-aggregated source collections, drag-reorderable and persisted in `~/.dsh/dsh-skill-hub.json`. Edit mode reveals delete/reorder without cluttering the read view.
 - **Diagnose & fix** — files the provider skips (missing frontmatter, bad YAML, name mismatch, short description) show up with reasons; auto-fixable ones (e.g. unquoted `:` in descriptions) get a one-click Fix button.
 - **Scaffold** — new-skill wizard writing to `~/.dsh/skills` or `~/.agents/skills` (`SKILL.md` template below).
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist), and a `SKILL.md` at the repo root itself scans as a single skill named after the repo (minus repo tooling such as `.github/`). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
-- **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps source and scene membership.
+- **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps the source record.
 - **Stats** — per-skill call counts + last-used times from session logs (incremental cache), group summaries; window and scan interval live-configurable from the settings card.
 - **Settings card** — registered on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub; collapsed until you expand the title): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval.
 
@@ -89,15 +89,14 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 | --- | --- | --- |
 | `/api/skill-hub/catalog?cwd=` | GET | skills + disabled + diagnostics + duplicates |
 | `/api/skill-hub/skill?name=&cwd=` | GET | skill body (works for disabled too) |
-| `/api/skill-hub/skill/delete` | POST | move to trash (snapshots source+scenes) |
+| `/api/skill-hub/skill/delete` | POST | move to trash (snapshots its source) |
 | `/api/skill-hub/toggle` | POST | `{name, enabled}` |
 | `/api/skill-hub/toggle-batch` | POST | `{names, enabled}` |
 | `/api/skill-hub/create` | POST | `{name, description?, root?}` |
 | `/api/skill-hub/diagnostic/fix` | POST | `{path}` auto-fix frontmatter |
 | `/api/skill-hub/stats` | GET | invocation counts |
 | `/api/skill-hub/config` | GET/POST | runtime config (`null` clears) |
-| `/api/skill-hub/groups` | GET | tags + collections + orders |
-| `/api/skill-hub/tag` etc. | POST | create/rename, delete, set members, reorder |
+| `/api/skill-hub/groups` | GET | collections + orders |
 | `/api/skill-hub/market` etc. | GET/POST | list/add/delete/pin sources; `…/source/check` + `…/source/sync` update them |
 | `/api/skill-hub/market/source/versions?repo=` | GET | releases + branches for the version picker |
 | `/api/skill-hub/repo?repo=` | GET | discover (any root) |
@@ -112,7 +111,7 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 295 tests, 16 suites
+npm test           # 306 tests, 16 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 

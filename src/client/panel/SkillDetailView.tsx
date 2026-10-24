@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState, type JSX } from 'react'
-import type { GroupsResponse, HubConfig, SkillDetail, SourceCheckResult, SourcesResponse } from '../../protocol.ts'
+import type { HubConfig, SkillDetail, SourceCheckResult, SourcesResponse } from '../../protocol.ts'
 import { copyTextToClipboard, isDisplayNameDistinct, tt } from '../helpers.ts'
 import css from './panel.module.css'
 import { dotStyle, formatDateTime, shortSha } from './format.ts'
@@ -17,7 +17,6 @@ export interface SkillDetailViewProps {
   hubConfig: HubConfig | null
   /** skillName → usage stat (count + last used). */
   uses: ReadonlyMap<string, { count: number; lastUsed?: number }>
-  groupsState: GroupsResponse | null
   sourcesState: SourcesResponse | null
   sourceCheck: Readonly<Record<string, SourceCheckResult>>
   checkingSource: string | null
@@ -47,7 +46,7 @@ export interface SkillDetailViewProps {
 }
 
 export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
-  const { detail, hubConfig, uses, groupsState, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
+  const { detail, hubConfig, uses, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
   const detailSource = sourcesState?.sources.find((source) => source.skills.includes(detail.name))
   const detailCheck = detailSource !== undefined ? sourceCheck[detailSource.repo] : undefined
   const [copied, setCopied] = useState<string | null>(null)
@@ -121,10 +120,6 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
           if (stat === undefined || stat.count === 0) return null
           const at = stat.lastUsed !== undefined ? ' · ' + new Date(stat.lastUsed).toLocaleString() : ''
           return <div className={css.detailMetaLine}>{tt('detail.uses')}: {stat.count}{at}</div>
-        })()}
-        {(() => {
-          const tags = (groupsState?.tags ?? []).filter((tag) => tag.skillNames.includes(detail.name)).map((tag) => tag.name)
-          return tags.length > 0 ? <div className={css.detailMetaLine}>{tt('detail.groups')}: {tags.join(', ')}</div> : null
         })()}
       </div>
       {detailSource !== undefined ? (

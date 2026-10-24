@@ -101,11 +101,11 @@ export function useMarketFlow(
 
   /** 删除一个市场源（不影响已装技能）。 */
   const removeMarketSource = useCallback(async (repo: string): Promise<void> => {
-    shared.setTagBusy(true)
+    shared.setListBusy(true)
     await runFlow(shared, async () => {
       const result = await api.removeMarketSource(repo)
       setMarketState({ status: 'ready', repos: result.repos })
-    }, () => shared.setTagBusy(false))
+    }, () => shared.setListBusy(false))
   }, [api, shared])
 
   const openVersionDialog = useCallback(async (repo: string): Promise<void> => {

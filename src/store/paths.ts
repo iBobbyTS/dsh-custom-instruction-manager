@@ -1,9 +1,6 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
-
-/** 默认场景名（系统预置的兜底场景，新技能自动归入）。 */
-export const DEFAULT_SCENE_NAME = '通用'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
 
 /** Wire shape persisted on disk. */
 export interface StoreFile {
@@ -11,8 +8,6 @@ export interface StoreFile {
   disabled: DisabledSkill[]
   /** Runtime configuration edited from the web settings card (hub-owned, not settings-service). */
   config?: Partial<HubConfig>
-  /** User-defined tag groups (pure organization; skill files untouched). */
-  tags?: SkillTag[]
   /** Upstream source tracking records (repo + commit snapshot). */
   sources?: SourceRecord[]
   /** User-added market sources (owner/repo slugs + optional pinned ref). */
@@ -40,4 +35,4 @@ export function statePath(home = dshHome()): string {
 }
 
 /** Current sidecar schema version. Bump on breaking shape changes and add a migration below. */
-export const STORE_VERSION = 4
+export const STORE_VERSION = 5

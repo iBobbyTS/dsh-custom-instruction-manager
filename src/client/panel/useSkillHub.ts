@@ -3,8 +3,7 @@
  * 各域状态与动作分散在 ./hooks/*，这里按依赖顺序组装（meta → 目录 →
  * 分组 → 来源 → 市场），轮询与派生组装在此。返回形状与拆分前完全一致，
  * 所有视图无需改动。All hooks run unconditionally at the top, so the panel
- * may early-return for the detail and tag-editor views without violating
- * the rules of hooks.
+ * may early-return for the detail view without violating the rules of hooks.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -28,21 +27,21 @@ export function useSkillHub(api: SkillHubApi) {
   /** Green success banner (create finished); shown outside the closing form. */
   const [successBanner, setSuccessBanner] = useState<string | null>(null)
   const [batchBusy, setBatchBusy] = useState(false)
-  const [tagBusy, setTagBusy] = useState(false)
+  const [listBusy, setListBusy] = useState(false)
   const shared = useMemo<FlowNotices>(() => ({
     fail: (message: string) => setLoadError(message),
     clearFail: () => setLoadError(null),
     succeed: (message: string | null) => setSuccessBanner(message),
-    setTagBusy,
+    setListBusy,
     setBatchBusy,
   }), [])
 
   // ------------------------------------------------------------ view state
   // 纯视图状态：不触发数据加载，只影响渲染。
-  const [tab, setTab] = useState<'sources' | 'scenes' | 'market'>('sources')
+  const [tab, setTab] = useState<'sources' | 'market'>('sources')
   const [skillView, setSkillView] = useState<'flat' | 'groups'>('groups')
   const [sourceFilter, setSourceFilter] = useState('all')
-  /** 分组视图里收起的分组（key 为 tag:<id>、col:<name> 或 project 树键）。技能总数 >80 时首次加载自动折叠 personal。 */
+  /** 分组视图里收起的分组（key 为 col:<name> 或 project 树键）。技能总数 >80 时首次加载自动折叠 personal。 */
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set())
   /** 项目级三级树里已细分（按 .dsh/.agents）的项目键。 */
   const [subdividedProjects, setSubdividedProjects] = useState<ReadonlySet<string>>(new Set())
@@ -167,9 +166,8 @@ export function useSkillHub(api: SkillHubApi) {
     conflictDialog: groupFlow.conflictDialog, confirmDialog: sourceFlow.confirmDialog,
     deleteSkillDialog: sourceFlow.deleteSkillDialog, deleteGroupDialog: sourceFlow.deleteGroupDialog,
     confirmClearTrash: sourceFlow.confirmClearTrash, updateAllDialog: marketFlow.updateAllDialog,
-    editingTag: groupFlow.editingTag, editName: groupFlow.editName, membersDraft: groupFlow.membersDraft,
-    newTagName: groupFlow.newTagName, tagBusy,
-    editSearch: groupFlow.editSearch, collapsedGroups, subdividedProjects, showLegend, editMode,
+    listBusy,
+    collapsedGroups, subdividedProjects, showLegend, editMode,
     versionDialog: marketFlow.versionDialog, versionBusy: marketFlow.versionBusy,
     // derived
     actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
@@ -187,9 +185,7 @@ export function useSkillHub(api: SkillHubApi) {
     setConfirmDialog: sourceFlow.setConfirmDialog,
     setDeleteSkillDialog: sourceFlow.setDeleteSkillDialog, setDeleteGroupDialog: sourceFlow.setDeleteGroupDialog,
     setConfirmClearTrash: sourceFlow.setConfirmClearTrash, setUpdateAllDialog: marketFlow.setUpdateAllDialog,
-    setEditingTag: groupFlow.setEditingTag, setEditName: groupFlow.setEditName,
-    setMembersDraft: groupFlow.setMembersDraft, setNewTagName: groupFlow.setNewTagName,
-    setEditSearch: groupFlow.setEditSearch, setShowLegend, setEditMode,
+    setShowLegend, setEditMode,
     setVersionDialog: marketFlow.setVersionDialog,
     toggleGroupCollapse, toggleSubdivide, setAllGroupsCollapsed, checkUpdate: meta.checkUpdate, loadMarket: marketFlow.loadMarket,
     openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle, enableDisabled: catalogFlow.enableDisabled,
@@ -203,8 +199,7 @@ export function useSkillHub(api: SkillHubApi) {
     clearListFilters: catalogFlow.clearListFilters, openVersionDialog: marketFlow.openVersionDialog,
     confirmVersionDialog: marketFlow.confirmVersionDialog, requestDeleteSkill: sourceFlow.requestDeleteSkill,
     runDeleteSkill: sourceFlow.runDeleteSkill, requestDeleteGroup: sourceFlow.requestDeleteGroup,
-    runDeleteGroup: sourceFlow.runDeleteGroup, createTag: groupFlow.createTag,
-    deleteTag: groupFlow.deleteTag, saveTag: groupFlow.saveTag, reorderTags: groupFlow.reorderTags,
+    runDeleteGroup: sourceFlow.runDeleteGroup,
     reorderSourceGroups: groupFlow.reorderSourceGroups,
     addSource: marketFlow.addSource, addMarketSource: marketFlow.addMarketSource,
     removeMarketSource: marketFlow.removeMarketSource, scanRepo: marketFlow.scanRepo,

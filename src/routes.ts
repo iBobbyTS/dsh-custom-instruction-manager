@@ -1,8 +1,8 @@
 /**
  * The /api/skill-hub route family: full catalog (enabled skills from the
  * official registry + hub-disabled skills + discovery diagnostics), skill
- * detail, enable/disable toggle, new-skill scaffold, user groups (tags +
- * origin collections), and upstream source tracking (check/sync/follow
+ * detail, enable/disable toggle, new-skill scaffold, origin collections,
+ * and upstream source tracking (check/sync/follow
  * upstream deletion into a restorable trash). Every route carries the host's
  * own `/api` trust fence (loopback, the listener's bind address, each
  * `--trusted-host` authority, then the browser session) — these endpoints

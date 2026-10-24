@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CatalogSkill, CollectionGroup, DisabledSkill, SkillTag } from '../protocol.ts'
+import type { CatalogSkill, CollectionGroup, DisabledSkill } from '../protocol.ts'
 import { conflictsOnClose, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, personalProviderBuckets, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
 
 function skill(name: string, writable = true): CatalogSkill {
@@ -45,12 +45,11 @@ describe('conflictsOnClose', () => {
 })
 
 describe('groupNamesOf', () => {
-  it('collects tag and collection names for a skill', () => {
-    const tags: SkillTag[] = [{ id: '1', name: 'web', skillNames: ['a'] }]
+  it('collects collection names for a skill', () => {
     const collections = [{ name: 'repo/x', skillNames: ['a', 'b'] }, { name: 'repo/y', skillNames: ['b'] }]
-    expect(groupNamesOf('a', tags, collections)).toEqual(['web', 'repo/x'])
-    expect(groupNamesOf('b', tags, collections)).toEqual(['repo/x', 'repo/y'])
-    expect(groupNamesOf('c', tags, collections)).toEqual([])
+    expect(groupNamesOf('a', collections)).toEqual(['repo/x'])
+    expect(groupNamesOf('b', collections)).toEqual(['repo/x', 'repo/y'])
+    expect(groupNamesOf('c', [])).toEqual([])
   })
 })
 

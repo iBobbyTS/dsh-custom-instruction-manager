@@ -1,11 +1,11 @@
 /**
- * useGroupFlow — 分组域：groups 加载、tag 新建/删除/成员/重排、集合重排、
- * 来源顶层重排、组开关与冲突解决。目录侧只消费 batchToggleNames +
- * actionNames（聚合根传入），不碰目录 state。
+ * useGroupFlow — 分组域：groups 加载、集合重排、来源顶层重排、组开关与冲突
+ * 解决。目录侧只消费 batchToggleNames + actionNames（聚合根传入），不碰目录
+ * state。
  */
 
-import { useCallback, useState, type FormEvent } from 'react'
-import type { GroupsResponse, SkillTag } from '../../../protocol.ts'
+import { useCallback, useState } from 'react'
+import type { GroupsResponse } from '../../../protocol.ts'
 import type { SkillHubApi } from '../../api.ts'
 import { errorMessage } from '../../helpers.ts'
 import { conflictsOnClose, type GroupSwitchState } from '../../grouping.ts'
@@ -22,13 +22,8 @@ export function useGroupFlow(
 ) {
   const [groupsState, setGroupsState] = useState<GroupsResponse | null>(null)
   const [conflictDialog, setConflictDialog] = useState<ConflictDialogState | null>(null)
-  const [editingTag, setEditingTag] = useState<SkillTag | null>(null)
-  const [editName, setEditName] = useState('')
-  const [membersDraft, setMembersDraft] = useState<ReadonlySet<string>>(new Set())
-  const [newTagName, setNewTagName] = useState('')
-  const [editSearch, setEditSearch] = useState('')
 
-  /** 加载用户 tag 分组 + 系统集合组 + origin 映射。 */
+  /** 加载系统集合组 + origin 映射。 */
   const loadGroups = useCallback(async (): Promise<void> => {
     try {
       setGroupsState(await api.groups())
@@ -37,17 +32,9 @@ export function useGroupFlow(
     }
   }, [api, shared])
 
-  /** 把最新的 tag 列表合并进 groups 状态（tags 以外的字段保持原样）。 */
-  const applyTags = useCallback((tags: SkillTag[]): void => {
-    setGroupsState((previous) => previous === null
-      ? { ok: true, tags, collections: [], origins: {} }
-      : { ...previous, tags })
-  }, [])
-
-  /** 所有分组：key → 成员名（tag 与来源集合）。 */
+  /** 所有来源集合：key → 成员名。 */
   const groupMap = useCallback((): Map<string, string[]> => {
     const map = new Map<string, string[]>()
-    for (const tag of groupsState?.tags ?? []) map.set('tag:' + tag.id, tag.skillNames)
     for (const collection of groupsState?.collections ?? []) map.set('col:' + collection.name, collection.skillNames)
     return map
   }, [groupsState])
@@ -88,71 +75,9 @@ export function useGroupFlow(
     }
   }, [conflictDialog, groupMap, actionNames, batchToggleNames])
 
-  /** 新建一个空 tag 分组。 */
-  const createTag = useCallback(async (event: FormEvent): Promise<void> => {
-    event.preventDefault()
-    const name = newTagName.trim()
-    if (name === '') return
-    shared.setTagBusy(true)
-    await runFlow(shared, async () => {
-      applyTags(await api.saveTag({ name }))
-      setNewTagName('')
-    }, () => shared.setTagBusy(false))
-  }, [api, applyTags, newTagName, shared])
-
-  /** 删除一个 tag 分组（不影响技能文件）。 */
-  const deleteTag = useCallback(async (id: string): Promise<void> => {
-    shared.setTagBusy(true)
-    await runFlow(shared, async () => {
-      applyTags(await api.deleteTag(id))
-      setEditingTag(null)
-    }, () => shared.setTagBusy(false))
-  }, [api, applyTags, shared])
-
-  /** 重命名 tag，或保存成员勾选后回到列表。 */
-  const saveTag = useCallback(async (id: string, name: string, memberNames: string[] | null): Promise<void> => {
-    shared.setTagBusy(true)
-    await runFlow(shared, async () => {
-      const safeName = name.trim()
-      let tags: SkillTag[] | null = null
-      if (safeName !== '') tags = await api.saveTag({ id, name: safeName })
-      if (memberNames !== null) tags = await api.setTagMembers(id, memberNames)
-      if (tags === null) return
-      applyTags(tags)
-      setEditingTag(null)
-    }, () => shared.setTagBusy(false))
-  }, [api, applyTags, shared])
-
-  /** 拖拽重排场景分组 */
-  const reorderTags = useCallback(async (orderedIds: string[]): Promise<void> => {
-    shared.setTagBusy(true)
-    shared.clearFail()
-    try {
-      const tags = await api.reorderTags(orderedIds)
-      applyTags(tags)
-    } catch (error) {
-      const msg = errorMessage(error)
-      if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-        // 旧宿主无此路由：本地重排
-        const byId = new Map(groupsState?.tags.map((t) => [t.id, t] as const) ?? [])
-        const reordered = orderedIds.map((id) => byId.get(id)).filter((t): t is NonNullable<typeof t> => t !== undefined)
-        if (reordered.length === orderedIds.length) {
-          applyTags(reordered as typeof groupsState extends { tags: infer T } ? T : never)
-          shared.succeed('已临时调整顺序（本地生效，重启宿主后持久化）')
-        } else {
-          shared.fail(msg)
-        }
-      } else {
-        shared.fail(msg)
-      }
-    } finally {
-      shared.setTagBusy(false)
-    }
-  }, [api, applyTags, groupsState, shared])
-
   /** 拖拽重排来源顶层分组（project / col:xxx / personal 全量可拖） */
   const reorderSourceGroups = useCallback(async (orderedKeys: string[]): Promise<void> => {
-    shared.setTagBusy(true)
+    shared.setListBusy(true)
     shared.clearFail()
     try {
       await api.reorderSourceGroups(orderedKeys)
@@ -175,14 +100,14 @@ export function useGroupFlow(
         shared.fail(msg)
       }
     } finally {
-      shared.setTagBusy(false)
+      shared.setListBusy(false)
     }
   }, [api, loadGroups, shared])
 
   return {
-    groupsState, conflictDialog, editingTag, editName, membersDraft, newTagName, editSearch,
-    setConflictDialog, setEditingTag, setEditName, setMembersDraft, setNewTagName, setEditSearch,
-    loadGroups, applyTags, groupMap, toggleGroup, resolveConflict,
-    createTag, deleteTag, saveTag, reorderTags, reorderSourceGroups,
+    groupsState, conflictDialog,
+    setConflictDialog,
+    loadGroups, groupMap, toggleGroup, resolveConflict,
+    reorderSourceGroups,
   }
 }
