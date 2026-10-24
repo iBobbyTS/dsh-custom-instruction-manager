@@ -162,7 +162,8 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
       <div className={css.scrollArea} data-hub-scroll="">
         <div className={css.panel} aria-busy={batchBusy || tagBusy}>
       {/* 标题行：官方一级页面的标题条（ui-schedule TaskManagerPage 的
-          .pageHeading）——一段 20px/28px/500 的无图标标题，动作收在同一行右端。 */}
+          .pageHeading）——一段 20px/28px/500 的无图标标题；列表级动作
+          （编辑 / 新建技能）下移到视图切换那一行的右端。 */}
       <div className={css.pageHeading}>
         <h1 className={css.title}>{tt('panel.title')}</h1>
         {/* 目录计数与诊断提示只属于 Skill 页；标题本身保持官方那样的纯文字行盒。 */}
@@ -178,16 +179,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
               {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
             </span>
           : null}
-        <span className={css.actions}>
-          {category === 'skills' ? <button
-            type='button'
-            className={css.button + (editMode ? ' ' + css.primary : '')}
-            aria-pressed={editMode}
-            title={tt('edit.hint')}
-            onClick={() => { setEditMode((value) => !value) }}
-          >{tt(editMode ? 'edit.done' : 'edit.start')}</button> : null}
-          {category === 'skills' ? <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button> : null}
-        </span>
       </div>
 
       {/* 分类导航：官方自动化任务页的分段筛选项（TaskManagerPage 的
@@ -243,6 +234,17 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             : null}
         </span>
         <button type='button' className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
+        {/* 列表级动作贴这一行的右端（.actions 自带 margin-left:auto）。 */}
+        <span className={css.actions}>
+          <button
+            type='button'
+            className={css.button + (editMode ? ' ' + css.primary : '')}
+            aria-pressed={editMode}
+            title={tt('edit.hint')}
+            onClick={() => { setEditMode((value) => !value) }}
+          >{tt(editMode ? 'edit.done' : 'edit.start')}</button>
+          <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button>
+        </span>
       </div>
 
       {showForm ? (

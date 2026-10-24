@@ -9,6 +9,7 @@ import type { CatalogSkill } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
+import { SubGroup } from './SubGroup.tsx'
 import { ReorderButtons } from './ReorderButtons.tsx'
 import type { DragReorderProps } from './useDragReorder.ts'
 import css from './panel.module.css'
@@ -84,15 +85,15 @@ export function ProjectTree(props: ProjectTreeProps): JSX.Element {
                     const srcKey = projKey + ':' + source
                     const srcCollapsed = collapsedGroups.has(srcKey)
                     return (
-                      <div key={srcKey} className={css.projectNest}>
-                        <div className={css.groupHead}>
-                          <button type='button' className={css.disclosure} aria-expanded={!srcCollapsed} onClick={() => { toggleGroupCollapse(srcKey) }}>
-                            <span className={css.chevron + (srcCollapsed ? ' ' + css.chevronCollapsed : '')} />
-                            <span className={css.groupTitle}>{tt(('badge.source.' + source) as 'badge.source.project-dsh' | 'badge.source.project-agents')} · {list.length}</span>
-                          </button>
-                        </div>
-                        {!srcCollapsed ? list.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />) : null}
-                      </div>
+                      <SubGroup
+                        key={srcKey}
+                        title={tt(('badge.source.' + source) as 'badge.source.project-dsh' | 'badge.source.project-agents')}
+                        count={list.length}
+                        collapsed={srcCollapsed}
+                        onToggle={() => { toggleGroupCollapse(srcKey) }}
+                      >
+                        {list.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
+                      </SubGroup>
                     )
                   })}
                 </div>

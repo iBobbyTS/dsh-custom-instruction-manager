@@ -8,10 +8,11 @@
 
 import { useMemo, useState, type JSX } from 'react'
 import { tt } from '../helpers.ts'
-import { filterBySource, groupSwitchView, isProjectSource, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
+import { filterBySource, groupSwitchView, isProjectSource, personalProviderBuckets, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
+import { SubGroup } from './SubGroup.tsx'
 import { useDragReorder } from './useDragReorder.ts'
 import { ReorderButtons } from './ReorderButtons.tsx'
 import { ProjectTree } from './ProjectTree.tsx'
@@ -41,6 +42,10 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
     .filter(() => sourceFilter === 'all' || sourceFilter === PRIVATE_SOURCE)
   const allPersonalNames = [...uncategorized.map((s) => s.name), ...personalDisabled.map((r) => r.name)]
   const hasPersonal = allPersonalNames.length > 0
+  // 个人技能二级分类：按提供者（provider）聚合，复用项目级 .dsh/.agents
+  // 那一层的显示。只有一个提供者时不铺二级（单组的二级头纯属噪音）。
+  const personalBuckets = personalProviderBuckets(uncategorized, personalDisabled)
+  const subdividedPersonal = personalBuckets.length > 1
   const defaultTopKeys: string[] = [
     ...(hasProject ? ['project'] : []),
     ...collections.map((c) => 'col:' + c.name),
@@ -184,10 +189,37 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                 </span>
               </div>
               {!collapsed ? (
-                <>
-                  {uncategorized.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
-                  {personalDisabled.map((record) => (<DisabledRow key={record.name} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
-                </>
+                subdividedPersonal ? (
+                  /* 二级只有一层，不再套外层 .projectNest：缩进与项目级的
+                     第一层细分（external-subagent 那条）对齐。 */
+                  personalBuckets.map((bucket) => {
+                    const subKey = 'personal:' + bucket.key
+                    const subCollapsed = collapsedGroups.has(subKey)
+                    const { title } = bucket
+                    /** 提供者桶显示 provider id；兜底桶显示本地化的根目录来源。 */
+                    const titleText = title.kind === 'provider'
+                      ? title.provider
+                      : tt(('badge.source.' + title.source) as 'badge.source.user-dsh' | 'badge.source.user-agents')
+                    return (
+                      <SubGroup
+                        key={subKey}
+                        title={titleText}
+                        titleHint={title.kind === 'provider' ? tt('groups.provider') : undefined}
+                        count={bucket.skills.length + bucket.disabled.length}
+                        collapsed={subCollapsed}
+                        onToggle={() => { toggleGroupCollapse(subKey) }}
+                      >
+                        {bucket.skills.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
+                        {bucket.disabled.map((record) => (<DisabledRow key={record.name} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
+                      </SubGroup>
+                    )
+                  })
+                ) : (
+                  <>
+                    {uncategorized.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
+                    {personalDisabled.map((record) => (<DisabledRow key={record.name} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
+                  </>
+                )
               ) : null}
             </section>
           )

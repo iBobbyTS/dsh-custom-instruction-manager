@@ -33,7 +33,7 @@ Two surfaces — the hub panel opens from the **Skills** entry in the main sideb
 
 ## Features
 
-**Sidebar → Skills** — 3 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update).
+**Sidebar → Other Plugins → Skill** — 3 tabs: **Sources** (skills, flat/grouped + project tree, with the personal card split by skill provider), **Scenes** (custom tag groups), **Market** (install + update).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding.
 - **Toggle** — per-skill switches and per-group tri-state switches with a conflict dialog (close all / keep on). Disabling renames the discovery file (never deletes); disabled skills stay inspectable and re-enableable from their detail page. Only `~/.dsh/skills` & `~/.agents/skills` are writable; everything else is read-only.

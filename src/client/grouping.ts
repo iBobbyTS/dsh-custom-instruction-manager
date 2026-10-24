@@ -97,6 +97,76 @@ export interface VisibleCollection {
 }
 
 /**
+ * 个人技能二级分类的标题：提供者 id；已禁用记录没有提供者字段，来源
+ * 又无法从已启用成员推断时退化成来源标签（用户 .dsh / 用户 .agents）。
+ */
+export type ProviderBucketTitle =
+  | { kind: 'provider'; provider: string }
+  | { kind: 'source'; source: string }
+
+/** 个人技能按提供者（provider）聚合出的一个二级分组。 */
+export interface ProviderBucket {
+  /** 稳定键（`provider:<id>` / `source:<来源>`），与折叠状态共用。 */
+  key: string
+  title: ProviderBucketTitle
+  /** 该提供者下、且通过当前筛选的已启用技能。 */
+  skills: CatalogSkill[]
+  /** 该提供者下、且通过当前筛选的已禁用记录。 */
+  disabled: DisabledSkill[]
+}
+
+/**
+ * Group the personal (untracked, non-project) skills by 提供者 — the
+ * provider id the registry reports, which is what tells user-owned skills
+ * apart from bundled / third-party-plugin skills.
+ *
+ * Bucket order follows first appearance in the incoming (already sorted)
+ * list, so the chosen sort key still decides the subgroup order. Disabled
+ * records carry no provider, so each one joins the bucket of a currently
+ * enabled skill from the same root (user-dsh / user-agents); when that root
+ * has no enabled member left, it falls back to its own source-titled bucket.
+ */
+export function personalProviderBuckets(
+  skills: readonly CatalogSkill[],
+  disabled: readonly DisabledSkill[],
+): ProviderBucket[] {
+  const buckets: ProviderBucket[] = []
+  const byProvider = new Map<string, ProviderBucket>()
+  for (const skill of skills) {
+    let bucket = byProvider.get(skill.provider)
+    if (bucket === undefined) {
+      bucket = { key: 'provider:' + skill.provider, title: { kind: 'provider', provider: skill.provider }, skills: [], disabled: [] }
+      byProvider.set(skill.provider, bucket)
+      buckets.push(bucket)
+    }
+    bucket.skills.push(skill)
+  }
+  // 来源 → 已启用技能的提供者，用于把禁用记录挂回它所在的提供者分组。
+  const bucketBySource = new Map<string, ProviderBucket>()
+  for (const bucket of buckets) {
+    for (const skill of bucket.skills) {
+      if (!bucketBySource.has(skill.source)) bucketBySource.set(skill.source, bucket)
+    }
+  }
+  const fallbacks = new Map<string, ProviderBucket>()
+  for (const record of disabled) {
+    // WritableRoot 本身就是来源标识（user-dsh / user-agents）。
+    const source: string = record.root
+    let bucket = bucketBySource.get(source)
+    if (bucket === undefined) {
+      bucket = fallbacks.get(source)
+      if (bucket === undefined) {
+        bucket = { key: 'source:' + source, title: { kind: 'source', source }, skills: [], disabled: [] }
+        fallbacks.set(source, bucket)
+        buckets.push(bucket)
+      }
+    }
+    bucket.disabled.push(record)
+  }
+  return buckets
+}
+
+/**
  * Match origin collections against the currently visible enabled skills and
  * disabled records, dropping collections with no visible member. Without
  * this, a stale origin (skill deleted on disk, or a `.disabled` file whose

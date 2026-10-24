@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogSkill, CollectionGroup, DisabledSkill, SkillTag } from '../protocol.ts'
-import { conflictsOnClose, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
+import { conflictsOnClose, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, personalProviderBuckets, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
 
 function skill(name: string, writable = true): CatalogSkill {
   return {
@@ -105,6 +105,47 @@ describe('visibleCollections', () => {
     const privateRecord = { ...disabledOne, name: 'private-one' }
     const privateCollection: CollectionGroup = { name: 'repo/y', skillNames: ['private-one'] }
     expect(visibleCollections([privateCollection], [], [privateRecord], '', PRIVATE_SOURCE, {}).map((e) => e.collection.name)).toEqual(['repo/y'])
+  })
+})
+
+describe('personalProviderBuckets', () => {
+  const office = (name: string): CatalogSkill => ({ ...skill(name, false), provider: 'dsh-office', source: 'bundled' })
+  const user = (name: string, source = 'user-dsh'): CatalogSkill => ({ ...skill(name), provider: 'skill-hub', source })
+  const disabledRecord = (name: string, root: DisabledSkill['root'] = 'user-dsh'): DisabledSkill =>
+    ({ name, description: '', path: '/tmp/' + name + '.disabled', root, disabledAt: 1 })
+
+  it('groups personal skills by provider in first-appearance order', () => {
+    const buckets = personalProviderBuckets([office('office'), user('mine'), office('office-docx'), user('other')], [])
+    expect(buckets.map((b) => b.key)).toEqual(['provider:dsh-office', 'provider:skill-hub'])
+    expect(buckets[0].title).toEqual({ kind: 'provider', provider: 'dsh-office' })
+    expect(buckets[0].skills.map((s) => s.name)).toEqual(['office', 'office-docx'])
+    expect(buckets[1].skills.map((s) => s.name)).toEqual(['mine', 'other'])
+  })
+
+  it('returns a single bucket when every skill shares one provider', () => {
+    expect(personalProviderBuckets([user('a'), user('b')], []).length).toBe(1)
+    expect(personalProviderBuckets([], []).length).toBe(0)
+  })
+
+  it('keeps user roots together when the provider spans .dsh and .agents', () => {
+    const buckets = personalProviderBuckets([user('a', 'user-dsh'), user('b', 'user-agents')], [])
+    expect(buckets.length).toBe(1)
+    expect(buckets[0].skills.map((s) => s.name)).toEqual(['a', 'b'])
+  })
+
+  it('attaches a disabled record to the provider bucket of its own root', () => {
+    const buckets = personalProviderBuckets([user('a', 'user-dsh'), user('b', 'user-agents')], [disabledRecord('gone', 'user-agents')])
+    expect(buckets.length).toBe(1)
+    expect(buckets[0].skills.map((s) => s.name)).toEqual(['a', 'b'])
+    expect(buckets[0].disabled.map((r) => r.name)).toEqual(['gone'])
+  })
+
+  it('falls back to a source-titled bucket when the root has no enabled member', () => {
+    const buckets = personalProviderBuckets([office('office')], [disabledRecord('gone', 'user-dsh')])
+    expect(buckets.map((b) => b.key)).toEqual(['provider:dsh-office', 'source:user-dsh'])
+    expect(buckets[1].title).toEqual({ kind: 'source', source: 'user-dsh' })
+    expect(buckets[1].skills).toEqual([])
+    expect(buckets[1].disabled.map((r) => r.name)).toEqual(['gone'])
   })
 })
 
