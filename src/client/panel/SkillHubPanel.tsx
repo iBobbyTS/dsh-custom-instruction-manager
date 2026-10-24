@@ -96,6 +96,9 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             checkingSource={checkingSource}
             syncingSource={syncingSource}
             disabled={disabledRecord !== undefined}
+            editable={detail.editable}
+            invocationBusy={hub.invocationBusy}
+            onInvocationChange={(modelInvocable, userInvocable) => { void hub.setInvocation(detail.name, modelInvocable, userInvocable) }}
             onEnable={disabledRecord !== undefined ? () => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}
             onBack={() => { setDetail(null) }}
             onCheck={(repo) => { void checkSources(repo) }}

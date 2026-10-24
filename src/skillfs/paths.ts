@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { dshHome } from '../store.ts'
 import type { WritableRoot } from '../protocol.ts'
 
@@ -37,4 +37,38 @@ export function rootOfPath(path: string, home = dshHome()): WritableRoot | undef
     }
   }
   return undefined
+}
+
+/** Discovery-file shapes the hub may rewrite: `<name>/SKILL.md` and `<name>.md`, plus the `.disabled` variants. */
+function discoveryLeafKind(path: string): 'bundle' | 'flat' | undefined {
+  const leaf = basename(resolve(path))
+  if (leaf === 'SKILL.md' || leaf === 'SKILL.md.disabled') return 'bundle'
+  if (/[^.]\.md(?:\.disabled)?$/.test(leaf)) return 'flat'
+  return undefined
+}
+
+/**
+ * Whether a path is a skill discovery file whose invocation policy the hub may
+ * rewrite: a top-level entry of a user root, or
+ * `<workspace>/.dsh|.agents/skills/<name>/SKILL.md` (flat and `.disabled`
+ * variants included). Nested/arbitrary files are refused — the write lands on
+ * real skill files only.
+ */
+export function editableSkillFile(path: string, home = dshHome()): boolean {
+  const absolute = resolve(path)
+  const kind = discoveryLeafKind(absolute)
+  if (kind === undefined) return false
+  const segments = (value: string): string[] => resolve(value).split(/[\\/]+/).filter((segment) => segment !== '')
+  const leafSegments = segments(absolute)
+  const root = rootOfPath(absolute, home)
+  if (root !== undefined) {
+    // 用户根：只允许顶层的 <name>/SKILL.md 或 <name>.md，与发现范围一致。
+    const relativeSegments = leafSegments.slice(segments(rootPath(root, home)).length)
+    return kind === 'bundle' ? relativeSegments.length === 2 : relativeSegments.length === 1
+  }
+  // 项目根：.dsh/skills 或 .agents/skills 之后紧跟技能条目，再后面不再有目录层级。
+  const at = leafSegments.findIndex((segment, index) => (segment === '.dsh' || segment === '.agents') && leafSegments[index + 1] === 'skills')
+  if (at < 0) return false
+  const tail = leafSegments.length - (at + 2)
+  return kind === 'bundle' ? tail === 2 : tail === 1
 }

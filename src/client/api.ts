@@ -27,6 +27,8 @@ import {
   type RepoImportResponse,
   type SkillDetail,
   type SkillDetailResponse,
+  type SkillInvocationRequest,
+  type SkillInvocationResponse,
   type SkillDeleteRequest,
   type SkillDeleteResponse,
   type SkillTag,
@@ -156,6 +158,14 @@ export class SkillHubApi {
     const cwd = options?.cwd !== undefined && options.cwd !== '' ? '&cwd=' + encodeURIComponent(options.cwd) : ''
     const body = await this.get<SkillDetailResponse>(SKILL_HUB_API.skill, '?name=' + encodeURIComponent(name) + cwd)
     return body.skill
+  }
+
+  /**
+   * 改写一个技能文件的调用方式（frontmatter 的 disable-model-invocation /
+   * user-invocable）。dsh 注册表没有写入口，值只能落在文件里。
+   */
+  setInvocation(payload: SkillInvocationRequest): Promise<SkillInvocationResponse> {
+    return this.post<SkillInvocationResponse>(SKILL_HUB_API.skillInvocation, payload)
   }
 
   /** Move one writable skill into the restorable trash. */

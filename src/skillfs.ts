@@ -16,8 +16,8 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { dump } from 'js-yaml'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
-import { parseFrontmatter, repairFrontmatterFileText } from './skillfs/frontmatter.ts'
-import { rootOfPath, rootPath } from './skillfs/paths.ts'
+import { parseFrontmatter, repairFrontmatterFileText, setInvocationInText, type InvocationPolicy } from './skillfs/frontmatter.ts'
+import { editableSkillFile, rootOfPath, rootPath } from './skillfs/paths.ts'
 import { dshHome } from './store.ts'
 import type { TrashEntry, WritableRoot } from './protocol.ts'
 
@@ -178,6 +178,34 @@ export async function fixDiagnosticFile(path: string, home = dshHome()): Promise
     await rename(tmp, path)
   } catch (error) {
     // Never leave a stray temp file behind when the rename is what failed.
+    await rm(tmp, { force: true }).catch(() => {})
+    throw error
+  }
+  return path
+}
+
+/**
+ * Rewrite a skill file's invocation keys (dsh has no registry setter — the
+ * frontmatter is the source of truth every provider parses).
+ *
+ * Refuses anything that is not a top-level discovery file of a user root or a
+ * project root (`editableSkillFile`), refuses when the patch would not
+ * round-trip, and writes atomically like {@link fixDiagnosticFile}: a torn
+ * SKILL.md is invisible to discovery and would read as a deleted skill.
+ *
+ * @returns the absolute path that was rewritten.
+ */
+export async function setInvocationPolicy(path: string, policy: InvocationPolicy, home = dshHome()): Promise<string> {
+  if (!editableSkillFile(path, home)) throw new TypeError('not an editable skill file: ' + path)
+  const text = await readFile(path, 'utf8')
+  const patched = setInvocationInText(text, policy)
+  if ('error' in patched) throw new TypeError('cannot rewrite invocation policy: ' + patched.error)
+  if (patched.text === text) return path
+  const tmp = path + '.tmp'
+  await writeFile(tmp, patched.text, 'utf8')
+  try {
+    await rename(tmp, path)
+  } catch (error) {
     await rm(tmp, { force: true }).catch(() => {})
     throw error
   }

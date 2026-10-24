@@ -391,3 +391,15 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* 详情页「调用方式」：两个 checkbox + 一行脚注（key 名写进脚注）。 */
+.invocationCard { display: flex; flex-direction: column; gap: 6px; background: var(--hub-surface); border-radius: 12px; padding: 12px 16px; }
+.invocationHead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.invocationTitle { font-size: 13px; font-weight: 700; }
+.invocationReadonly { font-size: 11.5px; color: var(--hub-text-3); }
+.invocationRow { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--hub-text); cursor: pointer; }
+.invocationRow input { margin: 2px 0 0; flex: none; accent-color: var(--hub-accent); }
+.invocationRow:has(input:disabled) { cursor: default; opacity: .55; }
+.invocationLabel { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.invocationName { font-weight: 600; }
+.invocationHint { font-size: 11.5px; color: var(--hub-text-3); }

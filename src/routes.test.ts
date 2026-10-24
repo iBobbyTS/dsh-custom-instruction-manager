@@ -434,6 +434,116 @@ describe('skill-hub routes', () => {
     expect(await store.listDisabled()).toHaveLength(1)
   })
 
+  // ---------------------------------------------------- skill invocation
+  it('writes the invocation policy into a user skill file and invalidates the catalog', async () => {
+    const dir = join(home, 'skills', 'guard-me')
+    await mkdir(dir, { recursive: true })
+    const file = join(dir, 'SKILL.md')
+    await writeFile(file, '---\nname: guard-me\ndescription: Guard\n---\n\n# Body', 'utf8')
+    skills.get = async () => definition({ name: 'guard-me', path: file, source: 'user-dsh' })
+    const invalidate = vi.fn()
+    deps.invalidate = invalidate
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'guard-me', modelInvocable: false, userInvocable: false }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(res.json()).toEqual({ ok: true, name: 'guard-me', path: file, invocation: { modelInvocable: false, userInvocable: false } })
+    const text = await readFile(file, 'utf8')
+    expect(text).toContain('disable-model-invocation: true')
+    expect(text).toContain('user-invocable: false')
+    expect(text).toContain('# Body')
+    expect(invalidate).toHaveBeenCalledTimes(1)
+
+    // Turning both back on removes the keys again (defaults stay implicit).
+    const back = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'guard-me', modelInvocable: true, userInvocable: true }),
+      back as never,
+    )
+    expect(back.status).toBe(200)
+    const restored = await readFile(file, 'utf8')
+    expect(restored).not.toContain('disable-model-invocation')
+    expect(restored).not.toContain('user-invocable')
+  })
+
+  it('edits project skills, which the hub cannot toggle but may rewrite', async () => {
+    const ws = join(dir, 'ws')
+    const file = join(ws, '.agents', 'skills', 'release', 'SKILL.md')
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, '---\nname: release\ndescription: Release\n---\n', 'utf8')
+    skills.get = async () => definition({ name: 'release', path: file, source: 'project-agents' })
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'release', modelInvocable: true, userInvocable: false, cwd: ws }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(await readFile(file, 'utf8')).toContain('user-invocable: false')
+  })
+
+  it('edits a hub-disabled skill through its .disabled file', async () => {
+    const dir = join(home, 'skills', 'off-skill')
+    await mkdir(dir, { recursive: true })
+    const file = join(dir, 'SKILL.md.disabled')
+    await writeFile(file, '---\nname: off-skill\ndescription: Off\n---\n', 'utf8')
+    await store.addDisabled({ name: 'off-skill', description: 'Off', path: file, root: 'user-dsh', disabledAt: 1 })
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'off-skill', modelInvocable: false, userInvocable: true }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(await readFile(file, 'utf8')).toContain('disable-model-invocation: true')
+  })
+
+  it('refuses invocation writes for provider-managed skills and bad payloads', async () => {
+    skills.get = async () => definition({ name: 'office', source: 'bundled', provider: 'dsh-office', path: '/app/bundled/office/SKILL.md' })
+    const bundled = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'office', modelInvocable: false, userInvocable: true }),
+      bundled as never,
+    )
+    expect(bundled.status).toBe(409)
+    expect((bundled.json() as ErrorResponse).error).toContain('dsh-office')
+
+    // 插件运行时技能：连文件都没有。
+    skills.get = async () => definition({ name: 'runtime-x', source: 'plugin:x', provider: 'dsh-sfd' })
+    const runtime = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'runtime-x', modelInvocable: false, userInvocable: true }),
+      runtime as never,
+    )
+    expect(runtime.status).toBe(409)
+
+    // 非布尔 / 非 kebab 名 / 不存在的技能。
+    const badType = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'office', modelInvocable: 'no', userInvocable: true }),
+      badType as never,
+    )
+    expect(badType.status).toBe(400)
+
+    const badName = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'Not Kebab', modelInvocable: false, userInvocable: true }),
+      badName as never,
+    )
+    expect(badName.status).toBe(400)
+
+    skills.get = async () => undefined
+    const missing = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillInvocation).handler(
+      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'ghost', modelInvocable: false, userInvocable: true }),
+      missing as never,
+    )
+    expect(missing.status).toBe(404)
+  })
+
   // -------------------------------------------------------- skill delete
   it('deletes one writable skill into the restorable trash and cleans metadata', async () => {
     const dir = join(home, 'skills', 'delete-me')

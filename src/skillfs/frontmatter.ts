@@ -177,3 +177,64 @@ function frontmatterBoolean(data: Record<string, unknown>, key: string): boolean
   }
   throw new TypeError('frontmatter field "' + key + '" must be a boolean')
 }
+
+/** 调用方式的期望值（「可调」语义，与 wire 上的 invocation 一致）。 */
+export interface InvocationPolicy {
+  modelInvocable: boolean
+  userInvocable: boolean
+}
+
+/**
+ * Rewrite the two invocation keys in a SKILL.md text.
+ *
+ * Only the two line-level keys change; every other frontmatter byte keeps its
+ * position, comments, quoting and block scalars, and the body is untouched.
+ * Defaults are written as "key absent" so a file toggled back keeps a clean
+ * header:
+ *  - modelInvocable=true  → drop `disable-model-invocation`; false → `disable-model-invocation: true`
+ *  - userInvocable=true   → drop `user-invocable`; false → `user-invocable: false`
+ *
+ * A key that is not a top-level mapping key (inside a block scalar, indented,
+ * etc.) is never touched: the pattern anchors at column 0, and a column-0 key
+ * always terminates any preceding block scalar, so appending is safe.
+ *
+ * @returns the rewritten text (validated by re-parsing), or the reason it was refused.
+ */
+export function setInvocationInText(text: string, policy: InvocationPolicy): { text: string } | { error: string } {
+  const match = /^(---[^\S\r\n]*\r?\n)([\s\S]*?)(\r?\n---[^\S\r\n]*)([\s\S]*)$/.exec(text)
+  if (match === null) return { error: 'missing YAML frontmatter (--- block)' }
+  const [, open, inner, close, body] = match
+  const eol = inner.includes('\r\n') || open.endsWith('\r\n') ? '\r\n' : '\n'
+  let lines = inner.split(/\r?\n/)
+  lines = applyInvocationKey(lines, 'disable-model-invocation', policy.modelInvocable ? undefined : true)
+  lines = applyInvocationKey(lines, 'user-invocable', policy.userInvocable ? undefined : false)
+  const next = open + lines.join(eol) + close + body
+  const parsed = parseFrontmatter(next)
+  if ('error' in parsed) return { error: 'rewritten frontmatter is invalid: ' + parsed.error }
+  if (parsed.value.invocation.modelInvocable !== policy.modelInvocable || parsed.value.invocation.userInvocable !== policy.userInvocable) {
+    return { error: 'rewritten frontmatter does not round-trip to the requested invocation policy' }
+  }
+  return { text: next }
+}
+
+/**
+ * Set (boolean) or remove (undefined) one top-level frontmatter key.
+ * Duplicate keys collapse to a single line; a missing key is appended after
+ * the last non-blank line, so the file keeps its trailing blank-line style.
+ */
+function applyInvocationKey(lines: string[], key: string, value: boolean | undefined): string[] {
+  const pattern = new RegExp('^' + key.replace(/-/g, '\\-') + '[ \\t]*:')
+  const kept: string[] = []
+  let seen = false
+  for (const line of lines) {
+    if (!pattern.test(line)) { kept.push(line); continue }
+    if (value !== undefined && !seen) kept.push(key + ': ' + String(value))
+    seen = true
+  }
+  if (value !== undefined && !seen) {
+    let at = kept.length
+    while (at > 0 && kept[at - 1].trim() === '') at -= 1
+    kept.splice(at, 0, key + ': ' + String(value))
+  }
+  return kept
+}

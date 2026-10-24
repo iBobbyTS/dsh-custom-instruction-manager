@@ -24,6 +24,17 @@ export interface SkillDetailViewProps {
   syncingSource: string | null
   /** Whether the skill is currently hub-disabled (served from the .disabled file). */
   disabled?: boolean
+  /**
+   * 调用方式是否可写（host 按文件位置判定：用户根/项目根可写，内置/插件
+   * provider 没有可写文件）。不可写时两个 checkbox 置灰；`undefined` 表示
+   * host 还是旧版本（没有这个字段），整块调用方式直接不渲染，避免把
+   * 「宿主不支持」误显示成「该技能只读」。
+   */
+  editable?: boolean
+  /** 写入进行中（checkbox 禁用，避免连点写两次）。 */
+  invocationBusy: boolean
+  /** 写入调用方式（两个布尔是期望的「可调」状态，不是 frontmatter 的键值）。 */
+  onInvocationChange: (modelInvocable: boolean, userInvocable: boolean) => void
   /** Re-enable a hub-disabled skill. */
   onEnable?: () => void
   onBack: () => void
@@ -36,7 +47,7 @@ export interface SkillDetailViewProps {
 }
 
 export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
-  const { detail, hubConfig, uses, groupsState, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
+  const { detail, hubConfig, uses, groupsState, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
   const detailSource = sourcesState?.sources.find((source) => source.skills.includes(detail.name))
   const detailCheck = detailSource !== undefined ? sourceCheck[detailSource.repo] : undefined
   const [copied, setCopied] = useState<string | null>(null)
@@ -69,6 +80,36 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
           {detail.path !== undefined ? <button type='button' className={css.opBtn} onClick={() => { const path = detail.path; if (path !== undefined) copyText(path, 'path') }}>{copied === 'path' ? tt('detail.copied') : tt('detail.copyPath')}</button> : null}
         </span>
       </div>
+      {editable !== undefined ? <section className={css.invocationCard} aria-label={tt('detail.invocation')} aria-busy={invocationBusy}>
+        <div className={css.invocationHead}>
+          <span className={css.invocationTitle}>{tt('detail.invocation')}</span>
+          {!editable ? <span className={css.invocationReadonly}>{tt('detail.invocationReadonly')}</span> : null}
+        </div>
+        <label className={css.invocationRow}>
+          <input
+            type='checkbox'
+            checked={detail.invocation.modelInvocable}
+            disabled={!editable || invocationBusy}
+            onChange={(event) => { onInvocationChange(event.target.checked, detail.invocation.userInvocable) }}
+          />
+          <span className={css.invocationLabel}>
+            <span className={css.invocationName}>{tt('detail.modelInvocable')}</span>
+            <small className={css.invocationHint}>{tt('detail.modelInvocableHint')}</small>
+          </span>
+        </label>
+        <label className={css.invocationRow}>
+          <input
+            type='checkbox'
+            checked={detail.invocation.userInvocable}
+            disabled={!editable || invocationBusy}
+            onChange={(event) => { onInvocationChange(detail.invocation.modelInvocable, event.target.checked) }}
+          />
+          <span className={css.invocationLabel}>
+            <span className={css.invocationName}>{tt('detail.userInvocable')}</span>
+            <small className={css.invocationHint}>{tt('detail.userInvocableHint')}</small>
+          </span>
+        </label>
+      </section> : null}
       <div className={css.detailMeta}>
         <div className={css.detailMetaLine}>{tt('detail.provider')}: {detail.provider}</div>
         {detail.addedAt !== undefined ? <div className={css.detailMetaLine}>{tt('detail.addedAt')}: {formatDateTime(detail.addedAt)}</div> : null}

@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearTrash, createSkill, disableSkill, enableSkill, fixDiagnosticFile, parseFrontmatter, restoreSkill, rootOfPath, scanDiagnostics, trashSkill } from './skillfs.ts'
+import { clearTrash, createSkill, disableSkill, editableSkillFile, enableSkill, fixDiagnosticFile, parseFrontmatter, restoreSkill, rootOfPath, scanDiagnostics, setInvocationInText, setInvocationPolicy, trashSkill } from './skillfs.ts'
 
 describe('parseFrontmatter', () => {
   it('parses a healthy frontmatter', () => {
@@ -90,6 +90,106 @@ describe('parseFrontmatter', () => {
     const expected = { name: 'ok-name', description: 'x', invocation: { modelInvocable: true, userInvocable: true }, content: '' }
     expect(parseFrontmatter('---\nname: ok-name\ndescription: x\nsets: engineering\n---')).toEqual({ value: expected })
     expect(parseFrontmatter('---\nname: ok-name\ndescription: x\nsets: [engineering, " 3d ", ""]\n---')).toEqual({ value: expected })
+  })
+})
+
+describe('setInvocationInText', () => {
+  const body = '\n# Body\n\nKeep this byte-for-byte.\n'
+
+  it('adds both keys when turning model and user invocation off', () => {
+    const result = setInvocationInText('---\nname: demo\ndescription: Demo\n---' + body, { modelInvocable: false, userInvocable: false })
+    if ('error' in result) throw new Error(result.error)
+    expect(result.text).toBe('---\nname: demo\ndescription: Demo\ndisable-model-invocation: true\nuser-invocable: false\n---' + body)
+    expect(parseFrontmatter(result.text)).toMatchObject({ value: { invocation: { modelInvocable: false, userInvocable: false } } })
+  })
+
+  it('removes the keys again so a permitted skill keeps a clean header', () => {
+    const start = '---\nname: demo\ndescription: Demo\ndisable-model-invocation: true\nuser-invocable: false\n---' + body
+    const result = setInvocationInText(start, { modelInvocable: true, userInvocable: true })
+    if ('error' in result) throw new Error(result.error)
+    expect(result.text).toBe('---\nname: demo\ndescription: Demo\n---' + body)
+    expect(parseFrontmatter(result.text)).toMatchObject({ value: { invocation: { modelInvocable: true, userInvocable: true } } })
+  })
+
+  it('normalizes an explicit default value away and appends the non-default key', () => {
+    const start = '---\nname: demo\nuser-invocable: true\ndescription: Demo\n---\nbody'
+    const result = setInvocationInText(start, { modelInvocable: false, userInvocable: true })
+    if ('error' in result) throw new Error(result.error)
+    expect(result.text).toBe('---\nname: demo\ndescription: Demo\ndisable-model-invocation: true\n---\nbody')
+    expect(parseFrontmatter(result.text)).toMatchObject({ value: { invocation: { modelInvocable: false, userInvocable: true } } })
+  })
+
+  it('collapses duplicate keys to one line', () => {
+    const start = '---\nname: demo\ndescription: Demo\nuser-invocable: false\nuser-invocable: false\n---'
+    const result = setInvocationInText(start, { modelInvocable: true, userInvocable: false })
+    if ('error' in result) throw new Error(result.error)
+    expect(result.text).toBe('---\nname: demo\ndescription: Demo\nuser-invocable: false\n---')
+  })
+
+  it('never touches an indented key inside a block scalar', () => {
+    const start = '---\nname: demo\ndescription: |\n  user-invocable: false\n---\nbody'
+    const result = setInvocationInText(start, { modelInvocable: true, userInvocable: true })
+    if ('error' in result) throw new Error(result.error)
+    expect(result.text).toBe(start)
+    expect(parseFrontmatter(result.text)).toMatchObject({ value: { invocation: { modelInvocable: true, userInvocable: true } } })
+  })
+
+  it('preserves CRLF line endings', () => {
+    const result = setInvocationInText('---\r\nname: demo\r\ndescription: Demo\r\n---\r\nbody', { modelInvocable: false, userInvocable: true })
+    if ('error' in result) throw new Error(result.error)
+    expect(result.text).toBe('---\r\nname: demo\r\ndescription: Demo\r\ndisable-model-invocation: true\r\n---\r\nbody')
+  })
+
+  it('refuses text without a frontmatter block', () => {
+    expect(setInvocationInText('# no frontmatter', { modelInvocable: true, userInvocable: true })).toEqual({ error: 'missing YAML frontmatter (--- block)' })
+  })
+})
+
+describe('setInvocationPolicy / editableSkillFile', () => {
+  let dir: string
+  let home: string
+  let skills: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-invocation-'))
+    home = join(dir, 'home')
+    skills = join(home, 'skills')
+    await mkdir(skills, { recursive: true })
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('rewrites the file atomically and round-trips through the parser', async () => {
+    const path = join(skills, 'demo', 'SKILL.md')
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, '---\nname: demo\ndescription: Demo\n---\n\n# Body', 'utf8')
+    expect(await setInvocationPolicy(path, { modelInvocable: false, userInvocable: true }, home)).toBe(path)
+    const parsed = parseFrontmatter(await readFile(path, 'utf8'))
+    if ('error' in parsed) throw new Error(parsed.error)
+    expect(parsed.value.invocation).toEqual({ modelInvocable: false, userInvocable: true })
+    expect(parsed.value.content).toBe('# Body')
+    expect(await readdir(dirname(path))).toEqual(['SKILL.md'])
+  })
+
+  it('accepts flat files, .disabled files and project roots, but nothing else', async () => {
+    expect(editableSkillFile(join(skills, 'flat-skill.md'), home)).toBe(true)
+    expect(editableSkillFile(join(skills, 'off', 'SKILL.md.disabled'), home)).toBe(true)
+    expect(editableSkillFile(join(dir, 'ws', '.dsh', 'skills', 'release', 'SKILL.md'), home)).toBe(true)
+    expect(editableSkillFile(join(dir, 'ws', '.agents', 'skills', 'flat.md'), home)).toBe(true)
+    // 发现范围之外：嵌套目录、任意 md、技能目录里的辅助文件。
+    expect(editableSkillFile(join(skills, 'demo', 'deep', 'SKILL.md'), home)).toBe(false)
+    expect(editableSkillFile(join(skills, 'demo', 'README.md'), home)).toBe(false)
+    expect(editableSkillFile(join(dir, 'ws', 'docs', 'SKILL.md'), home)).toBe(false)
+    expect(editableSkillFile('/etc/passwd', home)).toBe(false)
+  })
+
+  it('refuses to write outside the editable shapes', async () => {
+    const stray = join(dir, 'outside', 'SKILL.md')
+    await mkdir(dirname(stray), { recursive: true })
+    await writeFile(stray, '---\nname: stray\ndescription: Stray\n---', 'utf8')
+    await expect(setInvocationPolicy(stray, { modelInvocable: false, userInvocable: true }, home)).rejects.toThrow(/not an editable skill file/)
   })
 })
 

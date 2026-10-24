@@ -12,6 +12,13 @@ export const zhDetail = {
   'detail.uses': '调用次数',
   'detail.groups': '所属场景',
   'detail.loading': '读取技能正文…',
+  'detail.invocation': '调用方式',
+  'detail.modelInvocable': '模型可调',
+  'detail.modelInvocableHint': 'Agent 可自动调用；取消勾选写入 disable-model-invocation: true',
+  'detail.userInvocable': '用户可调',
+  'detail.userInvocableHint': '仅显式点名时触发；取消勾选写入 user-invocable: false',
+  'detail.invocationReadonly': '该技能由内置或插件提供者注册，没有可写的技能文件，调用方式只读。',
+  'detail.invocationSaved': '调用方式已写入',
 } as const
 
 export const enDetail: Record<keyof typeof zhDetail, string> = {
@@ -27,4 +34,11 @@ export const enDetail: Record<keyof typeof zhDetail, string> = {
   'detail.uses': 'Uses',
   'detail.groups': 'Groups',
   'detail.loading': 'Loading skill body…',
+  'detail.invocation': 'Invocation',
+  'detail.modelInvocable': 'Model-invocable',
+  'detail.modelInvocableHint': 'The agent may load it on its own; clearing this writes disable-model-invocation: true',
+  'detail.userInvocable': 'User-invocable',
+  'detail.userInvocableHint': 'Only explicit /name mentions; clearing this writes user-invocable: false',
+  'detail.invocationReadonly': 'Registered by a bundled or plugin provider: there is no writable skill file, so the invocation policy is read-only.',
+  'detail.invocationSaved': 'Invocation policy written',
 }

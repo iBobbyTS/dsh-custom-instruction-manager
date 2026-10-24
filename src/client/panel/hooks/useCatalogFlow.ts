@@ -41,6 +41,8 @@ export function useCatalogFlow(
   const [formBusy, setFormBusy] = useState(false)
   const [formMessage, setFormMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
   const [fixingPaths, setFixingPaths] = useState<ReadonlySet<string>>(new Set())
+  /** 详情页调用方式写入中（checkbox 与提示条共用）。 */
+  const [invocationBusy, setInvocationBusy] = useState(false)
   const [invocationFilter, setInvocationFilter] = useState<'all' | 'model' | 'user'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('name')
 
@@ -127,6 +129,19 @@ export function useCatalogFlow(
     })
   }, [api, load, shared])
 
+  /**
+   * 写调用方式：host 改 SKILL.md 的两个键并让注册表缓存失效，这里再回读
+   * 一次详情与目录，保证圆点、筛选与页内 checkbox 三处同步。
+   */
+  const setInvocation = useCallback(async (name: string, modelInvocable: boolean, userInvocable: boolean): Promise<void> => {
+    setInvocationBusy(true)
+    await runFlow(shared, async () => {
+      await api.setInvocation({ name, modelInvocable, userInvocable, ...(workspace !== '' ? { cwd: workspace } : {}) })
+      setDetail(await api.skill(name, workspace !== '' ? { cwd: workspace } : undefined))
+      await load()
+    }, () => setInvocationBusy(false))
+  }, [api, load, shared, workspace])
+
   const create = useCallback(async (event: FormEvent): Promise<void> => {
     event.preventDefault()
     setFormBusy(true)
@@ -182,11 +197,11 @@ export function useCatalogFlow(
 
   return {
     catalog, loading, detail, detailLoading, busyNames, search, workspace,
-    showForm, formName, formDesc, formRoot, formBusy, formMessage, fixingPaths,
+    showForm, formName, formDesc, formRoot, formBusy, formMessage, fixingPaths, invocationBusy,
     invocationFilter, sortKey, normalized, actionNames, viewNames,
     filtered, sorted, shortenedCount,
     setDetail, setSearch, setWorkspace, setShowForm, setFormName, setFormDesc,
     setFormRoot, setFormMessage, setInvocationFilter, setSortKey,
-    load, openDetail, toggle, enableDisabled, batchToggleNames, fixDiagnostic, create, clearListFilters,
+    load, openDetail, toggle, enableDisabled, batchToggleNames, fixDiagnostic, setInvocation, create, clearListFilters,
   }
 }

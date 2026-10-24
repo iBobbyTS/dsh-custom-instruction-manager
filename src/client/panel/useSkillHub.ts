@@ -199,6 +199,7 @@ export function useSkillHub(api: SkillHubApi) {
     requestSync: sourceFlow.requestSync, requestDelete: sourceFlow.requestDelete,
     restoreTrash: sourceFlow.restoreTrash, clearTrash: sourceFlow.clearTrash,
     fixingPaths: catalogFlow.fixingPaths, fixDiagnostic: catalogFlow.fixDiagnostic,
+    invocationBusy: catalogFlow.invocationBusy, setInvocation: catalogFlow.setInvocation,
     clearListFilters: catalogFlow.clearListFilters, openVersionDialog: marketFlow.openVersionDialog,
     confirmVersionDialog: marketFlow.confirmVersionDialog, requestDeleteSkill: sourceFlow.requestDeleteSkill,
     runDeleteSkill: sourceFlow.runDeleteSkill, requestDeleteGroup: sourceFlow.requestDeleteGroup,

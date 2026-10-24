@@ -13,12 +13,13 @@ import {
   type SkillDeleteResponse,
   type SkillDetail,
   type SkillDetailResponse,
+  type SkillInvocationResponse,
   type StatsResponse,
   type ToggleBatchResponse,
   type ToggleResponse,
   type WritableRoot,
 } from '../protocol.ts'
-import { createSkill, disableSkill, disabledOccupancyIn, enableSkill, occupancyOf, parseFrontmatter, readSkillInterface, rootOfPath, rootPath, trashSkill } from '../skillfs.ts'
+import { createSkill, disableSkill, disabledOccupancyIn, editableSkillFile, enableSkill, occupancyOf, parseFrontmatter, readSkillInterface, rootOfPath, rootPath, setInvocationPolicy, trashSkill } from '../skillfs.ts'
 import { errorText } from '../error-text.ts'
 import {
   applyInterface,
@@ -53,6 +54,20 @@ async function applyFileTimes(row: { addedAt?: number; updatedAt?: number }, pat
   }
 }
 
+/**
+ * 详情/写调用方式共用的解析顺序：显式 cwd 只看该工作区；否则按已知工作区
+ * 逐个查找（与目录默认视图一致），最后回退用户级根，保证默认视图里可见的
+ * 项目技能也能打开详情、也能被同一个技能命中。
+ */
+async function findSkill(deps: SkillHubRouteDeps, name: string, cwd: string): Promise<SkillDefinition | undefined> {
+  if (cwd !== '') return deps.skills.get(name, { cwd })
+  for (const ws of await workspaceEntries(homeOf(deps))) {
+    const skill = await deps.skills.get(name, { cwd: ws.path })
+    if (skill !== undefined) return skill
+  }
+  return deps.skills.get(name)
+}
+
 /** 目录域全部路由 spec（由 routes.ts 经 createRoute 包上统一围栏）。 */
 export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
   return [
@@ -72,19 +87,8 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
       handler: async ({ res, url }) => {
         const name = queryParam(url, 'name')
         if (name === undefined || name === '') { writeError(res, 400, 'name query parameter is required'); return }
-        const cwd = queryParam(url, 'cwd')
-        // 显式 cwd 只看该工作区；否则按已知工作区逐个查找（与目录默认视图
-        // 一致），最后回退用户级根，保证默认视图里可见的项目技能能打开详情。
-        let skill: SkillDefinition | undefined
-        if (cwd !== undefined && cwd !== '') {
-          skill = await deps.skills.get(name, { cwd })
-        } else {
-          for (const ws of await workspaceEntries(homeOf(deps))) {
-            skill = await deps.skills.get(name, { cwd: ws.path })
-            if (skill !== undefined) break
-          }
-          if (skill === undefined) skill = await deps.skills.get(name)
-        }
+        const cwd = queryParam(url, 'cwd') ?? ''
+        const skill = await findSkill(deps, name, cwd)
         if (skill === undefined) {
           // Hub-disabled skills live outside registry discovery (renamed to .disabled);
           // serve their detail straight from the sidecar record + file.
@@ -101,6 +105,8 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
                   invocation: { ...parsed.value.invocation },
                   provider: 'skill-hub (disabled)',
                   path: record.path,
+                  // 禁用记录只存在于用户根，调用方式同样可改（写的是 .disabled 文件）。
+                  editable: editableSkillFile(record.path, homeOf(deps)),
                   content: parsed.value.content,
                 }
                 await applyFileTimes(disabledDetail, record.path)
@@ -114,7 +120,7 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           writeError(res, 404, 'skill not found: ' + name)
           return
         }
-        const detail = toDetail(skill)
+        const detail = toDetail(skill, homeOf(deps))
         if (skill.path !== undefined) {
           await applyFileTimes(detail, skill.path)
           // UI metadata from agents/openai.yaml beside the skill directory (codex).
@@ -130,6 +136,56 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           }
         }
         writeJson(res, 200, { ok: true, skill: detail } satisfies SkillDetailResponse)
+      },
+    },
+    // --------------------------------------------------- skill/invocation
+    // dsh's registry has no invocation setter: the two booleans every consumer
+    // reads come from the skill file's frontmatter. Write them there — user and
+    // project roots only, bundled/plugin providers own no writable file.
+    {
+      path: SKILL_HUB_API.skillInvocation,
+      methods: ['POST'],
+      jsonBody: true,
+      handler: async ({ res, body }) => {
+        const name = readString(body, 'name').trim()
+        if (!isSkillName(name)) { writeError(res, 400, 'skill name must be kebab-case (lowercase letters, digits, dashes)'); return }
+        if (typeof body.modelInvocable !== 'boolean' || typeof body.userInvocable !== 'boolean') {
+          writeError(res, 400, 'modelInvocable and userInvocable must be booleans')
+          return
+        }
+        const policy = { modelInvocable: body.modelInvocable, userInvocable: body.userInvocable }
+        const cwd = readString(body, 'cwd')
+        // Same resolution order as the detail route, so the checkbox row edits
+        // exactly the skill the page is showing (including project skills).
+        const skill = await findSkill(deps, name, cwd)
+        let path: string
+        if (skill === undefined) {
+          // Hub-disabled skills sit outside discovery: edit the renamed file.
+          const record = await deps.store.getDisabled(name)
+          if (record === undefined) { writeError(res, 404, 'skill not found: ' + name); return }
+          path = record.path
+        } else {
+          if (skill.path === undefined) {
+            writeError(res, 409, 'skill "' + name + '" is registered by provider "' + skill.provider + '" and has no file to edit')
+            return
+          }
+          path = skill.path
+        }
+        if (!editableSkillFile(path, homeOf(deps))) {
+          writeError(res, 409, 'skill "' + name + '" is managed by provider "' + (skill?.provider ?? 'unknown') + '"; only skill files under a user or project root can change invocation')
+          return
+        }
+        try {
+          await setInvocationPolicy(path, policy, homeOf(deps))
+        } catch (error) {
+          if (error instanceof TypeError) { writeError(res, 400, errorText(error)); return }
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') { writeError(res, 409, 'skill file is missing on disk: ' + path); return }
+          throw error
+        }
+        // Callers re-read the detail/catalog through the registry, so drop the
+        // cached summaries that still carry the old invocation policy.
+        deps.invalidate?.()
+        writeJson(res, 200, { ok: true, name, path, invocation: policy } satisfies SkillInvocationResponse)
       },
     },
     // -------------------------------------------------------- skill/delete

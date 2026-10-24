@@ -13,7 +13,7 @@ import {
   type SkillDetail,
   type WritableRoot,
 } from '../protocol.ts'
-import { rootPath, readSkillInterface, scanDiagnostics, type SkillInterface } from '../skillfs.ts'
+import { editableSkillFile, rootPath, readSkillInterface, scanDiagnostics, type SkillInterface } from '../skillfs.ts'
 import { CURRENT_VERSION } from '../update.ts'
 import { homeOf, isWritableSource, type SkillHubRouteDeps } from './deps.ts'
 
@@ -228,7 +228,7 @@ export function applyInterface<T extends SkillInterface>(row: T, iface: SkillInt
 }
 
 /** Map a loaded definition onto the wire shape. */
-export function toDetail(skill: SkillDefinition): SkillDetail {
+export function toDetail(skill: SkillDefinition, home?: string): SkillDetail {
   return {
     name: skill.name,
     description: skill.description,
@@ -238,7 +238,7 @@ export function toDetail(skill: SkillDefinition): SkillDetail {
       userInvocable: skill.invocation.userInvocable,
     },
     provider: skill.provider,
-    ...(skill.path !== undefined ? { path: skill.path } : {}),
+    ...(skill.path !== undefined ? { path: skill.path, editable: editableSkillFile(skill.path, home) } : { editable: false }),
     content: skill.content,
   }
 }

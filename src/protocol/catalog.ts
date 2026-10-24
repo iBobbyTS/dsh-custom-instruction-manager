@@ -97,6 +97,11 @@ export interface SkillDetail {
   updatedAt?: number
   /** Markdown instruction body. */
   content: string
+  /**
+   * 是否可改调用方式：用户根（~/.dsh, ~/.agents）与项目根（<ws>/.dsh|.agents/skills）
+   * 的 SKILL.md 可改；内置/插件 provider 注册的技能没有可写文件，为 false。
+   */
+  editable?: boolean
   displayName?: string
   shortDescription?: string
   brandColor?: string
@@ -113,6 +118,31 @@ export interface SkillDetailResponse {
 /** POST /api/skill-hub/skill/delete — 把单个技能移入回收站（可恢复）。 */
 export interface SkillDeleteRequest {
   name: string
+}
+
+/**
+ * POST /api/skill-hub/skill/invocation — 写 SKILL.md 的调用方式。
+ *
+ * dsh 的注册表没有写入口，调用方式只能落在技能文件的 frontmatter 上：
+ *  - 模型不可调 → `disable-model-invocation: true`（缺键 = 可调）
+ *  - 用户不可调 → `user-invocable: false`（缺键 = 可调）
+ * 请求里给的是「可调」语义，反向映射由 host 完成。
+ */
+export interface SkillInvocationRequest {
+  name: string
+  modelInvocable: boolean
+  userInvocable: boolean
+  /** 项目技能所属工作区；缺省按详情页同样的顺序解析（已知工作区 → 用户根）。 */
+  cwd?: string
+}
+
+export interface SkillInvocationResponse {
+  ok: true
+  name: string
+  /** 被改写的发现文件（目录包的 SKILL.md 或扁平 .md；禁用态为 .disabled）。 */
+  path: string
+  /** 写入后的调用方式（回读校验过的值）。 */
+  invocation: HubInvocation
 }
 
 /** POST /api/skill-hub/skill/delete */
