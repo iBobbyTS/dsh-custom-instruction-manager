@@ -114,6 +114,23 @@
 .placeholder { display: flex; align-items: center; flex-direction: column; padding: 48px 20px; text-align: center; color: var(--hub-text-3); font-size: 14px; line-height: 1.6; }
 .placeholderTitle { margin: 0 0 8px; font-size: 14px; line-height: 1.6; font-weight: 400; }
 .placeholderBody { max-width: 460px; margin: 0; color: var(--hub-text-4); font-size: 13px; line-height: 21px; }
+
+/* 「关于」页：小节标题 + 一句说明 + 一张只读信息卡。行的节奏照官方设置页
+   (ui-chat settings/PreferenceRow.module.css)：左侧 14px 主墨色标题、右侧取值，
+   行间 0.5px 发丝线，末行不留线。 */
+.about { display: flex; flex-direction: column; gap: 10px; padding-top: 6px; }
+.aboutTitle { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; }
+.aboutLead { max-width: 560px; margin: 0; color: var(--hub-text-3); font-size: 13px; line-height: 21px; }
+.aboutCard { display: flex; flex-direction: column; margin-top: 4px; padding: 0 16px; background: var(--hub-surface); border-radius: 12px; }
+.aboutRow { box-sizing: border-box; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 0; border-bottom: 0.5px solid var(--hub-border); }
+.aboutRow:last-child { border-bottom: 0; }
+.aboutRowText { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.aboutRowTitle { color: var(--hub-text); font-size: 14px; line-height: 22px; }
+.aboutRowDesc { color: var(--hub-text-3); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.aboutValue { flex: none; color: var(--hub-text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.aboutControl { display: inline-flex; flex: none; align-items: center; gap: 10px; }
+.aboutLink { color: var(--hub-accent); font-size: 13px; text-decoration: none; }
+.aboutLink:hover { text-decoration: underline; }
 .hint { font-size: 12px; color: var(--hub-text-3); }
 .actions { margin-left: auto; display: flex; gap: 8px; }
 
@@ -169,7 +186,6 @@
 .diagRow { font-size: 12px; padding: 9px 14px; border-left: 3px solid var(--hub-warn); background: rgba(210,153,34,.06); }
 .diagPath { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--hub-text-2); word-break: break-all; }
 .diagReason { color: var(--hub-text-3); margin-top: 1px; }
-.updateLink { color: inherit; font-weight: 600; text-decoration: underline; }
 
 .errorBanner { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; color: var(--hub-danger); background: rgba(209,36,47,.07); border-radius: 10px; padding: 10px 14px; white-space: pre-wrap; word-break: break-all; }
 /* Green success banner (create finished); mirrors the error banner shape. */
@@ -220,9 +236,8 @@
 .chevron { flex: none; width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-1px); transition: transform .15s ease; opacity: .55; margin-right: 2px; align-self: center; }
 .chevronCollapsed { transform: rotate(-45deg) translateY(-1px); }
 
-/* 标题行右侧的元信息（版本号 + 计数）；标题本身是纯文字行盒。 */
+/* 标题行右侧的元信息（目录计数 + 诊断提示）；标题本身是纯文字行盒。 */
 .headerCount { font-size: 12px; color: var(--hub-text-3); white-space: nowrap; }
-.pluginVersion { font-size: 12px; font-weight: 500; color: var(--hub-text-4); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .subbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .legendToggle { flex: none; width: 22px; height: 22px; border-radius: 50%; border: none; background: var(--hub-hover); color: inherit; font-size: 12px; line-height: 1; cursor: pointer; opacity: .55; transition: opacity .15s ease, background .15s ease; }
 .legendToggle:hover { opacity: 1; }

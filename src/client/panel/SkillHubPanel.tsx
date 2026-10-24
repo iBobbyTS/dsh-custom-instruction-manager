@@ -21,6 +21,7 @@ import { tt } from '../helpers.ts'
 import { PRIVATE_SOURCE, type SortKey } from '../grouping.ts'
 import { dotStyle, relativeTimeText } from './format.ts'
 import { PanelWidthControls } from './PanelWidthControls.tsx'
+import { AboutView } from './AboutView.tsx'
 import { SkillDetailView } from './SkillDetailView.tsx'
 import { TagEditorView } from './TagEditorView.tsx'
 import { SourcesView } from './SourcesView.tsx'
@@ -38,15 +39,16 @@ export interface SkillHubPanelProps {
  * 顶层内容分类：这一页是「其他插件」的管理入口，四类内容共用一条导航。
  * 只有 Skill 接入了数据；AGENTS.md / MCP / Hook 目前是占位页。
  */
-type Category = 'agents' | 'skills' | 'mcp' | 'hooks'
+type Category = 'agents' | 'skills' | 'mcp' | 'hooks' | 'about'
 
-/** 分类顺序与标签键（用户指定：AGENTS.md → Skill → MCP → Hook）。 */
-const CATEGORY_ORDER: readonly Category[] = ['agents', 'skills', 'mcp', 'hooks']
+/** 分类顺序与标签键（内容分类在前，用户指定的 AGENTS.md → Skill → MCP → Hook；「关于」收尾）。 */
+const CATEGORY_ORDER: readonly Category[] = ['agents', 'skills', 'mcp', 'hooks', 'about']
 const CATEGORY_LABEL: Record<Category, HubKey> = {
   agents: 'category.agents',
   skills: 'category.skills',
   mcp: 'category.mcp',
   hooks: 'category.hooks',
+  about: 'category.about',
 }
 
 export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
@@ -163,20 +165,20 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           .pageHeading）——一段 20px/28px/500 的无图标标题，动作收在同一行右端。 */}
       <div className={css.pageHeading}>
         <h1 className={css.title}>{tt('panel.title')}</h1>
-        {/* 版本号与计数跟在标题后面成一组：标题本身保持官方那样的纯文字行盒。 */}
-        <span className={css.headingMeta}>
-          {catalog !== null ? <span className={css.pluginVersion}>v{catalog.pluginVersion}</span> : null}
-          {catalog !== null
-            ? <span className={css.headerCount}>
-                {tt('panel.count', { count: catalog.skills.length + catalog.disabled.length })}
-                {catalog.disabled.length > 0 ? ' · ' + tt('panel.disabledCount', { count: catalog.disabled.length }) : null}
-              </span>
-            : null}
-          {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
-          {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
-        </span>
+        {/* 目录计数与诊断提示只属于 Skill 页；标题本身保持官方那样的纯文字行盒。 */}
+        {category === 'skills'
+          ? <span className={css.headingMeta}>
+              {catalog !== null
+                ? <span className={css.headerCount}>
+                    {tt('panel.count', { count: catalog.skills.length + catalog.disabled.length })}
+                    {catalog.disabled.length > 0 ? ' · ' + tt('panel.disabledCount', { count: catalog.disabled.length }) : null}
+                  </span>
+                : null}
+              {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
+              {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
+            </span>
+          : null}
         <span className={css.actions}>
-          {category === 'skills' ? <button type='button' className={css.button} disabled={updateState.status === 'checking'} title={updateTitle} onClick={() => { void checkUpdate() }}>{updateState.status === 'checking' ? tt('update.checking') : tt('update.check')}</button> : null}
           {category === 'skills' ? <button
             type='button'
             className={css.button + (editMode ? ' ' + css.primary : '')}
@@ -184,9 +186,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             title={tt('edit.hint')}
             onClick={() => { setEditMode((value) => !value) }}
           >{tt(editMode ? 'edit.done' : 'edit.start')}</button> : null}
-          {updateState.status === 'ready' && updateState.data.updateAvailable && updateState.data.url !== null
-            ? <a className={css.updateLink} href={updateState.data.url} target='_blank' rel='noreferrer'>{tt('update.newVersion', { version: updateState.data.latestVersion ?? '' })}</a>
-            : null}
           {category === 'skills' ? <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button> : null}
         </span>
       </div>
@@ -206,7 +205,17 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         ))}
       </nav>
 
-      {category !== 'skills' ? (
+      {category === 'about' ? (
+        /* 「关于」页：版本与检查更新收在这里，标题行只留页面标题与列表级动作。 */
+        <AboutView
+          version={catalog?.pluginVersion ?? null}
+          status={updateTitle}
+          checking={updateState.status === 'checking'}
+          releaseUrl={updateState.status === 'ready' && updateState.data.updateAvailable ? updateState.data.url : null}
+          latestVersion={updateState.status === 'ready' && updateState.data.updateAvailable ? updateState.data.latestVersion ?? null : null}
+          onCheck={() => { void checkUpdate() }}
+        />
+      ) : category !== 'skills' ? (
         /* 尚未接入数据的分类：说明这里将来装什么，而不是假装列表为空。 */
         <div className={css.placeholder}>
           <h2 className={css.placeholderTitle}>{tt(CATEGORY_LABEL[category])}</h2>
