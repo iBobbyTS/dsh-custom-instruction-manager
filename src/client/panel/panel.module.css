@@ -84,9 +84,36 @@
   z-index: 8;
 }
 
-.panel { padding: 28px 20px 44px; display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: var(--hub-content-width); margin: 0 auto; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; -webkit-font-smoothing: antialiased; /* Dot colors mirror src/client/SkillHubSettingsCard.tsx (DEFAULT_DOT_MODEL_COLOR / DEFAULT_DOT_USER_COLOR) — CSS cannot import TS, so keep the two in sync. */ --hub-model: #2f81f7; --hub-user: #3fb950; /* Host theme tokens (--dsw-alias-*, dsh-client-ui-theme). Each var() carries the pre-token colour of this file as its fallback, so a missing theme package changes nothing. */ --hub-accent: var(--dsw-alias-state-business-primary, #2f81f7); --hub-text: var(--dsw-alias-label-primary, currentColor); --hub-text-2: var(--dsw-alias-label-secondary, #61666b); --hub-text-3: var(--dsw-alias-label-tertiary, #81858c); --hub-text-4: var(--dsw-alias-label-caption, #adb2b8); --hub-surface: var(--dsw-alias-bg-module-platform, rgba(128,128,128,.06)); --hub-hover: var(--dsw-alias-interactive-bg-hover, rgba(128,128,128,.08)); --hub-active: var(--dsw-alias-interactive-bg-active, rgba(128,128,128,.16)); --hub-border: var(--dsw-alias-border-l2, rgba(128,128,128,.13)); --hub-border-2: var(--dsw-alias-border-l3, rgba(128,128,128,.2)); --hub-danger: var(--dsw-alias-state-error-primary, #d1242f); --hub-success: var(--dsw-alias-state-success-primary, #3fb950); --hub-warn: var(--dsw-alias-state-warn-primary, #d29922); --hub-on-accent: var(--dsw-alias-label-primary-foreground, #fff); --hub-skeleton: var(--dsw-alias-bg-skeleton, rgba(128,128,128,.1)); }
-.header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+.panel { padding: calc(28px + var(--dsh-frame-top-clearance, 0px)) 20px 44px; display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: var(--hub-content-width); margin: 0 auto; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; -webkit-font-smoothing: antialiased; /* Dot colors mirror src/client/SkillHubSettingsCard.tsx (DEFAULT_DOT_MODEL_COLOR / DEFAULT_DOT_USER_COLOR) — CSS cannot import TS, so keep the two in sync. */ --hub-model: #2f81f7; --hub-user: #3fb950; /* Host theme tokens (--dsw-alias-*, dsh-client-ui-theme). Each var() carries the pre-token colour of this file as its fallback, so a missing theme package changes nothing. */ --hub-accent: var(--dsw-alias-state-business-primary, #2f81f7); --hub-text: var(--dsw-alias-label-primary, currentColor); --hub-text-2: var(--dsw-alias-label-secondary, #61666b); --hub-text-3: var(--dsw-alias-label-tertiary, #81858c); --hub-text-4: var(--dsw-alias-label-caption, #adb2b8); --hub-surface: var(--dsw-alias-bg-module-platform, rgba(128,128,128,.06)); --hub-hover: var(--dsw-alias-interactive-bg-hover, rgba(128,128,128,.08)); --hub-active: var(--dsw-alias-interactive-bg-active, rgba(128,128,128,.16)); --hub-border: var(--dsw-alias-border-l2, rgba(128,128,128,.13)); --hub-border-2: var(--dsw-alias-border-l3, rgba(128,128,128,.2)); --hub-danger: var(--dsw-alias-state-error-primary, #d1242f); --hub-success: var(--dsw-alias-state-success-primary, #3fb950); --hub-warn: var(--dsw-alias-state-warn-primary, #d29922); --hub-on-accent: var(--dsw-alias-label-primary-foreground, #fff); --hub-skeleton: var(--dsw-alias-bg-skeleton, rgba(128,128,128,.1)); }
+
+/* ---- 标题行 + 分类导航：照官方「自动化任务」一级页面
+   (ui-schedule TaskManagerPage.module.css .pageHeading / .filterTabs) ----
+   标题条自带 28px 顶部内边距，macOS 下再加窗口条预留的
+   --dsh-frame-top-clearance（官方写法）。这里把它折进 .panel 的 padding：
+   主列表 / 技能详情 / 分组编辑三个视图共用同一个 .panel，写在容器上
+   一次就对，且三者顶部对齐。 */
+.pageHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; /* 官方标题行到筛选条是 24px：容器 14px gap + 这 10px。 */ margin-bottom: 10px; }
+/* 官方一级页面标题的刻度：20px/28px/500，无图标。 */
+.title { flex: 0 1 auto; min-width: 0; max-width: 100%; margin: 0; font-size: 20px; line-height: 28px; font-weight: 500; }
+
+/* 版本号 + 计数 + 诊断提示成一组，跟在标题右侧；组内 8px，组与标题之间由
+   .pageHeading 的 16px 列间距给出。整组与标题同基线。 */
+.headingMeta { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+
+/* 分类导航：官方自动化任务页的分段筛选项——28px 胶囊、10px 内边距、
+   14px 圆角、14px/22px 文字；未选中三级墨色，hover 与选中取同一种
+   hover 底色，选中再把文字提到一级墨色。 */
+.filterTabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 0; }
+.filterTab { display: inline-flex; flex: none; align-items: center; height: 28px; padding: 0 10px; border: 0; border-radius: 14px; background: transparent; color: var(--hub-text-3); font: inherit; font-size: 14px; line-height: 22px; white-space: nowrap; cursor: pointer; }
+.filterTab:hover { background: var(--hub-hover); }
+.filterTabActive { background: var(--hub-hover); color: var(--hub-text); }
+
+/* 尚未接入数据的分类：官方自动化任务页的居中空状态
+   (TaskManagerPage.module.css .empty)——14px/1.6 三级墨色标题，
+   下方一段 caption 墨色的说明，48px 上下留白、居中。 */
+.placeholder { display: flex; align-items: center; flex-direction: column; padding: 48px 20px; text-align: center; color: var(--hub-text-3); font-size: 14px; line-height: 1.6; }
+.placeholderTitle { margin: 0 0 8px; font-size: 14px; line-height: 1.6; font-weight: 400; }
+.placeholderBody { max-width: 460px; margin: 0; color: var(--hub-text-4); font-size: 13px; line-height: 21px; }
 .hint { font-size: 12px; color: var(--hub-text-3); }
 .actions { margin-left: auto; display: flex; gap: 8px; }
 
@@ -193,9 +220,9 @@
 .chevron { flex: none; width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-1px); transition: transform .15s ease; opacity: .55; margin-right: 2px; align-self: center; }
 .chevronCollapsed { transform: rotate(-45deg) translateY(-1px); }
 
-/* Reduced header: title + quiet count on one line, controls on the next. */
-.headerCount { font-size: 12px; color: var(--hub-text-3); margin-left: 2px; white-space: nowrap; }
-.pluginVersion { font-size: 12px; font-weight: 500; color: var(--hub-text-4); margin-left: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* 标题行右侧的元信息（版本号 + 计数）；标题本身是纯文字行盒。 */
+.headerCount { font-size: 12px; color: var(--hub-text-3); white-space: nowrap; }
+.pluginVersion { font-size: 12px; font-weight: 500; color: var(--hub-text-4); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .subbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .legendToggle { flex: none; width: 22px; height: 22px; border-radius: 50%; border: none; background: var(--hub-hover); color: inherit; font-size: 12px; line-height: 1; cursor: pointer; opacity: .55; transition: opacity .15s ease, background .15s ease; }
 .legendToggle:hover { opacity: 1; }
@@ -268,9 +295,6 @@
 .filterBar .segmented { flex: none; }
 
 
-/* Panel title icon (skill identity). */
-.titleIcon { display: inline-block; vertical-align: -2px; margin-right: 2px; opacity: .8; }
-
 /* ---- inline-style replacements: one class per recurring layout intent.
    These must stay AFTER the rules they modify (e.g. .groupTime after
    .useTime) so the later rule wins at equal specificity. ---- */
@@ -320,6 +344,7 @@
 
 /* 键盘焦点环：只在 focus-visible（键盘操作）时出现，鼠标点击不打扰。 */
 .opBtn:focus-visible, .button:focus-visible, .segBtn:focus-visible, .disclosure:focus-visible,
+.filterTab:focus-visible,
 .switch:focus-visible, .legendToggle:focus-visible, .back:focus-visible, .statusWrap:focus-visible,
 .input:focus-visible, .select:focus-visible, .search:focus-visible, .sourceLink:focus-visible {
   outline: 2px solid var(--hub-accent);

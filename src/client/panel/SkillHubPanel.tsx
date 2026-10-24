@@ -15,7 +15,7 @@
 
 import { useCallback, useState } from 'react'
 import type { WritableRoot } from '../../protocol.ts'
-import { IconSkillOutline16 } from '../icons.tsx'
+import type { HubKey } from '../locales.ts'
 import type { SkillHubApi } from '../api.ts'
 import { tt } from '../helpers.ts'
 import { PRIVATE_SOURCE, type SortKey } from '../grouping.ts'
@@ -34,6 +34,21 @@ export interface SkillHubPanelProps {
   api: SkillHubApi
 }
 
+/**
+ * 顶层内容分类：这一页是「其他插件」的管理入口，四类内容共用一条导航。
+ * 只有 Skill 接入了数据；AGENTS.md / MCP / Hook 目前是占位页。
+ */
+type Category = 'agents' | 'skills' | 'mcp' | 'hooks'
+
+/** 分类顺序与标签键（用户指定：AGENTS.md → Skill → MCP → Hook）。 */
+const CATEGORY_ORDER: readonly Category[] = ['agents', 'skills', 'mcp', 'hooks']
+const CATEGORY_LABEL: Record<Category, HubKey> = {
+  agents: 'category.agents',
+  skills: 'category.skills',
+  mcp: 'category.mcp',
+  hooks: 'category.hooks',
+}
+
 export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   const hub = useSkillHub(props.api)
   /** 工作区输入草稿：回车才应用，避免每次按键都触发目录重拉。 */
@@ -42,6 +57,8 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   const [filtersOpen, setFiltersOpen] = useState(false)
   /** 页壳元素（宽度手柄的挂载目标与 ResizeObserver 观察对象）。 */
   const [shell, setShell] = useState<HTMLDivElement | null>(null)
+  /** 顶层分类（默认 Skill：其余三类还没有数据）。 */
+  const [category, setCategory] = useState<Category>('skills')
   const refShell = useCallback((node: HTMLDivElement | null): void => { setShell(node) }, [])
   const {
     catalog, loading, loadError, successBanner, updateState, detail, detailLoading, showForm, formName, formDesc,
@@ -142,30 +159,61 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     <div className={css.pageShell} ref={refShell}>
       <div className={css.scrollArea} data-hub-scroll="">
         <div className={css.panel} aria-busy={batchBusy || tagBusy}>
-      <div className={css.header}>
-        <h2 className={css.title}><IconSkillOutline16 size={16} className={css.titleIcon} /> {tt('panel.title')}{catalog !== null ? <span className={css.pluginVersion}>v{catalog.pluginVersion}</span> : null}</h2>
-        {catalog !== null
-          ? <span className={css.headerCount}>
-              {tt('panel.count', { count: catalog.skills.length + catalog.disabled.length })}
-              {catalog.disabled.length > 0 ? ' · ' + tt('panel.disabledCount', { count: catalog.disabled.length }) : null}
-            </span>
-          : null}
-        {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
-        {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
+      {/* 标题行：官方一级页面的标题条（ui-schedule TaskManagerPage 的
+          .pageHeading）——一段 20px/28px/500 的无图标标题，动作收在同一行右端。 */}
+      <div className={css.pageHeading}>
+        <h1 className={css.title}>{tt('panel.title')}</h1>
+        {/* 版本号与计数跟在标题后面成一组：标题本身保持官方那样的纯文字行盒。 */}
+        <span className={css.headingMeta}>
+          {catalog !== null ? <span className={css.pluginVersion}>v{catalog.pluginVersion}</span> : null}
+          {catalog !== null
+            ? <span className={css.headerCount}>
+                {tt('panel.count', { count: catalog.skills.length + catalog.disabled.length })}
+                {catalog.disabled.length > 0 ? ' · ' + tt('panel.disabledCount', { count: catalog.disabled.length }) : null}
+              </span>
+            : null}
+          {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
+          {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
+        </span>
         <span className={css.actions}>
-          <button
+          {category === 'skills' ? <button type='button' className={css.button} disabled={updateState.status === 'checking'} title={updateTitle} onClick={() => { void checkUpdate() }}>{updateState.status === 'checking' ? tt('update.checking') : tt('update.check')}</button> : null}
+          {category === 'skills' ? <button
             type='button'
             className={css.button + (editMode ? ' ' + css.primary : '')}
             aria-pressed={editMode}
             title={tt('edit.hint')}
             onClick={() => { setEditMode((value) => !value) }}
-          >{tt(editMode ? 'edit.done' : 'edit.start')}</button>
-          <button type='button' className={css.button} disabled={updateState.status === 'checking'} title={updateTitle} onClick={() => { void checkUpdate() }}>{updateState.status === 'checking' ? tt('update.checking') : tt('update.check')}</button>
+          >{tt(editMode ? 'edit.done' : 'edit.start')}</button> : null}
           {updateState.status === 'ready' && updateState.data.updateAvailable && updateState.data.url !== null
             ? <a className={css.updateLink} href={updateState.data.url} target='_blank' rel='noreferrer'>{tt('update.newVersion', { version: updateState.data.latestVersion ?? '' })}</a>
             : null}
+          {category === 'skills' ? <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button> : null}
         </span>
       </div>
+
+      {/* 分类导航：官方自动化任务页的分段筛选项（TaskManagerPage 的
+          .filterTabs / .filterTab）——28px 胶囊、10px 内边距、14px 圆角、
+          14px/22px 文字；未选中三级墨色，选中取 hover 底 + 一级墨色。 */}
+      <nav className={css.filterTabs} role='group' aria-label={tt('category.label')}>
+        {CATEGORY_ORDER.map((id) => (
+          <button
+            key={id}
+            type='button'
+            className={css.filterTab + (category === id ? ' ' + css.filterTabActive : '')}
+            aria-pressed={category === id}
+            onClick={() => { setCategory(id) }}
+          >{tt(CATEGORY_LABEL[id])}</button>
+        ))}
+      </nav>
+
+      {category !== 'skills' ? (
+        /* 尚未接入数据的分类：说明这里将来装什么，而不是假装列表为空。 */
+        <div className={css.placeholder}>
+          <h2 className={css.placeholderTitle}>{tt(CATEGORY_LABEL[category])}</h2>
+          <p className={css.placeholderBody}>{tt('category.pending', { name: tt(CATEGORY_LABEL[category]) })}</p>
+        </div>
+      ) : (
+        <>
       <div className={css.subbar}>
         <span className={css.segmented}>
           <button type='button' className={css.segBtn + (tab === 'sources' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('sources') }}>{tt('view.sources')}</button>
@@ -186,9 +234,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             : null}
         </span>
         <button type='button' className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
-        <span className={css.actions}>
-          <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button>
-        </span>
       </div>
 
       {showForm ? (
@@ -356,6 +401,8 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           ) : null}
         </>
       ) : null}
+        </>
+      )}
 
       <PanelDialogs
         conflictDialog={conflictDialog}
