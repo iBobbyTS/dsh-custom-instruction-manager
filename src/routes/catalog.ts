@@ -105,6 +105,7 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
                   ...(parsed.value.whenToUse !== undefined ? { whenToUse: parsed.value.whenToUse } : {}),
                   invocation: { ...parsed.value.invocation },
                   provider: 'skill-hub (disabled)',
+                  source: record.root,
                   path: record.path,
                   // 禁用记录只存在于用户根，调用方式同样可改（写的是 .disabled 文件）。
                   editable: editableSkillFile(record.path, homeOf(deps)),

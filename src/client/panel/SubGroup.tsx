@@ -1,17 +1,17 @@
 /**
  * 二级分组：缩进 + 发丝引导线 + 披露箭头 + 「标题 · 数量」。
  *
- * 项目级技能（.dsh / .agents 细分）与个人技能（按提供者细分）共用这一套
- * 显示，二级不再套卡片面，只有缩进与一条竖线。
+ * 项目级技能（.dsh / .agents 细分）与个人技能（按「管理方」细分）共用这
+ * 一套显示，二级不再套卡片面，只有缩进与一条竖线。
  */
 
 import type { JSX, ReactNode } from 'react'
 import css from './panel.module.css'
 
 export interface SubGroupProps {
-  /** 分组标题（已本地化的来源标签，或提供者 id）。 */
+  /** 分组标题（已本地化的来源标签，或管理方名称）。 */
   title: string
-  /** 标题悬停提示（如「提供者」）。 */
+  /** 标题悬停提示（如「管理方」）。 */
   titleHint?: string
   /** 成员数（已启用 + 已禁用）。 */
   count: number

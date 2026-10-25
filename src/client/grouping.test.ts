@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogSkill, CollectionGroup, DisabledSkill } from '../protocol.ts'
-import { conflictsOnClose, disabledRowKey, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, personalProviderBuckets, PRIVATE_SOURCE, skillRowKey, sortSkills, visibleCollections, workspaceRank } from './grouping.ts'
+import { conflictsOnClose, disabledRowKey, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, managedByOf, personalManagedBuckets, PRIVATE_SOURCE, skillRowKey, sortSkills, visibleCollections, workspaceRank } from './grouping.ts'
 
 function skill(name: string, writable = true): CatalogSkill {
   return {
@@ -107,42 +107,66 @@ describe('visibleCollections', () => {
   })
 })
 
-describe('personalProviderBuckets', () => {
+describe('managedByOf', () => {
+  const user = (source = 'user-dsh'): CatalogSkill => ({ ...skill('a'), provider: 'skill-hub', source })
+  const bundled = (): CatalogSkill => ({ ...skill('office', false), provider: 'dsh-office', source: 'bundled' })
+
+  it('prefers an upstream repo over the provider id', () => {
+    expect(managedByOf(user(), 'anthropics/skills')).toEqual({ kind: 'repo', repo: 'anthropics/skills' })
+  })
+
+  it('maps user roots to User Managed', () => {
+    expect(managedByOf(user('user-dsh'))).toEqual({ kind: 'user' })
+    expect(managedByOf(user('user-agents'))).toEqual({ kind: 'user' })
+  })
+
+  it('maps project roots to Project Managed', () => {
+    expect(managedByOf({ ...user(), source: 'project-dsh' })).toEqual({ kind: 'project' })
+  })
+
+  it('keeps the provider id for bundled and third-party skills', () => {
+    expect(managedByOf(bundled())).toEqual({ kind: 'provider', provider: 'dsh-office' })
+  })
+})
+
+describe('personalManagedBuckets', () => {
   const office = (name: string): CatalogSkill => ({ ...skill(name, false), provider: 'dsh-office', source: 'bundled' })
   const user = (name: string, source = 'user-dsh'): CatalogSkill => ({ ...skill(name), provider: 'skill-hub', source })
   const disabledRecord = (name: string, root: DisabledSkill['root'] = 'user-dsh'): DisabledSkill =>
     ({ name, description: '', path: '/tmp/' + name + '.disabled', root, disabledAt: 1 })
 
-  it('groups personal skills by provider in first-appearance order', () => {
-    const buckets = personalProviderBuckets([office('office'), user('mine'), office('office-docx'), user('other')], [])
-    expect(buckets.map((b) => b.key)).toEqual(['provider:dsh-office', 'provider:skill-hub'])
-    expect(buckets[0].title).toEqual({ kind: 'provider', provider: 'dsh-office' })
+  it('groups personal skills by 管理方 in first-appearance order', () => {
+    const buckets = personalManagedBuckets([office('office'), user('mine'), office('office-docx'), user('other')], [])
+    expect(buckets.map((b) => b.key)).toEqual(['managed:provider:dsh-office', 'managed:user'])
+    expect(buckets[0].managed).toEqual({ kind: 'provider', provider: 'dsh-office' })
     expect(buckets[0].skills.map((s) => s.name)).toEqual(['office', 'office-docx'])
+    expect(buckets[1].managed).toEqual({ kind: 'user' })
     expect(buckets[1].skills.map((s) => s.name)).toEqual(['mine', 'other'])
   })
 
-  it('returns a single bucket when every skill shares one provider', () => {
-    expect(personalProviderBuckets([user('a'), user('b')], []).length).toBe(1)
-    expect(personalProviderBuckets([], []).length).toBe(0)
+  it('returns a single bucket when every skill shares one 管理方', () => {
+    expect(personalManagedBuckets([user('a'), user('b')], []).length).toBe(1)
+    expect(personalManagedBuckets([], []).length).toBe(0)
   })
 
-  it('keeps user roots together when the provider spans .dsh and .agents', () => {
-    const buckets = personalProviderBuckets([user('a', 'user-dsh'), user('b', 'user-agents')], [])
+  it('keeps user roots together under User Managed', () => {
+    const buckets = personalManagedBuckets([user('a', 'user-dsh'), user('b', 'user-agents')], [])
     expect(buckets.length).toBe(1)
+    expect(buckets[0].managed).toEqual({ kind: 'user' })
     expect(buckets[0].skills.map((s) => s.name)).toEqual(['a', 'b'])
   })
 
-  it('attaches a disabled record to the provider bucket of its own root', () => {
-    const buckets = personalProviderBuckets([user('a', 'user-dsh'), user('b', 'user-agents')], [disabledRecord('gone', 'user-agents')])
+  it('attaches a disabled record to the User Managed bucket', () => {
+    const buckets = personalManagedBuckets([user('a', 'user-dsh'), user('b', 'user-agents')], [disabledRecord('gone', 'user-agents')])
     expect(buckets.length).toBe(1)
     expect(buckets[0].skills.map((s) => s.name)).toEqual(['a', 'b'])
     expect(buckets[0].disabled.map((r) => r.name)).toEqual(['gone'])
   })
 
-  it('falls back to a source-titled bucket when the root has no enabled member', () => {
-    const buckets = personalProviderBuckets([office('office')], [disabledRecord('gone', 'user-dsh')])
-    expect(buckets.map((b) => b.key)).toEqual(['provider:dsh-office', 'source:user-dsh'])
-    expect(buckets[1].title).toEqual({ kind: 'source', source: 'user-dsh' })
+  it('still creates User Managed when only disabled user skills remain', () => {
+    const buckets = personalManagedBuckets([office('office')], [disabledRecord('gone', 'user-dsh')])
+    expect(buckets.map((b) => b.key)).toEqual(['managed:provider:dsh-office', 'managed:user'])
+    expect(buckets[1].managed).toEqual({ kind: 'user' })
     expect(buckets[1].skills).toEqual([])
     expect(buckets[1].disabled.map((r) => r.name)).toEqual(['gone'])
   })

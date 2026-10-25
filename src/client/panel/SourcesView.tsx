@@ -7,15 +7,15 @@
  *
  * Top-level groups follow the official 插件 page: a plain 14/500 section
  * heading ("用户级" / "项目级"), not a collapsible header. Only nested nodes
- * (collections, project workspaces, provider buckets) keep their disclosure.
+ * (collections, project workspaces, managed-by buckets) keep their disclosure.
  * Ordering is derived — user-level first, then collections by name, then the
  * project tree (workspaces follow the dsh sidebar) — because the hub no longer
  * offers manual reordering.
  */
 
 import { useMemo, type JSX } from 'react'
-import { tt } from '../helpers.ts'
-import { disabledRowKey, filterBySource, groupSwitchView, isProjectSource, personalProviderBuckets, PRIVATE_SOURCE, skillRowKey, visibleCollections } from '../grouping.ts'
+import { managedByText, tt } from '../helpers.ts'
+import { disabledRowKey, filterBySource, groupSwitchView, isProjectSource, personalManagedBuckets, PRIVATE_SOURCE, skillRowKey, visibleCollections } from '../grouping.ts'
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
@@ -46,9 +46,10 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
     .filter(() => sourceFilter === 'all' || sourceFilter === PRIVATE_SOURCE)
   const allPersonalNames = [...uncategorized.map((s) => s.name), ...personalDisabled.map((r) => r.name)]
   const hasPersonal = allPersonalNames.length > 0
-  // 个人技能二级分类：按提供者（provider）聚合，复用项目级 .dsh/.agents
-  // 那一层的显示。只有一个提供者时不铺二级（单组的二级头纯属噪音）。
-  const personalBuckets = personalProviderBuckets(uncategorized, personalDisabled)
+  // 个人技能二级分类：按「管理方」聚合，复用项目级 .dsh/.agents 那一层的
+  // 显示。用户自己的技能统一成 User Managed，不再逐个显示 provider id；
+  // 只有一个管理方时不铺二级（单组的二级头纯属噪音）。
+  const personalBuckets = personalManagedBuckets(uncategorized, personalDisabled)
   const subdividedPersonal = personalBuckets.length > 1
   /** 顶层分组顺序：用户级 → 来源集合 → 项目级（全部由数据推导，不可重排）。 */
   const topKeys: string[] = [
@@ -141,7 +142,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
             />
           )
         }
-        // Personal 顶层分组：小标题 + 提供者二级分类
+        // Personal 顶层分组：小标题 + 管理方二级分类
         if (topKey === 'uncategorized-source' && hasPersonal) {
           if (allPersonalNames.length === 0) return null
           return (
@@ -163,16 +164,11 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                 personalBuckets.map((bucket) => {
                   const subKey = 'personal:' + bucket.key
                   const subCollapsed = collapsedGroups.has(subKey)
-                  const { title } = bucket
-                  /** 提供者桶显示 provider id；兜底桶显示本地化的根目录来源。 */
-                  const titleText = title.kind === 'provider'
-                    ? title.provider
-                    : tt(('badge.source.' + title.source) as 'badge.source.user-dsh' | 'badge.source.user-agents')
                   return (
                     <SubGroup
                       key={subKey}
-                      title={titleText}
-                      titleHint={title.kind === 'provider' ? tt('groups.provider') : undefined}
+                      title={managedByText(bucket.managed)}
+                      titleHint={tt('groups.managedBy')}
                       count={bucket.skills.length + bucket.disabled.length}
                       collapsed={subCollapsed}
                       onToggle={() => { toggleGroupCollapse(subKey) }}

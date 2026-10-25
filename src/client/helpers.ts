@@ -3,6 +3,7 @@
  * based, family precedent) plus a small error-message extractor.
  */
 import { en, t, zh, type HubKey, type TranslateValues } from './locales.ts'
+import type { ManagedBy } from './grouping.ts'
 
 /** Active dictionary, picked by the document language at call time. */
 let cachedDictionaryLang = ''
@@ -22,6 +23,16 @@ export function dictionary(): Record<string, string> {
 /** Translate a key with optional {name} template params (current language). */
 export function tt(key: HubKey, values?: TranslateValues): string {
   return t(dictionary(), key, values)
+}
+
+/** User-facing label for one managed-by value. */
+export function managedByText(managed: ManagedBy): string {
+  switch (managed.kind) {
+    case 'repo': return managed.repo
+    case 'user': return tt('managed.user')
+    case 'project': return tt('managed.project')
+    case 'provider': return managed.provider
+  }
 }
 
 /** Human-readable error text from an unknown thrown value. */

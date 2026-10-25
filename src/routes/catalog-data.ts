@@ -273,6 +273,7 @@ export function toDetail(skill: SkillDefinition, home?: string): SkillDetail {
       userInvocable: skill.invocation.userInvocable,
     },
     provider: skill.provider,
+    source: skill.source,
     ...(skill.path !== undefined ? { path: skill.path, editable: editableSkillFile(skill.path, home) } : { editable: false }),
     content: skill.content,
   }

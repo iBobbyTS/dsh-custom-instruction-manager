@@ -381,6 +381,7 @@ describe('skill-hub routes', () => {
     const ok = new FakeResponse()
     await routeFor(SKILL_HUB_API.skill).handler(fakeReq('GET', SKILL_HUB_API.skill + '?name=demo-skill'), ok as never)
     expect(ok.status).toBe(200)
+    expect((ok.json() as { skill: { source: string } }).skill.source).toBe('user-dsh')
     const missing = new FakeResponse()
     await routeFor(SKILL_HUB_API.skill).handler(fakeReq('GET', SKILL_HUB_API.skill + '?name=nope'), missing as never)
     expect(missing.status).toBe(404)

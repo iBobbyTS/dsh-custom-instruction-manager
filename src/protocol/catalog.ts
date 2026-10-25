@@ -101,6 +101,8 @@ export interface SkillDetail {
   whenToUse?: string
   invocation: HubInvocation
   provider: string
+  /** 技能来源标识（user-dsh/user-agents/project-dsh/project-agents/...）。 */
+  source: string
   /** Absolute file path when the skill came from disk. */
   path?: string
   /** SKILL.md creation time (epoch ms); absent when the file is unreadable. */

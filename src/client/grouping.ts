@@ -123,69 +123,85 @@ export interface VisibleCollection {
 }
 
 /**
- * 个人技能二级分类的标题：提供者 id；已禁用记录没有提供者字段，来源
- * 又无法从已启用成员推断时退化成来源标签（用户 .dsh / 用户 .agents）。
+ * 用户可见的「管理方」：技能从哪来、由谁维护。provider id 是注册表概念，
+ * 用户技能全都显示成 skill-hub 会造成误导，所以按可读语义收敛：
+ * - 有上游来源记录（市场 / 直接 URL 导入）→ 仓库名；
+ * - 用户根 → User Managed；
+ * - 项目根 → Project Managed；
+ * - 内置 / 第三方 provider → provider id（如 dsh-office、openviking）。
  */
-export type ProviderBucketTitle =
+export type ManagedBy =
+  | { kind: 'repo'; repo: string }
+  | { kind: 'user' }
+  | { kind: 'project' }
   | { kind: 'provider'; provider: string }
-  | { kind: 'source'; source: string }
 
-/** 个人技能按提供者（provider）聚合出的一个二级分组。 */
-export interface ProviderBucket {
-  /** 稳定键（`provider:<id>` / `source:<来源>`），与折叠状态共用。 */
+/** Derive the user-facing 管理方 for one skill (origin repo wins). */
+export function managedByOf(
+  skill: Pick<CatalogSkill, 'source' | 'provider'>,
+  origin?: string,
+): ManagedBy {
+  if (origin !== undefined && origin !== '') return { kind: 'repo', repo: origin }
+  if (skill.source === 'user-dsh' || skill.source === 'user-agents') return { kind: 'user' }
+  if (isProjectSource(skill.source)) return { kind: 'project' }
+  return { kind: 'provider', provider: skill.provider }
+}
+
+/** Stable bucket key for a managed-by value (collapsed-state state). */
+function managedKey(managed: ManagedBy): string {
+  switch (managed.kind) {
+    case 'repo': return 'repo:' + managed.repo
+    case 'provider': return 'provider:' + managed.provider
+    default: return managed.kind
+  }
+}
+
+/** 个人技能按「管理方」聚合出的一个二级分组。 */
+export interface ManagedBucket {
+  /** 稳定键（`managed:<kind>[:<id>]`），与折叠状态共用。 */
   key: string
-  title: ProviderBucketTitle
-  /** 该提供者下、且通过当前筛选的已启用技能。 */
+  managed: ManagedBy
+  /** 该管理方下、且通过当前筛选的已启用技能。 */
   skills: CatalogSkill[]
-  /** 该提供者下、且通过当前筛选的已禁用记录。 */
+  /** 该管理方下、且通过当前筛选的已禁用记录。 */
   disabled: DisabledSkill[]
 }
 
 /**
- * Group the personal (untracked, non-project) skills by 提供者 — the
- * provider id the registry reports, which is what tells user-owned skills
- * apart from bundled / third-party-plugin skills.
+ * Group the personal (untracked, non-project) skills by 管理方 — user-owned
+ * skills collapse into one "User Managed" bucket instead of the misleading
+ * `skill-hub` provider id; bundled / third-party providers keep their id.
  *
  * Bucket order follows first appearance in the incoming (already sorted)
  * list, so the chosen sort key still decides the subgroup order. Disabled
- * records carry no provider, so each one joins the bucket of a currently
- * enabled skill from the same root (user-dsh / user-agents); when that root
- * has no enabled member left, it falls back to its own source-titled bucket.
+ * records only exist under the user roots, so they always belong to the
+ * "User Managed" bucket (created even when no enabled user skill remains).
  */
-export function personalProviderBuckets(
+export function personalManagedBuckets(
   skills: readonly CatalogSkill[],
   disabled: readonly DisabledSkill[],
-): ProviderBucket[] {
-  const buckets: ProviderBucket[] = []
-  const byProvider = new Map<string, ProviderBucket>()
+): ManagedBucket[] {
+  const buckets: ManagedBucket[] = []
+  const byKey = new Map<string, ManagedBucket>()
   for (const skill of skills) {
-    let bucket = byProvider.get(skill.provider)
+    const managed = managedByOf(skill)
+    const key = 'managed:' + managedKey(managed)
+    let bucket = byKey.get(key)
     if (bucket === undefined) {
-      bucket = { key: 'provider:' + skill.provider, title: { kind: 'provider', provider: skill.provider }, skills: [], disabled: [] }
-      byProvider.set(skill.provider, bucket)
+      bucket = { key, managed, skills: [], disabled: [] }
+      byKey.set(key, bucket)
       buckets.push(bucket)
     }
     bucket.skills.push(skill)
   }
-  // 来源 → 已启用技能的提供者，用于把禁用记录挂回它所在的提供者分组。
-  const bucketBySource = new Map<string, ProviderBucket>()
-  for (const bucket of buckets) {
-    for (const skill of bucket.skills) {
-      if (!bucketBySource.has(skill.source)) bucketBySource.set(skill.source, bucket)
-    }
-  }
-  const fallbacks = new Map<string, ProviderBucket>()
   for (const record of disabled) {
-    // WritableRoot 本身就是来源标识（user-dsh / user-agents）。
-    const source: string = record.root
-    let bucket = bucketBySource.get(source)
+    // 禁用记录只存在于用户根（user-dsh / user-agents），没有 provider 字段。
+    const key = 'managed:user'
+    let bucket = byKey.get(key)
     if (bucket === undefined) {
-      bucket = fallbacks.get(source)
-      if (bucket === undefined) {
-        bucket = { key: 'source:' + source, title: { kind: 'source', source }, skills: [], disabled: [] }
-        fallbacks.set(source, bucket)
-        buckets.push(bucket)
-      }
+      bucket = { key, managed: { kind: 'user' }, skills: [], disabled: [] }
+      byKey.set(key, bucket)
+      buckets.push(bucket)
     }
     bucket.disabled.push(record)
   }

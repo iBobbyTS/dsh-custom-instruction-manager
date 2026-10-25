@@ -7,7 +7,8 @@
 
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { HubConfig, SkillDetail, SourceCheckResult, SourcesResponse } from '../../protocol.ts'
-import { copyTextToClipboard, isDisplayNameDistinct, tt } from '../helpers.ts'
+import { copyTextToClipboard, isDisplayNameDistinct, managedByText, tt } from '../helpers.ts'
+import { managedByOf } from '../grouping.ts'
 import css from './panel.module.css'
 import { dotStyle, formatDateTime, shortSha } from './format.ts'
 import { SourceStatusBadge } from './SourceStatusBadge.tsx'
@@ -49,6 +50,11 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
   const { detail, hubConfig, uses, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
   const detailSource = sourcesState?.sources.find((source) => source.skills.includes(detail.name))
   const detailCheck = detailSource !== undefined ? sourceCheck[detailSource.repo] : undefined
+  /** 管理方：上游仓库优先；否则按技能根目录/注册表 provider 归类。 */
+  const detailManaged = managedByOf(
+    { source: detail.source ?? (disabled === true ? 'user-dsh' : ''), provider: detail.provider },
+    sourcesState?.origins[detail.name],
+  )
   const [copied, setCopied] = useState<string | null>(null)
   const copyTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => { window.clearTimeout(copyTimer.current) }, [])
@@ -110,7 +116,7 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
         </label>
       </section> : null}
       <div className={css.detailMeta}>
-        <div className={css.detailMetaLine}>{tt('detail.provider')}: {detail.provider}</div>
+        <div className={css.detailMetaLine}>{tt('detail.managedBy')}: {managedByText(detailManaged)}</div>
         {detail.addedAt !== undefined ? <div className={css.detailMetaLine}>{tt('detail.addedAt')}: {formatDateTime(detail.addedAt)}</div> : null}
         {detail.updatedAt !== undefined ? <div className={css.detailMetaLine}>{tt('detail.updatedAt')}: {formatDateTime(detail.updatedAt)}</div> : null}
         {detail.path !== undefined ? <div className={css.detailMetaLine}>{tt('detail.path')}: {detail.path}</div> : null}
