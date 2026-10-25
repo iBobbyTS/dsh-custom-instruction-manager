@@ -269,6 +269,9 @@
 
 /* Status dots (model/user invocable) — quiet circles, colors from settings. */
 .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-left: 5px; vertical-align: middle; }
+/* 调用方式圆点组：蓝（Agent 可调）与绿（用户可调）可同时出现，两个点 3px 间距。 */
+.dots { display: inline-flex; align-items: center; gap: 3px; flex: none; margin-left: 5px; }
+.dots .dot { margin-left: 0; }
 .dotModel { background: var(--hub-model); }
 .dotUser { background: var(--hub-user); }
 .displayName { font-size: 11px; color: var(--hub-text-3); margin-left: 6px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; min-width: 0; flex-shrink: 1; }

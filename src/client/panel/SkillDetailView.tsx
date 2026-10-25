@@ -10,7 +10,8 @@ import type { HubConfig, SkillDetail, SourceCheckResult, SourcesResponse } from 
 import { copyTextToClipboard, isDisplayNameDistinct, managedByText, tt } from '../helpers.ts'
 import { managedByOf } from '../grouping.ts'
 import css from './panel.module.css'
-import { dotStyle, formatDateTime, shortSha } from './format.ts'
+import { formatDateTime, shortSha } from './format.ts'
+import { InvocationDots } from './InvocationDots.tsx'
 import { SourceStatusBadge } from './SourceStatusBadge.tsx'
 
 export interface SkillDetailViewProps {
@@ -73,11 +74,7 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
         <span className={css.detailName} style={{ display:'inline-flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
           {detail.name}
           {isDisplayNameDistinct(detail.name, detail.displayName) ? <span className={css.displayName} style={{ fontSize:13, marginLeft:0 }}>{detail.displayName}</span> : null}
-          {detail.invocation.modelInvocable
-            ? <span className={css.dot + ' ' + css.dotModel} style={dotStyle(hubConfig?.dotModelColor)} title={tt('legend.model')} />
-            : detail.invocation.userInvocable
-              ? <span className={css.dot + ' ' + css.dotUser} style={dotStyle(hubConfig?.dotUserColor)} title={tt('legend.user')} />
-              : null}
+          <InvocationDots invocation={detail.invocation} hubConfig={hubConfig} />
         </span>
         <span className={css.actions} style={{ marginLeft: 'auto', gap: 6 }}>
           {disabled === true && onEnable !== undefined ? <button type='button' className={css.opBtn} role='switch' aria-checked={false} aria-label={tt('row.enable')} onClick={onEnable}>{tt('row.enable')}</button> : null}

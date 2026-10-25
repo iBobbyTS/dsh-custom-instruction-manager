@@ -9,7 +9,8 @@ import type { CatalogSkill, HubConfig } from '../../protocol.ts'
 import { IconFolderCloseOutline16, IconTrashOutline16 } from '../icons.tsx'
 import { isFileSource } from '../grouping.ts'
 import { isDisplayNameDistinct, tt } from '../helpers.ts'
-import { dotStyle, relativeTimeText } from './format.ts'
+import { relativeTimeText } from './format.ts'
+import { InvocationDots } from './InvocationDots.tsx'
 import { RowMenu, type RowMenuItem } from './RowMenu.tsx'
 import css from './panel.module.css'
 
@@ -40,12 +41,6 @@ export function SkillRow(props: SkillRowProps): JSX.Element {
   const count = stat?.count ?? 0
   const lastUsed = stat?.lastUsed
   const isDuplicate = duplicateNames.has(skill.name)
-  /** 单一状态圆点：模型可调 → 蓝；否则用户可调 → 绿。与聊天 / 菜单同规则。 */
-  const dot = skill.invocation.modelInvocable
-    ? <span className={css.dot + ' ' + css.dotModel} style={dotStyle(hubConfig?.dotModelColor)} title={tt('legend.model')} />
-    : skill.invocation.userInvocable
-      ? <span className={css.dot + ' ' + css.dotUser} style={dotStyle(hubConfig?.dotUserColor)} title={tt('legend.user')} />
-      : null
   /** 键盘打开详情：Enter 或空格。仅当焦点在行本身（而非行内按钮）时生效。 */
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.target !== event.currentTarget) return
@@ -86,7 +81,7 @@ export function SkillRow(props: SkillRowProps): JSX.Element {
           <span className={css.rowNameText}>{skill.name}</span>
           {isDisplayNameDistinct(skill.name, skill.displayName) ? <span className={css.displayName} title={skill.displayName}>{skill.displayName}</span> : null}
           {count > 0 && hubConfig?.showUseCount !== false ? <span className={css.useCount}>{count}</span> : null}
-          {dot}
+          <InvocationDots invocation={skill.invocation} hubConfig={hubConfig} />
           {isDuplicate ? <span className={css.badge + ' ' + css.statusError} title={tt('row.duplicateHint')}>{tt('row.duplicate')}</span> : null}
           {lastUsed !== undefined && hubConfig?.showUseTime !== false ? <span className={css.useTime}>{relativeTimeText(lastUsed)}</span> : null}
         </div>
