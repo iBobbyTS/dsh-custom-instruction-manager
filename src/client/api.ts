@@ -274,8 +274,8 @@ export class SkillHubApi {
   }
 
   /** AGENTS.md 页：磁盘上真实存在的指令文件清单（用户级 + 每个工作区）。 */
-  agents(): Promise<AgentsResponse> {
-    return this.get<AgentsResponse>(SKILL_HUB_API.agents)
+  agents(options?: { fresh?: boolean }): Promise<AgentsResponse> {
+    return this.get<AgentsResponse>(SKILL_HUB_API.agents, options?.fresh === true ? '?fresh=1' : '')
   }
 
   /** AGENTS.md 页：按清单里的绝对路径读取一个文件的正文与元数据。 */

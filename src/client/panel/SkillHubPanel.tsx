@@ -221,7 +221,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           loading={agentsLoading}
           error={agentsError}
           saving={excludeSaving}
-          onRefresh={() => { void loadAgents() }}
+          onRefresh={() => { void loadAgents(true) }}
           onSaveExcludeDirs={(dirs) => { void saveExcludeDirs(dirs) }}
           onOpenFile={(file, scope) => { void openAgentsFile(file, scope) }}
         />

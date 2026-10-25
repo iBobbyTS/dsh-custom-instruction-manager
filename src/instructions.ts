@@ -36,6 +36,9 @@ export const USER_INSTRUCTION_FILE = 'AGENTS.md'
 /** 无论配置如何都剪掉的目录：版本库元数据与依赖目录。 */
 const ALWAYS_SKIPPED = new Set(['.git', 'node_modules'])
 
+/** 目录遍历的并发度（readdir 并行数）；顺序由最终排序保证，与完成顺序无关。 */
+const WALK_CONCURRENCY = 16
+
 /** 内容去重时单个文件的上限；更大的文件不读内容，按「内容不同」处理。 */
 const MAX_DEDUP_BYTES = 1_048_576
 
@@ -110,34 +113,44 @@ async function walkInstructionCandidates(
   skipDirs: ReadonlySet<string>,
 ): Promise<CandidateHit[]> {
   const hits: CandidateHit[] = []
-  let level: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }]
+  // 按层（BFS）并行 readdir：一棵几千目录的树（Rust 的 target/、
+  // git-worktree/、tests/）串行遍历要 400ms 上下，并发后主要开销变成 syscall
+  // 本身而不是排队。层内并发度固定，顺序由最后的 sort 决定，与完成顺序无关。
+  let level: string[] = [root]
+  let depth = 0
   while (level.length > 0) {
-    const next: Array<{ dir: string; depth: number }> = []
-    for (const { dir, depth } of level) {
-      let entries
-      try {
-        entries = await readdir(dir, { withFileTypes: true })
-      } catch {
-        // 无权限 / 竞态删除：这一层当作不存在，不打断整次扫描。
-        continue
-      }
-      entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-      for (const entry of entries) {
-        const name = entry.name
-        if (entry.isDirectory()) {
-          if (ALWAYS_SKIPPED.has(name) || excluded.has(name)) continue
-          const child = join(dir, name)
-          if (skipDirs.has(child)) continue
-          next.push({ dir: child, depth: depth + 1 })
-          continue
+    const next: string[] = []
+    for (let start = 0; start < level.length; start += WALK_CONCURRENCY) {
+      const slice = level.slice(start, start + WALK_CONCURRENCY)
+      const scanned = await Promise.all(slice.map(async (dir) => {
+        try {
+          return { dir, entries: await readdir(dir, { withFileTypes: true }) }
+        } catch {
+          // 无权限 / 竞态删除：这一层当作不存在，不打断整次扫描。
+          return { dir, entries: undefined }
         }
-        const offset = CANDIDATE_INDEX.get(name)
-        if (offset === undefined) continue
-        if (!entry.isFile() && !entry.isSymbolicLink()) continue
-        hits.push({ absolute: join(dir, name), dir, depth, offset })
+      }))
+      for (const { dir, entries } of scanned) {
+        if (entries === undefined) continue
+        entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+        for (const entry of entries) {
+          const name = entry.name
+          if (entry.isDirectory()) {
+            if (ALWAYS_SKIPPED.has(name) || excluded.has(name)) continue
+            const child = join(dir, name)
+            if (skipDirs.has(child)) continue
+            next.push(child)
+            continue
+          }
+          const offset = CANDIDATE_INDEX.get(name)
+          if (offset === undefined) continue
+          if (!entry.isFile() && !entry.isSymbolicLink()) continue
+          hits.push({ absolute: join(dir, name), dir, depth, offset })
+        }
       }
     }
     level = next
+    depth += 1
   }
   hits.sort((a, b) => {
     if (a.depth !== b.depth) return a.depth - b.depth
@@ -265,17 +278,23 @@ export class InstructionFileError extends Error {
  * user clicked.
  * @param deps - route dependencies (homes + config).
  * @param absolutePath - the row's `absolute`, as sent by the panel.
+ * @param scan - an already-computed scan to validate against; omitted runs one
+ *  (the route passes its cached list so a row click never re-walks the tree).
  * @returns the file body plus its on-disk metadata.
  * @throws {InstructionFileError} 404 when the path is not a current row,
  *  413 when the file is too large to display.
  */
-export async function readInstructionFile(deps: SkillHubRouteDeps, absolutePath: string): Promise<InstructionFileDetail> {
+export async function readInstructionFile(
+  deps: SkillHubRouteDeps,
+  absolutePath: string,
+  scan?: AgentsResponse,
+): Promise<InstructionFileDetail> {
   // 清单里存的是 realpath（macOS 的 /var → /private/var 会让字面路径对不上），
   // 所以两边都过一遍 realpath，同时接受调用方原样回传的行值。
   const literal = resolve(absolutePath)
   const canonical = await realpath(absolutePath).catch(() => literal)
-  const scan = await scanInstructionGroups(deps)
-  const ref = scan.groups
+  const roster = scan ?? await scanInstructionGroups(deps)
+  const ref = roster.groups
     .flatMap((group) => group.files)
     .find((row) => {
       const own = resolve(row.absolute)

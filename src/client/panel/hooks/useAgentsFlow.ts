@@ -30,10 +30,11 @@ export function useAgentsFlow(api: SkillHubApi) {
   /** 打开的指令文件详情；null = 列表视图。 */
   const [agentsFile, setAgentsFile] = useState<AgentsFileState | null>(null)
 
-  const loadAgents = useCallback(async (): Promise<void> => {
+  /** @param fresh - 跳过 host 的 10 秒清单缓存（手动「重新扫描」）。 */
+  const loadAgents = useCallback(async (fresh = false): Promise<void> => {
     setAgentsLoading(true)
     try {
-      setAgents(await api.agents())
+      setAgents(await api.agents({ fresh }))
       setAgentsError(null)
     } catch (error) {
       setAgentsError(errorMessage(error))
@@ -48,7 +49,7 @@ export function useAgentsFlow(api: SkillHubApi) {
     try {
       await api.updateConfig({ excludeDirs: dirs })
       setAgentsError(null)
-      await loadAgents()
+      await loadAgents(true)
     } catch (error) {
       setAgentsError(errorMessage(error))
     } finally {

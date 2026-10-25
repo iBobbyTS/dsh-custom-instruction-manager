@@ -890,6 +890,32 @@ describe('skill-hub routes', () => {
     ])
   })
 
+  it('reuses a short-lived scan cache and bypasses it with fresh=1', async () => {
+    const proj = join(dir, 'cached-proj')
+    await mkdir(proj, { recursive: true })
+    await writeFile(join(proj, 'AGENTS.md'), 'one', 'utf8')
+    await mkdir(join(home, 'storages'), { recursive: true })
+    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
+      global: { workspaceIds: ['a'] },
+      tables: { workspaces: { a: { path: proj, title: 'cached-proj' } } },
+    }), 'utf8')
+
+    const first = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), first as never)
+    expect((first.json() as AgentsResponse).groups[1]?.files).toHaveLength(1)
+
+    // 新文件落盘后，缓存内的清单（10 秒）还看不到它。
+    await mkdir(join(proj, 'docs'), { recursive: true })
+    await writeFile(join(proj, 'docs', 'AGENTS.md'), 'two', 'utf8')
+    const cached = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), cached as never)
+    expect((cached.json() as AgentsResponse).groups[1]?.files).toHaveLength(1)
+
+    const fresh = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents + '?fresh=1'), fresh as never)
+    expect((fresh.json() as AgentsResponse).groups[1]?.files).toHaveLength(2)
+  })
+
   it('serves one instruction file body through the agents/file route', async () => {
     const proj = join(dir, 'proj')
     await mkdir(proj, { recursive: true })
