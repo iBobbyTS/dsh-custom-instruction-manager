@@ -6,7 +6,7 @@
 
 import type { JSX } from 'react'
 import type { CatalogSkill, CollectionGroup, DisabledSkill, SourceCheckResult } from '../../protocol.ts'
-import type { GroupSwitchView } from '../grouping.ts'
+import { disabledRowKey, skillRowKey, type GroupSwitchView } from '../grouping.ts'
 import { tt } from '../helpers.ts'
 import { SourceStatusBadge } from './SourceStatusBadge.tsx'
 import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
@@ -114,9 +114,9 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
       </div>
       {!collapsed ? (
         <>
-          {skills.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
+          {skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
           {disabledMembers.map((record) => (
-            <DisabledRow key={record.name} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void openDetail(record.name) }} />
+            <DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void openDetail(record.name) }} />
           ))}
         </>
       ) : null}

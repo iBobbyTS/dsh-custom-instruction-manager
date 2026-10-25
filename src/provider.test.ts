@@ -74,6 +74,34 @@ describe('SkillHubProvider', () => {
     expect(withoutCwd.find((entry) => entry.name === 'proj-skill')).toBeUndefined()
   })
 
+  it('does not relist user roots when the discovered project root is the home directory', async () => {
+    // 真实故障形态：工作区在 $HOME 下的普通目录（自身没有 .dsh/.git），向上找标记
+    // 命中 $HOME/.dsh —— 项目根 = $HOME，于是 `<project>/.dsh/skills` 就是用户根本身。
+    // 不判重时同一份 SKILL.md 会以 user-dsh 与 project-dsh 两种身份各出现一次。
+    const shell = join(dir, 'shell')
+    const dshDir = join(shell, '.dsh')
+    await mkdir(join(dshDir, 'skills'), { recursive: true })
+    await createSkill('user-dsh', 'alpha-skill', 'Alpha', dshDir)
+    const { provider } = makeProvider(dshDir)
+    const candidates = await provider.list({ cwd: join(shell, 'Projects', 'plain-workspace') })
+    expect(candidates.filter((entry) => entry.name === 'alpha-skill').map((entry) => entry.source)).toEqual(['user-dsh'])
+  })
+
+  it('does not relist the agents home when the discovered project root is its parent', async () => {
+    // 同一判重规则对 .agents 根成立：project-agents 的 base 不能与 user-agents 重合。
+    const shell = join(dir, 'shell-agents')
+    await mkdir(join(shell, '.git'), { recursive: true })
+    process.env.DSH_AGENTS_HOME = join(shell, '.agents')
+    try {
+      await createSkill('user-agents', 'beta-skill', 'Beta', home)
+      const { provider } = makeProvider(home)
+      const candidates = await provider.list({ cwd: join(shell, 'nested', 'workspace') })
+      expect(candidates.filter((entry) => entry.name === 'beta-skill').map((entry) => entry.source)).toEqual(['user-agents'])
+    } finally {
+      process.env.DSH_AGENTS_HOME = agentsHome
+    }
+  })
+
   it('get() resolves a body without the frontmatter block', async () => {
     await createSkill('user-dsh', 'demo-skill', 'Demo', home)
     const { provider } = makeProvider(home)

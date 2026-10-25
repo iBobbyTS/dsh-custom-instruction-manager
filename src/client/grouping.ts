@@ -53,6 +53,26 @@ export function groupNamesOf(name: string, collections: readonly CollectionGroup
 }
 
 /**
+ * Stable React key for one catalog row.
+ *
+ * A skill NAME is not unique in the catalog: the host keys project skills by
+ * `<name>+<workspace>+<source>` on purpose, so the same name may legitimately
+ * appear twice (two workspaces owning a skill of that name, or the same name
+ * coming from different roots/providers). Keying rows by name alone collides
+ * inside one list, and React then mis-reconciles the list: switching the
+ * 平铺/分组 view leaves the stale rows in the DOM and they pile up on every
+ * further switch. The identity below matches the host's logical key.
+ */
+export function skillRowKey(skill: Pick<CatalogSkill, 'name' | 'source' | 'workspace'>): string {
+  return 'skill\0' + skill.source + '\0' + (skill.workspace ?? '') + '\0' + skill.name
+}
+
+/** Stable React key for one disabled (`.disabled`) row: its root decides which row it is. */
+export function disabledRowKey(record: Pick<DisabledSkill, 'name' | 'root'>): string {
+  return 'disabled\0' + record.root + '\0' + record.name
+}
+
+/**
  * Members of a group that are currently enabled AND also belong to at least
  * one other group — the set a "close" action must ask about.
  */

@@ -8,7 +8,7 @@
 
 import { useMemo, useState, type JSX } from 'react'
 import { tt } from '../helpers.ts'
-import { filterBySource, groupSwitchView, isProjectSource, personalProviderBuckets, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
+import { disabledRowKey, filterBySource, groupSwitchView, isProjectSource, personalProviderBuckets, PRIVATE_SOURCE, skillRowKey, visibleCollections } from '../grouping.ts'
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
@@ -88,7 +88,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, editMode: hub.editMode, listBusy: hub.listBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill }
 
   if (skillView === 'flat') {
-    return <>{sourceFiltered.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}</>
+    return <>{sourceFiltered.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}</>
   }
 
   // 空状态：没有任何分组时提示
@@ -209,15 +209,15 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                         collapsed={subCollapsed}
                         onToggle={() => { toggleGroupCollapse(subKey) }}
                       >
-                        {bucket.skills.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
-                        {bucket.disabled.map((record) => (<DisabledRow key={record.name} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
+                        {bucket.skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
+                        {bucket.disabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
                       </SubGroup>
                     )
                   })
                 ) : (
                   <>
-                    {uncategorized.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
-                    {personalDisabled.map((record) => (<DisabledRow key={record.name} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
+                    {uncategorized.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
+                    {personalDisabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
                   </>
                 )
               ) : null}

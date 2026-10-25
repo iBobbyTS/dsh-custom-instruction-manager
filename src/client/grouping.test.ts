@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogSkill, CollectionGroup, DisabledSkill } from '../protocol.ts'
-import { conflictsOnClose, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, personalProviderBuckets, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
+import { conflictsOnClose, disabledRowKey, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, personalProviderBuckets, PRIVATE_SOURCE, skillRowKey, sortSkills, visibleCollections } from './grouping.ts'
 
 function skill(name: string, writable = true): CatalogSkill {
   return {
@@ -190,5 +190,26 @@ describe('formatRelativeTime', () => {
 
   it('clamps future timestamps to just now', () => {
     expect(formatRelativeTime(now + 5_000, now)).toEqual({ key: 'time.justNow' })
+  })
+})
+
+describe('row identity keys', () => {
+  // 目录里的技能名不唯一：宿主按 name+workspace+source 给项目技能建逻辑键，
+  // 同名项目技能可以合法地出现在两行。行 key 若只用名字，React 会把两份当同一
+  // 个子节点，切换平铺/分组后旧行留在 DOM 里并且每次切换再叠一份。
+  it('distinguishes same-named rows from different workspaces and sources', () => {
+    const a = { ...skill('shared'), source: 'project-dsh', workspace: '/ws/a' }
+    const b = { ...skill('shared'), source: 'project-dsh', workspace: '/ws/b' }
+    const user = { ...skill('shared'), source: 'user-dsh' }
+    const keys = new Set([skillRowKey(a), skillRowKey(b), skillRowKey(user)])
+    expect(keys.size).toBe(3)
+  })
+
+  it('is stable for the same row and never collides with a disabled row', () => {
+    const row = { ...skill('shared'), source: 'user-dsh' }
+    expect(skillRowKey(row)).toBe(skillRowKey({ ...row }))
+    const record = { name: 'shared', description: '', path: '/x', root: 'user-dsh', disabledAt: 1 } as DisabledSkill
+    expect(disabledRowKey(record)).not.toBe(skillRowKey(row))
+    expect(disabledRowKey(record)).toBe(disabledRowKey({ ...record }))
   })
 })

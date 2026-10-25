@@ -6,6 +6,7 @@
 
 import type { JSX } from 'react'
 import type { CatalogSkill } from '../../protocol.ts'
+import { skillRowKey } from '../grouping.ts'
 import { tt } from '../helpers.ts'
 import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
@@ -92,12 +93,12 @@ export function ProjectTree(props: ProjectTreeProps): JSX.Element {
                         collapsed={srcCollapsed}
                         onToggle={() => { toggleGroupCollapse(srcKey) }}
                       >
-                        {list.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
+                        {list.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
                       </SubGroup>
                     )
                   })}
                 </div>
-              ) : proj.skills.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)
+              ) : proj.skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)
             ) : null}
           </div>
         )

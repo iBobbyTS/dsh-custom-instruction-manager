@@ -16,7 +16,7 @@
  */
 
 import { readFile, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import type { SkillCandidate, SkillDefinition, SkillProvider, SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import { errorText } from './error-text.ts'
 import { dshHome } from './store.ts'
@@ -163,20 +163,29 @@ export class SkillHubProvider implements SkillProvider {
     }
   }
 
-  /** The roots this provider lists: user roots always, project roots with cwd. */
+  /**
+   * The roots this provider lists: user roots always, project roots with cwd.
+   *
+   * Project roots are matched by their base directory against the user roots:
+   * a workspace that has no project marker of its own (no `.dsh`/`.git`)
+   * resolves upward to `$HOME`, whose `.dsh`/`.agents` ARE the user roots. Listing
+   * those again as `project-dsh`/`project-agents` would report one physical
+   * SKILL.md twice — once as a user skill, once as a project skill of that
+   * workspace — which the panel then shows as duplicated rows.
+   */
   private async roots(cwd?: string): Promise<ProviderRoot[]> {
-    const roots: ProviderRoot[] = [
+    const userRoots: ProviderRoot[] = [
       { base: rootPath('user-dsh', this.home), source: 'user-dsh', rank: USER_DSH_RANK },
       { base: rootPath('user-agents', this.home), source: 'user-agents', rank: USER_AGENTS_RANK },
     ]
-    if (cwd !== undefined && cwd !== '') {
-      const project = await findProjectRoot(cwd)
-      roots.unshift(
-        { base: join(project, '.dsh', 'skills'), source: 'project-dsh', rank: PROJECT_DSH_RANK },
-        { base: join(project, '.agents', 'skills'), source: 'project-agents', rank: PROJECT_AGENTS_RANK },
-      )
-    }
-    return roots
+    if (cwd === undefined || cwd === '') return userRoots
+    const project = await findProjectRoot(cwd)
+    const userBases = new Set(userRoots.map((root) => resolve(root.base)))
+    const projectRoots: ProviderRoot[] = [
+      { base: join(project, '.dsh', 'skills'), source: 'project-dsh', rank: PROJECT_DSH_RANK },
+      { base: join(project, '.agents', 'skills'), source: 'project-agents', rank: PROJECT_AGENTS_RANK },
+    ].filter((root) => !userBases.has(resolve(root.base)))
+    return [...projectRoots, ...userRoots]
   }
 
   /** Public hook for the routes: invalidate after hub-driven mutations. */
