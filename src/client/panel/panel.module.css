@@ -272,7 +272,7 @@
 .dotModel { background: var(--hub-model); }
 .dotUser { background: var(--hub-user); }
 .displayName { font-size: 11px; color: var(--hub-text-3); margin-left: 6px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; min-width: 0; flex-shrink: 1; }
-.legend { display: flex; align-items: center; gap: 12px; font-size: 12px; line-height: 18px; color: var(--hub-text-3); flex-wrap: wrap; padding: 2px 2px 0; }
+.legend { display: flex; align-items: center; gap: 12px; font-size: 12px; line-height: 18px; color: var(--hub-text-3); flex-wrap: wrap; padding: 0 2px; }
 .legendItem { display: inline-flex; align-items: center; gap: 4px; }
 .legendItem .dot { margin-left: 0; }
 .legendHint { opacity: .8; }
@@ -288,9 +288,6 @@
 .chevronCollapsed { transform: rotate(-45deg) translateY(-1px); }
 
 .subbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.legendToggle { flex: none; width: 28px; height: 28px; border-radius: var(--dsw-radius-sm, 8px); border: none; background: transparent; color: var(--hub-text-3); font-size: 13px; line-height: 1; cursor: pointer; transition: background .15s ease, color .15s ease; }
-.legendToggle:hover { background: var(--hub-hover); color: var(--hub-text); }
-.legendToggleActive { background: var(--hub-hover); color: var(--hub-text); }
 
 /* Source filter row (分类 view). */
 .filterBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -450,7 +447,7 @@
    focus-visible（键盘操作）时出现，鼠标点击不打扰。 */
 .opBtn:focus-visible, .button:focus-visible, .segBtn:focus-visible, .disclosure:focus-visible,
 .filterTab:focus-visible,
-.switch:focus-visible, .legendToggle:focus-visible, .back:focus-visible, .statusWrap:focus-visible,
+.switch:focus-visible, .back:focus-visible, .statusWrap:focus-visible,
 .input:focus-visible, .select:focus-visible, .search:focus-visible, .sourceLink:focus-visible {
   outline: var(--hub-focus-width) solid var(--hub-focus);
   outline-offset: 2px;

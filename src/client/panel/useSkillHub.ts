@@ -45,7 +45,6 @@ export function useSkillHub(api: SkillHubApi) {
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set())
   /** 项目级三级树里已细分（按 .dsh/.agents）的项目键。 */
   const [subdividedProjects, setSubdividedProjects] = useState<ReadonlySet<string>>(new Set())
-  const [showLegend, setShowLegend] = useState(false)
   const [editMode, setEditMode] = useState(false)
 
   const toggleGroupCollapse = useCallback((key: string): void => {
@@ -167,7 +166,7 @@ export function useSkillHub(api: SkillHubApi) {
     deleteSkillDialog: sourceFlow.deleteSkillDialog, deleteGroupDialog: sourceFlow.deleteGroupDialog,
     confirmClearTrash: sourceFlow.confirmClearTrash, updateAllDialog: marketFlow.updateAllDialog,
     listBusy,
-    collapsedGroups, subdividedProjects, showLegend, editMode,
+    collapsedGroups, subdividedProjects, editMode,
     versionDialog: marketFlow.versionDialog, versionBusy: marketFlow.versionBusy,
     // derived
     actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
@@ -185,7 +184,7 @@ export function useSkillHub(api: SkillHubApi) {
     setConfirmDialog: sourceFlow.setConfirmDialog,
     setDeleteSkillDialog: sourceFlow.setDeleteSkillDialog, setDeleteGroupDialog: sourceFlow.setDeleteGroupDialog,
     setConfirmClearTrash: sourceFlow.setConfirmClearTrash, setUpdateAllDialog: marketFlow.setUpdateAllDialog,
-    setShowLegend, setEditMode,
+    setEditMode,
     setVersionDialog: marketFlow.setVersionDialog,
     toggleGroupCollapse, toggleSubdivide, setAllGroupsCollapsed, checkUpdate: meta.checkUpdate, loadMarket: marketFlow.loadMarket,
     openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle, enableDisabled: catalogFlow.enableDisabled,

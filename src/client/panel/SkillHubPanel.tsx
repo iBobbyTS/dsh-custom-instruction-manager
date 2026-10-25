@@ -66,10 +66,10 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     sourcesState, groupsState, listBusy, batchBusy, sourceOptions, filtered,
     conflictDialog, confirmDialog, deleteSkillDialog, deleteGroupDialog, confirmClearTrash, branchChoice, branchBusy, marketSyncDialog,
     syncBusy, uses, sourceCheck, checkingSource, syncingSource,
-    showLegend, editMode,
+    editMode,
     setLoadError, setSuccessBanner, setDetail, setShowForm, setFormName, setFormDesc, setFormRoot, setFormMessage, setTab,
     setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog, setDeleteSkillDialog, setDeleteGroupDialog,
-    setConfirmClearTrash, setBranchChoice, setMarketSyncDialog, setShowLegend, setEditMode,
+    setConfirmClearTrash, setBranchChoice, setMarketSyncDialog, setEditMode,
     checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill, runDeleteGroup,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, enableDisabled,
   } = hub
@@ -198,7 +198,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             ? <button type='button' className={css.opBtn} title={tt('panel.workspaceClear')} onClick={() => { setWorkspace(''); setWorkspaceDraft('') }}>✕</button>
             : null}
         </span>
-        <button type='button' className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
         {/* 列表级动作贴这一行的右端（.actions 自带 margin-left:auto）。 */}
         <span className={css.actions}>
           <button
@@ -252,13 +251,12 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         </div>
       ) : null}
 
-      {showLegend ? (
-        <div className={css.legend}>
-          <span className={css.legendItem}><span className={css.dot + ' ' + css.dotModel} style={dotStyle(hubConfig?.dotModelColor)} />{tt('legend.model')}</span>
-          <span className={css.legendItem}><span className={css.dot + ' ' + css.dotUser} style={dotStyle(hubConfig?.dotUserColor)} />{tt('legend.user')}</span>
-          <span className={css.legendHint}>{tt('legend.hint')}</span>
-        </div>
-      ) : null}
+      {/* 圆点图例常驻（比藏在问号按钮后面更容易发现）；每个列表视图共用一套。 */}
+      <div className={css.legend}>
+        <span className={css.legendItem}><span className={css.dot + ' ' + css.dotModel} style={dotStyle(hubConfig?.dotModelColor)} />{tt('legend.model')}</span>
+        <span className={css.legendItem}><span className={css.dot + ' ' + css.dotUser} style={dotStyle(hubConfig?.dotUserColor)} />{tt('legend.user')}</span>
+        <span className={css.legendHint}>{tt('legend.hint')}</span>
+      </div>
 
       {loading ? (
         <div className={css.skeleton} role='status' aria-label={tt('panel.loading')}>
