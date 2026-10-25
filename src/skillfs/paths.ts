@@ -1,6 +1,5 @@
-import { homedir } from 'node:os'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { dshHome } from '../store.ts'
+import { agentsHome, dshHome } from '../store.ts'
 import type { WritableRoot } from '../protocol.ts'
 
 /** Root ids this module may write to. */
@@ -8,10 +7,9 @@ export const WRITABLE_ROOTS: readonly WritableRoot[] = ['user-dsh', 'user-agents
 
 /** Resolve the absolute directory of one writable root. */
 export function rootPath(root: WritableRoot, home = dshHome()): string {
-  const agentsHome = process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents')
   switch (root) {
     case 'user-dsh': return join(home, 'skills')
-    case 'user-agents': return join(agentsHome, 'skills')
+    case 'user-agents': return join(agentsHome(), 'skills')
     default: throw new TypeError('unknown root: ' + String(root))
   }
 }

@@ -4,7 +4,9 @@
  */
 import {
   SKILL_HUB_API,
+  type AgentsResponse,
   type CatalogResponse,
+  type ConfigRequest,
   type ConfigResponse,
   type CreateRequest,
   type CreateResponse,
@@ -262,6 +264,16 @@ export class SkillHubApi {
   /** Read the hub's runtime config (effective values + saved overrides). */
   config(): Promise<ConfigResponse> {
     return this.get<ConfigResponse>(SKILL_HUB_API.config)
+  }
+
+  /** Persist a config patch (only the fields in the patch change); resolves with the fresh config. */
+  updateConfig(patch: ConfigRequest): Promise<ConfigResponse> {
+    return this.post<ConfigResponse>(SKILL_HUB_API.config, patch)
+  }
+
+  /** AGENTS.md 页：磁盘上真实存在的指令文件清单（用户级 + 每个工作区）。 */
+  agents(): Promise<AgentsResponse> {
+    return this.get<AgentsResponse>(SKILL_HUB_API.agents)
   }
 
   /** 系统集合组 + origin 映射。 */

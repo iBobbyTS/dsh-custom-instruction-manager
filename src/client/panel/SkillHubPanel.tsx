@@ -13,7 +13,7 @@
  * return, so that return stays safe.
  */
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { WritableRoot } from '../../protocol.ts'
 import type { HubKey } from '../locales.ts'
 import type { SkillHubApi } from '../api.ts'
@@ -22,6 +22,7 @@ import { PRIVATE_SOURCE, type SortKey } from '../grouping.ts'
 import { dotStyle, relativeTimeText } from './format.ts'
 import { PanelWidthControls } from './PanelWidthControls.tsx'
 import { AboutView } from './AboutView.tsx'
+import { AgentsView } from './AgentsView.tsx'
 import { SkillDetailView } from './SkillDetailView.tsx'
 import { SourcesView } from './SourcesView.tsx'
 import { MarketView } from './MarketView.tsx'
@@ -77,6 +78,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     setConfirmClearTrash, setBranchChoice, setMarketSyncDialog, setEditMode,
     checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill, runDeleteGroup,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, enableDisabled,
+    agents, agentsLoading, agentsError, excludeSaving, loadAgents, saveExcludeDirs,
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
@@ -88,6 +90,11 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     if (scroll === null) return
     scroll.scrollTop = detailOpen ? 0 : listScrollTop.current
   }, [detailOpen])
+
+  // AGENTS.md 分类：每次进入都重新扫一遍磁盘（文件是外部改动的，缓存没有意义）。
+  useEffect(() => {
+    if (category === 'agents') void loadAgents()
+  }, [category, loadAgents])
 
   // -------------------------------------------------------------- detail
 
@@ -187,7 +194,17 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         ))}
       </nav>
 
-      {category === 'about' ? (
+      {category === 'agents' ? (
+        /* AGENTS.md 页：只读的指令文件清单，用户级 + 每个工作区各一组。 */
+        <AgentsView
+          data={agents}
+          loading={agentsLoading}
+          error={agentsError}
+          saving={excludeSaving}
+          onRefresh={() => { void loadAgents() }}
+          onSaveExcludeDirs={(dirs) => { void saveExcludeDirs(dirs) }}
+        />
+      ) : category === 'about' ? (
         /* 「关于」页：版本与检查更新收在这里，标题行只留页面标题与列表级动作。 */
         <AboutView
           version={catalog?.pluginVersion ?? null}

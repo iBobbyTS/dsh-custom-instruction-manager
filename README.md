@@ -33,6 +33,12 @@ Two surfaces — the hub panel opens from the **Skills** entry in the main sideb
 
 ## Features
 
+**Sidebar → Other Plugins → AGENTS.md** — read-only inventory of the instruction files dsh supports. Groups are “user level” plus every registered workspace (sidebar order), with no separate project-level umbrella heading. Each row's title is the real file name on disk and its subtitle is the path from the project folder's parent: `lmdo-website/AGENTS.md` shows as `AGENTS.md` + `lmdo-website`, `lmdo-website/docs/AGENTS.md` as `AGENTS.md` + `lmdo-website/docs`; the two user-level rows show `~/.dsh` and `~/.agents`.
+
+- **Only the intersection** — names dsh supports that actually exist: at user level only `AGENTS.md`; inside a project `AGENTS.md`, `CLAUDE.md` plus the `AGENTS.local.md` / `CLAUDE.local.md` overlays. A group with no candidates keeps its title and shows a grey “No AGENTS.md” line.
+- **Collapse** — candidates in one directory whose trimmed content is identical render once; symlinks are hidden in favour of the original file (both `CLAUDE.md → AGENTS.md` and the reverse). Deduplication stays inside one directory, so identical content in two directories still shows twice.
+- **Scan** — the whole project tree recursively, hard-pruning `.git` and `node_modules`, plus the page-local “excluded directories” list (`.agent-work` by default; it only affects this page). Workspaces whose directory is gone are skipped entirely; a nested workspace's subtree belongs only to the nested group, never to its parent. This page never writes a file.
+
 **Sidebar → Other Plugins → Skill** — 2 tabs: **Sources** (skills, flat/grouped + project tree, with the personal card split by managed-by (market imports show their upstream repo; user-owned skills show User Managed)), **Market** (install + update).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding. Project workspaces are ordered exactly like the DSH sidebar (`workspace.json` → `global.workspaceIds`).

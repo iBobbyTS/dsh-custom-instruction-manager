@@ -25,6 +25,11 @@ export function dshHome(): string {
   return process.env.DSH_HOME ?? join(homedir(), '.dsh')
 }
 
+/** Resolve the shared agents root (`DSH_AGENTS_HOME`, else `~/.agents`). */
+export function agentsHome(): string {
+  return process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents')
+}
+
 /** Resolve the sidecar state path (injectable in tests). */
 export function statePath(home = dshHome()): string {
   return join(home, 'dsh-skill-hub.json')

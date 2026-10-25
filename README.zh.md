@@ -33,6 +33,12 @@ https://github.com/iBobbyTS/dsh-skill-hub.git
 
 ## 功能
 
+**侧边栏 → 其他插件 → AGENTS.md** — dsh 支持的指令文件清单（只读）。分组是「用户级」加上每个已注册工作区（按侧边栏顺序），没有单独的「项目级」总标题。每行大标题是磁盘上的真实文件名，副标题是从项目文件夹的父目录算起的路径：`lmdo-website/AGENTS.md` 显示为 `AGENTS.md` + `lmdo-website`，`lmdo-website/docs/AGENTS.md` 显示为 `AGENTS.md` + `lmdo-website/docs`；用户级两行的副标题是 `~/.dsh` 与 `~/.agents`。
+
+- **只列交集** — 「dsh 支持的文件名 ∩ 磁盘上真实存在」：用户级只有 `AGENTS.md`，项目目录里是 `AGENTS.md`、`CLAUDE.md` 加 `AGENTS.local.md`、`CLAUDE.local.md` 叠加层。没有候选文件的分组保留标题，显示一行灰字「无 AGENTS.md」。
+- **折叠** — 同一目录内 trim 后内容相同的候选只算一条；符号链接隐藏链接、显示原始文件（`CLAUDE.md → AGENTS.md` 与反向都处理）。去重只发生在同一目录内，跨目录内容相同也各自显示。
+- **扫描** — 项目内递归整棵树，硬剪 `.git` 与 `node_modules`，另外跳过页面内可编辑的「排除目录」（默认 `.agent-work`，只作用于本页）。目录已不存在的工作区整节跳过；嵌套工作区的子树只归子工作区，父项不重复列出。这一页不写任何文件。
+
 **侧边栏 → 其他插件 → Skill** — 2 个 tab：**来源**（技能，平铺/分组+项目树，其中「用户级」卡片按技能管理方二级分类（市场来源显示上游仓库；用户自建统一显示 User Managed））、**市场**（安装与更新）。
 
 - **浏览** — `ctx.skills` 注册表全量：项目/用户/内置+第三方。按名称、描述、`displayName` 搜索；按来源、按调用方式（模型/用户）筛选；按名称/添加时间/调用次数排序。不同来源的同名技能挂重名徽标，不再静默隐藏。项目级分组按 dsh 侧面栏的工作区顺序排列（`workspace.json` 的 `global.workspaceIds`）。

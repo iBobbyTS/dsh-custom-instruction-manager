@@ -24,6 +24,11 @@ export interface HubConfig {
   /** 自动统计扫描间隔（分钟，最小 1）。默认 5。 */
   statsScanMinutes?: number
   /**
+   * AGENTS.md 页扫描项目时跳过的目录名（任意层级、精确匹配）。
+   * 默认 `['.agent-work']`；显式空数组表示不跳过任何目录。
+   */
+  excludeDirs?: string[]
+  /**
    * GitHub personal access token for market/source API calls (anonymous quota
    * is 60 req/h, authed 5000/hr). Stored in the local settings doc; absent
    * means anonymous. Never logged.
@@ -60,6 +65,8 @@ export type HubSettingsValue = {
   statsWindowDays?: number
   /** 自动统计扫描间隔（分钟）。 */
   statsScanMinutes?: number
+  /** AGENTS.md 页扫描时跳过的目录名（默认 `.agent-work`；只在面板内编辑）。 */
+  excludeDirs?: string[]
   /** GitHub token（明文存本地设置文档，仅经 dsh 的 /api 信任栅栏可读；缺省为匿名）。 */
   githubToken?: string
 }
@@ -86,7 +93,30 @@ export const HUB_CONFIG_DEFAULTS = {
   showGroupSummary: true,
   statsWindowDays: 14,
   statsScanMinutes: 5,
+  /** AGENTS.md 页默认跳过的目录名；工作产物目录不属于任何项目。 */
+  excludeDirs: ['.agent-work'] as readonly string[],
 } as const
+
+/**
+ * Normalize one exclude-directory list: trim, drop empties/duplicates, preserve
+ * order. The values are matched as directory names at any depth, so a path with
+ * a separator in it simply never matches — validation stays permissive here and
+ * the panel rejects separators at the input.
+ * @param value - candidate list from any config layer.
+ * @param fallback - list used when the value is absent (defaults).
+ * @returns a fresh array safe to hand to callers.
+ */
+export function resolveExcludeDirs(value: unknown, fallback: readonly string[] = HUB_CONFIG_DEFAULTS.excludeDirs): string[] {
+  if (!Array.isArray(value)) return [...fallback]
+  const out: string[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue
+    const name = entry.trim()
+    if (name === '' || out.includes(name)) continue
+    out.push(name)
+  }
+  return out
+}
 
 /**
  * Fill a raw settings value into the effective hub config: schema defaults for
@@ -110,6 +140,7 @@ export function resolveHubConfig(base: Partial<HubConfig> = {}): HubConfig {
     showGroupSummary: base.showGroupSummary ?? HUB_CONFIG_DEFAULTS.showGroupSummary,
     statsWindowDays: windowDays,
     statsScanMinutes: scanMinutes,
+    excludeDirs: resolveExcludeDirs(base.excludeDirs),
     ...(base.dotModelColor !== undefined ? { dotModelColor: base.dotModelColor } : {}),
     ...(base.dotUserColor !== undefined ? { dotUserColor: base.dotUserColor } : {}),
     ...(base.githubToken !== undefined ? { githubToken: base.githubToken } : {}),
@@ -173,6 +204,11 @@ export interface ConfigRequest {
   dotUserColor?: string | null
   /** Set the GitHub token; null/empty clears it back to anonymous. */
   githubToken?: string | null
+  /**
+   * 覆盖 AGENTS.md 页的排除目录（[] = 不排除任何目录）；
+   * null 清除覆盖，回落到默认清单。
+   */
+  excludeDirs?: string[] | null
 }
 
 /** GitHub token validation shared by host routes and the settings card. */

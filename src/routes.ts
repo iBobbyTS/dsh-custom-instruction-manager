@@ -19,6 +19,7 @@ import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { SKILL_HUB_API_ROOT } from './protocol.ts'
 import { createRoute, writeError, type SkillHubRouteDeps } from './routes/helpers.ts'
 import { loopbackOnlyFence, type RouteFence } from './routes/http.ts'
+import { agentsRoutes } from './routes/agents.ts'
 import { catalogRoutes } from './routes/catalog.ts'
 import { configRoutes } from './routes/config.ts'
 import { marketRoutes } from './routes/market.ts'
@@ -78,6 +79,7 @@ export function makeRoutes(deps: SkillHubRouteDeps): WebRoute[] {
   // → JSON 体 → 统一错误映射），新路由不会漏掉围栏。
   const specs = [
     ...catalogRoutes(deps),
+    ...agentsRoutes(deps),
     ...configRoutes(deps),
     ...marketRoutes(deps),
     ...repoImportRoutes(deps),

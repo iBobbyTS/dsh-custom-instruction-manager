@@ -14,7 +14,7 @@
  * 新代码可按需直引 `from './store/<module>.ts'`。
  */
 
-export { STORE_VERSION, dshHome, statePath, type StoreFile } from './store/paths.ts'
+export { STORE_VERSION, agentsHome, dshHome, statePath, type StoreFile } from './store/paths.ts'
 export { StoreError } from './store/errors.ts'
 export { migrateStore, hydrateMigratedState, type MigratedStore, type HydratedState } from './store/migrate.ts'
 export { SkillHubStore } from './store/store.ts'

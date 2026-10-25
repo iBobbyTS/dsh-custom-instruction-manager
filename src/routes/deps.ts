@@ -35,6 +35,11 @@ export interface SkillHubRouteDeps {
   fence?: RouteFence
   /** DSH home override (tests isolate the writable roots; defaults to ~/.dsh). */
   home?: string
+  /**
+   * Shared agents root override (tests isolate the user-level AGENTS.md scan;
+   * defaults to `DSH_AGENTS_HOME` or `~/.agents`).
+   */
+  agentsHome?: string
   /** Invalidate the registry catalog cache after hub-driven mutations. */
   invalidate?: () => void
   /** Optional invocation-count reader; absent means the stats route reports unavailable. */

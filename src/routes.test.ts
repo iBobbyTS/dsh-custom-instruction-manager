@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hostTrustFence, makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { lastMarketCheck } from './routes/route-state.ts'
 import { SkillHubStore, statePath } from './store.ts'
-import { SKILL_HUB_API, SKILL_HUB_API_ROOT, type CatalogResponse, type ConfigResponse, type ErrorResponse, type HubConfig } from './protocol.ts'
+import { SKILL_HUB_API, SKILL_HUB_API_ROOT, type AgentsResponse, type CatalogResponse, type ConfigResponse, type ErrorResponse, type HubConfig } from './protocol.ts'
 
 /** Minimal response double recording status/headers/body. */
 class FakeResponse {
@@ -94,7 +94,8 @@ describe('skill-hub routes', () => {
       snapshot: async () => ({ skills: [], complete: true }),
       get: async () => undefined,
     }
-    deps = { skills, store, home, trashDir: systemTrash }
+    // AGENTS.md 扫描要隔离用户级根（默认 ~/.agents 会读到真实家目录）。
+    deps = { skills, store, home, agentsHome: join(dir, 'agents-home'), trashDir: systemTrash }
   })
 
   afterEach(async () => {
@@ -768,7 +769,7 @@ describe('skill-hub routes', () => {
     const body = res.json() as ConfigResponse
     expect(body.ok).toBe(true)
     expect(body.pluginVersion).toMatch(/^\d+\.\d+\.\d+$/)
-    expect(body.config).toEqual({ enabled: false, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5 })
+    expect(body.config).toEqual({ enabled: false, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5, excludeDirs: ['.agent-work'] })
     expect(body.saved).toEqual({ enabled: false })
   })
 
@@ -859,6 +860,50 @@ describe('skill-hub routes', () => {
     expect(res.status).toBe(400)
     const body = res.json() as ErrorResponse
     expect(body.error).toContain('enabled must be a boolean or null')
+  })
+
+  it('serves the AGENTS.md inventory: user level first, then each registered workspace', async () => {
+    const proj = join(dir, 'proj')
+    await mkdir(join(proj, 'docs'), { recursive: true })
+    await writeFile(join(proj, 'AGENTS.md'), 'root', 'utf8')
+    await writeFile(join(proj, 'docs', 'AGENTS.md'), 'docs', 'utf8')
+    await mkdir(join(home, 'storages'), { recursive: true })
+    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
+      global: { workspaceIds: ['a'] },
+      tables: { workspaces: { a: { path: proj, title: 'proj' } } },
+    }), 'utf8')
+    await writeFile(join(home, 'AGENTS.md'), 'user', 'utf8')
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as AgentsResponse
+    expect(body.excludeDirs).toEqual(['.agent-work'])
+    expect(body.groups).toEqual([
+      { kind: 'user', files: [{ name: 'AGENTS.md', path: home }] },
+      { kind: 'project', title: 'proj', files: [
+        { name: 'AGENTS.md', path: 'proj' },
+        { name: 'AGENTS.md', path: 'proj/docs' },
+      ] },
+    ])
+  })
+
+  it('persists the AGENTS.md exclude list through the config route and rejects paths', async () => {
+    const patches: Array<Partial<HubConfig>> = []
+    const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
+      patches.push(patch)
+      return { enabled: true, announceToAgent: true, excludeDirs: patch.excludeDirs ?? [] }
+    }
+    const routes = makeRoutes({ ...deps, updateConfig })
+    const set = new FakeResponse()
+    await routes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('POST', SKILL_HUB_API.config, { excludeDirs: ['.agent-work', 'vendor'] }), set as never)
+    expect(set.status).toBe(200)
+    expect(patches).toEqual([{ excludeDirs: ['.agent-work', 'vendor'] }])
+
+    const bad = new FakeResponse()
+    await routes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('POST', SKILL_HUB_API.config, { excludeDirs: ['a/b'] }), bad as never)
+    expect(bad.status).toBe(400)
+    expect((bad.json() as ErrorResponse).error).toContain('directory names, not paths')
   })
 
   it('sets and clears the github token through the config route', async () => {

@@ -14,6 +14,7 @@ import { useCatalogFlow } from './hooks/useCatalogFlow.ts'
 import { useGroupFlow } from './hooks/useGroupFlow.ts'
 import { useSourceFlow } from './hooks/useSourceFlow.ts'
 import { useMarketFlow } from './hooks/useMarketFlow.ts'
+import { useAgentsFlow } from './hooks/useAgentsFlow.ts'
 import { markAutoChecked, POLL_MS, shouldAutoCheck, SLOW_POLL_MS, type FlowNotices } from './hooks/shared.ts'
 
 /** The hook's result: the panel's complete state + action surface. */
@@ -90,6 +91,10 @@ export function useSkillHub(api: SkillHubApi) {
 
   // ----------------------------------------------------------------- sources
   const sourceFlow = useSourceFlow(api, shared, catalogFlow.load, groupFlow.loadGroups)
+
+  // ----------------------------------------------------------------- agents
+  // AGENTS.md 页是独立的只读域：不参与目录/来源的轮询，进入分类时按需扫描。
+  const agentsFlow = useAgentsFlow(api)
 
   // ------------------------------------------------------------------ market
   const marketFlow = useMarketFlow(
@@ -168,6 +173,10 @@ export function useSkillHub(api: SkillHubApi) {
     listBusy,
     collapsedGroups, subdividedProjects, editMode,
     versionDialog: marketFlow.versionDialog, versionBusy: marketFlow.versionBusy,
+    // AGENTS.md 页（只读清单 + 排除目录）
+    agents: agentsFlow.agents, agentsLoading: agentsFlow.agentsLoading,
+    agentsError: agentsFlow.agentsError, excludeSaving: agentsFlow.excludeSaving,
+    loadAgents: agentsFlow.loadAgents, saveExcludeDirs: agentsFlow.saveExcludeDirs,
     // derived
     actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
     normalized: catalogFlow.normalized, origins, sourceOptions,

@@ -15,6 +15,7 @@ export const SKILL_HUB_API_ROOT = '/api/skill-hub'
  */
 export const SKILL_HUB_API = {
   catalog: '/api/skill-hub/catalog',
+  agents: '/api/skill-hub/agents',
   skill: '/api/skill-hub/skill',
   skillDelete: '/api/skill-hub/skill/delete',
   skillReveal: '/api/skill-hub/skill/reveal',

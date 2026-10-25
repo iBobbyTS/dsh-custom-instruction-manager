@@ -8,6 +8,7 @@ import {
   GITHUB_TOKEN_RE,
   HEX_COLOR_RE,
   redactGithubToken,
+  resolveExcludeDirs,
   type ConfigResponse,
   type DiagnosticFixRequest,
   type DiagnosticFixResponse,
@@ -84,6 +85,14 @@ export function configRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           if (typeof value !== 'string' || !HEX_COLOR_RE.test(value)) { writeError(res, 400, key + ' must be a #rrggbb color or null'); return }
           patch[key] = value
         }
+        if (raw.excludeDirs !== undefined) {
+          const value = raw.excludeDirs
+          if (value === null) patch.excludeDirs = undefined
+          else if (!Array.isArray(value)) { writeError(res, 400, 'excludeDirs must be an array of directory names or null'); return }
+          else if (value.some((entry) => typeof entry !== 'string')) { writeError(res, 400, 'excludeDirs must be an array of directory names or null'); return }
+          else if (value.some((entry) => (entry as string).includes('/') || (entry as string).includes('\\'))) { writeError(res, 400, 'excludeDirs entries must be directory names, not paths'); return }
+          else patch.excludeDirs = resolveExcludeDirs(value, [])
+        }
         if (raw.githubToken !== undefined) {
           const value = raw.githubToken
           if (value === null) { patch.githubToken = undefined; /* cleared → anonymous/env */ }
@@ -94,7 +103,7 @@ export function configRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         let config: HubConfig
         if (deps.updateConfig === undefined) {
           const merged: HubConfig = { ...configOf(deps) }
-          for (const [key, value] of Object.entries(patch) as Array<[keyof HubConfig, boolean | string | undefined]>) {
+          for (const [key, value] of Object.entries(patch) as Array<[keyof HubConfig, boolean | string | string[] | undefined]>) {
             if (value === undefined) delete merged[key]
             else (merged as unknown as Record<string, unknown>)[key] = value
           }

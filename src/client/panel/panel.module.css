@@ -203,6 +203,8 @@
 .opBtn { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--dsw-radius-sm, 8px); background: transparent; color: var(--hub-text-2); font: inherit; font-size: 13px; line-height: 20px; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease; }
 .opBtn:hover { background: var(--hub-hover); color: var(--hub-text); }
 .opBtn:disabled { opacity: .45; cursor: default; }
+/* 打开中的工具按钮（AGENTS.md 页的「排除目录」）：与筛选胶囊同一套选中态。 */
+.opBtnActive { background: var(--hub-hover); color: var(--hub-text); }
 
 /* Rows: flat, hover-filled, 12px radius (official row geometry). */
 .row { display: flex; align-items: center; gap: 14px; padding: 8px; border-radius: var(--dsw-radius-md, 12px); background: transparent; cursor: pointer; transition: background .12s ease; }
@@ -483,3 +485,20 @@
 .invocationLabel { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .invocationName { font-weight: 500; }
 .invocationHint { font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
+
+/* AGENTS.md 页：工具行 + 排除目录编辑面板 + 只读文件行。
+   行复用官方 row 几何（8px 内边距、12px 圆角），大标题 14/500，副标题是
+   从项目文件夹父目录算起的路径，用等宽字体让目录层级对齐。 */
+.agentsBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agentsPanel { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); }
+.agentsHint { margin: 0; color: var(--hub-text-3); font-size: 12px; line-height: 18px; }
+.agentsChips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.agentsChip { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 4px 0 9px; border-radius: 999px; background: var(--hub-hover); color: var(--hub-text); font-family: var(--hub-mono); font-size: 12px; line-height: 18px; }
+.agentsChipRemove { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--hub-text-3); font: inherit; font-family: var(--hub-mono); line-height: 18px; cursor: pointer; }
+.agentsChipRemove:hover { background: var(--hub-surface); color: var(--hub-text); }
+.agentsChipRemove:disabled { opacity: .45; cursor: default; }
+.agentsChipEmpty { color: var(--hub-text-4); font-size: 12px; line-height: 18px; }
+.agentsAddRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agentsInput { max-width: 220px; height: 28px; }
+.agentsEmpty { margin: 0; padding: 4px 8px; color: var(--hub-text-4); font-size: 13px; line-height: 21px; }
+.agentPath { margin-top: 2px; color: var(--hub-text-3); font-family: var(--hub-mono); font-size: 12px; line-height: 18px; word-break: break-all; }
