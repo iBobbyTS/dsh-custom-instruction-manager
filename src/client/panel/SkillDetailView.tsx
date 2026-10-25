@@ -128,7 +128,7 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
         {(() => {
           const stat = uses.get(detail.name)
           if (stat === undefined || stat.count === 0) return null
-          const at = stat.lastUsed !== undefined ? ' · ' + new Date(stat.lastUsed).toLocaleString() : ''
+          const at = stat.lastUsed !== undefined ? ' · ' + formatDateTime(stat.lastUsed) : ''
           return <div className={css.detailMetaLine}>{tt('detail.uses')}: {stat.count}{at}</div>
         })()}
       </div>

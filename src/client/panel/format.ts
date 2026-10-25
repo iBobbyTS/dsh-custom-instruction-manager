@@ -10,7 +10,7 @@
 
 import type { CSSProperties } from 'react'
 import { formatRelativeTime } from '../grouping.ts'
-import { tt } from '../helpers.ts'
+import { panelLocale, tt } from '../helpers.ts'
 
 /** Model-invocable dot color default. Single source for the TS side; the
  *  panel's CSS mirrors it via --hub-model (panel.module.css). */
@@ -31,9 +31,21 @@ export function relativeTimeText(ms: number): string {
   return tt(rt.key, rt.value !== undefined ? { value: rt.value } : undefined)
 }
 
-/** Localized absolute time for the detail meta (e.g. "2026/8/16 11:00:00"). */
+/**
+ * Absolute time for the detail meta, formatted in the panel's language
+ * ("2026年8月10日 20:16:51" / "Aug 10, 2026, 8:16:51 PM"). The locale comes
+ * from DSH's UI language, not from `Intl`'s default, which the desktop app
+ * pins to en-US via `--lang` (see `panelLocale`).
+ */
+let cachedDateFormatter: Intl.DateTimeFormat | undefined
+let cachedDateLocale = ''
 export function formatDateTime(ms: number): string {
-  return new Date(ms).toLocaleString()
+  const locale = panelLocale()
+  if (cachedDateFormatter === undefined || cachedDateLocale !== locale) {
+    cachedDateFormatter = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' })
+    cachedDateLocale = locale
+  }
+  return cachedDateFormatter.format(new Date(ms))
 }
 
 /** Short form of a commit SHA for display. */

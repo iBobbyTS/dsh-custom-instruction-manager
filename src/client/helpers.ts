@@ -5,12 +5,28 @@
 import { en, t, zh, type HubKey, type TranslateValues } from './locales.ts'
 import type { ManagedBy } from './grouping.ts'
 
+/**
+ * Locale the panel renders in: the DSH UI language, taken from
+ * `documentElement.lang` (dsh sets it from its own language matching), never
+ * from the browser/Electron default. Needed because the desktop app starts
+ * its renderer with `--lang=en-US` — packaged builds ship no `.lproj`, so
+ * Chromium falls back to English — while the UI text itself is Chinese.
+ * An unqualified `toLocaleString()` would therefore print US dates next to
+ * Chinese labels; every panel-side date goes through this instead.
+ *
+ * Tags outside the two shipped dictionaries fall back to `zh`, exactly like
+ * the dictionary, so text and dates can never disagree.
+ */
+export function panelLocale(): 'zh' | 'en' {
+  const lang = typeof document !== 'undefined' ? document.documentElement.lang : 'zh'
+  return lang.toLowerCase().startsWith('en') ? 'en' : 'zh'
+}
+
 /** Active dictionary, picked by the document language at call time. */
 let cachedDictionaryLang = ''
 let cachedDictionary: Record<string, string> | null = null
 export function dictionary(): Record<string, string> {
-  const lang = typeof document !== 'undefined' ? document.documentElement.lang : 'zh'
-  const key = lang.toLowerCase().startsWith('en') ? 'en' : 'zh'
+  const key = panelLocale()
   // 字典是静态常量：按语言缓存一份，避免每次 tt() 都全量 spread
   // 258 个键。调用方只读（t() 纯读取），共享引用安全。
   if (cachedDictionary === null || cachedDictionaryLang !== key) {
