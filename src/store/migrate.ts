@@ -12,8 +12,6 @@ export interface MigratedStore {
   trash?: unknown
   skillStats?: unknown
   marketStats?: unknown
-  collectionOrder?: unknown
-  sourceGroupOrder?: unknown
 }
 
 /**
@@ -77,8 +75,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
     // marketStats follows the same pattern (validated on load below).
     ...(record.skillStats !== undefined ? { skillStats: record.skillStats } : {}),
     ...(record.marketStats !== undefined ? { marketStats: record.marketStats } : {}),
-    ...(Array.isArray(record.collectionOrder) ? { collectionOrder: record.collectionOrder } : {}),
-    ...(Array.isArray(record.sourceGroupOrder) ? { sourceGroupOrder: record.sourceGroupOrder } : {}),
   }
 }
 
@@ -91,14 +87,6 @@ export interface HydratedState {
   trashByPath: Map<string, TrashEntry>
   skillStats: SkillStatsCheckpoint | undefined
   marketStats: MarketStatsSnapshot | undefined
-  collectionOrder: string[]
-  sourceGroupOrder: string[]
-}
-
-/** 小优化：统一的非空字符串数组清洗（去空、去重可选由调用方处理）。 */
-function cleanStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((n): n is string => typeof n === 'string' && n !== '')
 }
 
 /**
@@ -274,8 +262,5 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
     marketStats = { fetchedAt: savedMarketStats.fetchedAt, stats }
   }
 
-  const collectionOrder = cleanStringList(migrated.collectionOrder)
-  const sourceGroupOrder = cleanStringList(migrated.sourceGroupOrder)
-
-  return { entries, config, sourcesByRepo, marketSources, trashByPath, skillStats, marketStats, collectionOrder, sourceGroupOrder }
+  return { entries, config, sourcesByRepo, marketSources, trashByPath, skillStats, marketStats }
 }

@@ -23,22 +23,21 @@ describe('readStrings', () => {
 })
 
 describe('buildCollections', () => {
-  it('groups skills by origin, sorts members, and honours the collection order', () => {
+  it('groups skills by origin, sorts members, and sorts collections by name', () => {
     const origins = { beta: 'z/repo', alpha: 'z/repo', gamma: 'a/repo' }
-    const collections = buildCollections(origins, ['a/repo'])
-    expect(collections).toEqual([
+    expect(buildCollections(origins)).toEqual([
       { name: 'a/repo', skillNames: ['gamma'] },
       { name: 'z/repo', skillNames: ['alpha', 'beta'] },
     ])
   })
 
-  it('sorts unordered collections by name after the ordered ones', () => {
-    const collections = buildCollections({ one: 'b/repo', two: 'a/repo' }, [])
+  it('sorts collections by name regardless of insertion order', () => {
+    const collections = buildCollections({ one: 'b/repo', two: 'a/repo' })
     expect(collections.map((collection) => collection.name)).toEqual(['a/repo', 'b/repo'])
   })
 
   it('returns an empty list for no origins', () => {
-    expect(buildCollections({}, ['x'])).toEqual([])
+    expect(buildCollections({})).toEqual([])
   })
 })
 

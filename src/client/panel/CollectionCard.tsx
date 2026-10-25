@@ -1,7 +1,7 @@
 /**
  * CollectionCard — 一个上游来源集合分组：组头（来源链接 + 成员数 + 用量
  * 汇总）、检查/同步/跟删徽章、三态开关、编辑态删除分组，以及展开后的
- * 启用行与禁用行。数据、动作与顶层拖拽 props 均由 SourcesView 传入。
+ * 启用行与禁用行。数据与动作均由 SourcesView 传入；顺序由集合名决定。
  */
 
 import type { JSX } from 'react'
@@ -13,8 +13,6 @@ import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
 import { GroupSwitchButton } from './GroupSwitchButton.tsx'
-import { ReorderButtons } from './ReorderButtons.tsx'
-import type { DragReorderProps } from './useDragReorder.ts'
 import type { SkillHubState } from './useSkillHub.ts'
 import css from './panel.module.css'
 
@@ -34,11 +32,6 @@ export interface CollectionCardProps {
   hasWritable: boolean
   /** 编辑模式（显示删除分组）。 */
   editMode: boolean
-  /** 顶层排序位置边界（编辑模式显示上移/下移按钮）。 */
-  canMoveUp: boolean
-  canMoveDown: boolean
-  /** 键盘排序：-1 上移，1 下移。 */
-  onMove: (direction: -1 | 1) => void
   /** 正在检查的来源名。 */
   checkingSource: string | null
   /** 正在同步的来源名。 */
@@ -47,8 +40,6 @@ export interface CollectionCardProps {
   batchBusy: boolean
   /** SkillRow / DisabledRow 共用的收窄 props（skill/record 由行内传入）。 */
   rowProps: Omit<SkillRowProps, 'skill'>
-  /** 顶层拖拽 props（SourcesView 的 useDragReorder 产出）。 */
-  dragProps: DragReorderProps
   toggleGroupCollapse: SkillHubState['toggleGroupCollapse']
   checkSources: SkillHubState['checkSources']
   requestSync: SkillHubState['requestSync']
@@ -62,15 +53,13 @@ export interface CollectionCardProps {
 export function CollectionCard(props: CollectionCardProps): JSX.Element {
   const {
     collection, skills, disabledMembers, collapsed, view, check, hasWritable, editMode,
-    canMoveUp, canMoveDown, onMove,
-    checkingSource, syncingSource, batchBusy, rowProps, dragProps,
+    checkingSource, syncingSource, batchBusy, rowProps,
     toggleGroupCollapse, checkSources, requestSync, requestDelete, toggleGroup, requestDeleteGroup, enableDisabled, openDetail,
   } = props
   const { busyNames, duplicateNames, uses, hubConfig } = rowProps
   return (
-    <section {...dragProps}>
+    <section className={css.section}>
       <div className={css.groupHead}>
-        <span className={css.dragHandle} aria-hidden title={tt('drag.reorder')}>⋮⋮</span>
         <button type='button' className={css.disclosure} aria-expanded={!collapsed} onClick={() => { toggleGroupCollapse('col:' + collection.name) }}>
           <span className={css.chevron + (collapsed ? ' ' + css.chevronCollapsed : '')} />
           <span className={css.groupTitle}>
@@ -80,7 +69,6 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
           </span>
         </button>
         <span className={css.groupOps}>
-          {editMode ? <ReorderButtons canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} /> : null}
           <SourceStatusBadge
             check={check}
             checking={checkingSource === collection.name}

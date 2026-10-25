@@ -35,8 +35,6 @@ import {
   type SourceCheckResponse,
   type SourceDeleteRequest,
   type SourceDeleteResponse,
-  type SourceGroupReorderRequest,
-  type SourceGroupReorderResponse,
   type SourceRestoreRequest,
   type SourceRestoreResponse,
   type SourceTrashClearResponse,
@@ -259,12 +257,6 @@ export class SkillHubApi {
   /** 系统集合组 + origin 映射。 */
   groups(): Promise<GroupsResponse> {
     return this.get<GroupsResponse>(SKILL_HUB_API.groups)
-  }
-
-  /** 拖拽重排来源顶层分组（project / collections / personal） */
-  async reorderSourceGroups(orderedKeys: string[]): Promise<string[]> {
-    const body = await this.post<SourceGroupReorderResponse>(SKILL_HUB_API.sourceGroupReorder, { orderedKeys } satisfies SourceGroupReorderRequest)
-    return body.order
   }
 
   /** 来源列表 + 派生 origin 映射 + 集合组 + 回收站。 */

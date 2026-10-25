@@ -1,7 +1,7 @@
 /**
- * ProjectTree — 项目级顶层分组：把项目技能按 workspace 聚合（可折叠），
- * 并支持按 .dsh/.agents 细分两层。顶层拖拽 props 由 SourcesView 传入，
- * 拖拽排序状态与回调仍归 SourcesView 所有。
+ * ProjectTree — 项目级顶层分组：小标题（照官方 插件 页的「内置插件配置」）+ 按
+ * workspace 聚合的二级节点（可折叠），并支持按 .dsh/.agents 细分两层。
+ * 分组顺序 = dsh 侧面栏的工作区顺序；不再支持拖动/上移下移重排。
  */
 
 import type { JSX } from 'react'
@@ -11,14 +11,12 @@ import { tt } from '../helpers.ts'
 import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
 import { SubGroup } from './SubGroup.tsx'
-import { ReorderButtons } from './ReorderButtons.tsx'
-import type { DragReorderProps } from './useDragReorder.ts'
 import css from './panel.module.css'
 
 export interface ProjectTreeProps {
-  /** 项目级技能（已按来源筛选）。 */
+  /** 技能来源筛选后的项目技能。 */
   skills: CatalogSkill[]
-  /** 折叠的树键（'project' / 'project:<workspace>' / 'project:<workspace>:<source>'）。 */
+  /** 折叠的树键（'project:<workspace>' / 'project:<workspace>:<source>'）。 */
   collapsedGroups: ReadonlySet<string>
   toggleGroupCollapse: (key: string) => void
   /** 已细分（按 .dsh/.agents）的项目键。 */
@@ -26,22 +24,12 @@ export interface ProjectTreeProps {
   toggleSubdivide: (key: string) => void
   /** SkillRow 收窄后的 props（skill 由行内传入）；uses / hubConfig 也取自它。 */
   rowProps: Omit<SkillRowProps, 'skill'>
-  /** 顶层拖拽 props（SourcesView 的 useDragReorder 产出）。 */
-  dragProps: DragReorderProps
-  /** 编辑模式（显示上移/下移按钮）。 */
-  editMode: boolean
-  /** 顶层排序位置边界。 */
-  canMoveUp: boolean
-  canMoveDown: boolean
-  /** 键盘排序：-1 上移，1 下移。 */
-  onMove: (direction: -1 | 1) => void
   /** 已知工作区路径，按 dsh 侧面栏顺序（catalog.workspaces）；空数组即保持原序。 */
   workspaceOrder?: readonly string[]
 }
 
 export function ProjectTree(props: ProjectTreeProps): JSX.Element {
-  const { skills, collapsedGroups, toggleGroupCollapse, subdividedProjects, toggleSubdivide, rowProps, dragProps, editMode, canMoveUp, canMoveDown, onMove, workspaceOrder = [] } = props
-  const topCollapsed = collapsedGroups.has('project')
+  const { skills, collapsedGroups, toggleGroupCollapse, subdividedProjects, toggleSubdivide, rowProps, workspaceOrder = [] } = props
   // 按 workspace 聚合，与拆分前逻辑一致
   const byProject = new Map<string, { title: string; skills: CatalogSkill[] }>()
   for (const skill of skills) {
@@ -54,20 +42,11 @@ export function ProjectTree(props: ProjectTreeProps): JSX.Element {
   const projects = [...byProject.entries()]
     .sort((a, b) => workspaceRank(a[0], workspaceOrder) - workspaceRank(b[0], workspaceOrder))
   return (
-    <section {...dragProps}>
-      <div className={css.groupHead}>
-        <span className={css.dragHandle} aria-hidden title={tt('drag.reorder')}>⋮⋮</span>
-        <button type='button' className={css.disclosure} aria-expanded={!topCollapsed} onClick={() => { toggleGroupCollapse('project') }}>
-          <span className={css.chevron + (topCollapsed ? ' ' + css.chevronCollapsed : '')} />
-          <span className={css.groupTitle}>{tt('groups.project')} · {byProject.size}</span>
-        </button>
-        {editMode ? (
-          <span className={css.groupOps}>
-            <ReorderButtons canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} />
-          </span>
-        ) : null}
+    <section className={css.section}>
+      <div className={css.sectionHead}>
+        <h2 className={css.sectionTitle}>{tt('groups.project')} · {byProject.size}</h2>
       </div>
-      {!topCollapsed ? projects.map(([key, proj]) => {
+      {projects.map(([key, proj]) => {
         const projKey = 'project:' + key
         const projCollapsed = collapsedGroups.has(projKey)
         const subdivided = subdividedProjects.has(key)
@@ -111,7 +90,7 @@ export function ProjectTree(props: ProjectTreeProps): JSX.Element {
             ) : null}
           </div>
         )
-      }) : null}
+      })}
     </section>
   )
 }

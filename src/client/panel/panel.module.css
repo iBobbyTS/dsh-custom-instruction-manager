@@ -189,6 +189,10 @@
 .section { display: flex; flex-direction: column; gap: 8px; margin: 0; }
 .section + .section { margin-top: 18px; /* 容器 14px gap + 18px = 官方分组间的 32px */ }
 .sectionTitle { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; line-height: 22px; font-weight: 500; }
+/* 顶层分组的标题行：与官方「内置插件配置 / 实验性插件」同一刻度（纯文字
+   小标题，左侧无箭头/抓手），右侧只放编辑态操作。 */
+.sectionHead { display: flex; align-items: center; gap: 8px; margin: 0; }
+.sectionHead .sectionTitle { flex: 1; min-width: 0; }
 .list { display: flex; flex-direction: column; gap: 2px; }
 .groupHead { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0; box-sizing: border-box; }
 .groupTitle { font-size: 14px; line-height: 22px; font-weight: 500; color: var(--hub-text); flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; }
@@ -371,12 +375,6 @@
    guide only, no nested surfaces. */
 .projectNest { display: flex; flex-direction: column; gap: 8px; margin: 0 0 0 14px; border-left: .5px solid var(--hub-border); }
 
-/* Drag handle + reorder states — 窄版：尽量收窄占位，仍保留抓取感 */
-.dragHandle { cursor: grab; opacity: .22; font-size: 12px; line-height: 1; letter-spacing: -2px; padding: 0; width: 14px; overflow: hidden; user-select: none; flex: none; display: inline-flex; align-items: center; justify-content: center; height: 16px; align-self: center; }
-.dragHandle:active { cursor: grabbing; }
-.groupHead:hover .dragHandle { opacity: .5; }
-.dragging { opacity: .45; }
-.dragOver { outline: 2px dashed var(--hub-accent); outline-offset: -2px; background: color-mix(in srgb, var(--hub-accent) 7%, transparent); }
 
 /* Scan list for 276-skill import — theme-agnostic, replaces inline styles */
 .scanList { max-height: 360px; overflow: auto; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); margin-top: 8px; background: transparent; }

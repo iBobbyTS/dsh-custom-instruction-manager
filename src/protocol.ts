@@ -61,10 +61,6 @@ export type {
 export type {
   CollectionGroup,
   GroupsResponse,
-  CollectionReorderRequest,
-  CollectionReorderResponse,
-  SourceGroupReorderRequest,
-  SourceGroupReorderResponse,
 } from './protocol/groups.ts'
 export type {
   SourceRecord,

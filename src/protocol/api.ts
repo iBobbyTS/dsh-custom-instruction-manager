@@ -35,8 +35,6 @@ export const SKILL_HUB_API = {
   repoImportCancel: '/api/skill-hub/repo/import/cancel',
   update: '/api/skill-hub/update',
   groups: '/api/skill-hub/groups',
-  collectionReorder: '/api/skill-hub/collections/reorder',
-  sourceGroupReorder: '/api/skill-hub/source-groups/reorder',
   sources: '/api/skill-hub/sources',
   sourceCheck: '/api/skill-hub/sources/check',
   sourceSync: '/api/skill-hub/sources/sync',

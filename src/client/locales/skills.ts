@@ -1,12 +1,10 @@
 /** 技能浏览：行徽章/分组/过滤排序/相对时间。从 locales.ts 按前缀拆出，键集合不变。 */
 export const zhSkills = {
   'edit.start': '编辑',
-  'edit.hint': '开启后显示删除与排序操作',
+  'edit.hint': '开启后显示删除操作',
   'edit.done': '完成',
   'groups.collapseAll': '全部折叠',
   'groups.expandAll': '全部展开',
-  'reorder.up': '上移',
-  'reorder.down': '下移',
   'groups.noCollections': '暂无来源组。从市场导入技能后自动按来源聚合。',
   'groups.personal': '个人',
   'groups.project': '项目级',
@@ -56,12 +54,10 @@ export const zhSkills = {
 
 export const enSkills: Record<keyof typeof zhSkills, string> = {
   'edit.start': 'Edit',
-  'edit.hint': 'Show delete and reorder actions',
+  'edit.hint': 'Show delete actions',
   'edit.done': 'Done',
   'groups.collapseAll': 'Collapse all',
   'groups.expandAll': 'Expand all',
-  'reorder.up': 'Move up',
-  'reorder.down': 'Move down',
   'groups.noCollections': 'No source groups yet. Import skills from the market to group them by source.',
   'groups.personal': 'Personal',
   'groups.project': 'Project',

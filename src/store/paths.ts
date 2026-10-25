@@ -18,10 +18,6 @@ export interface StoreFile {
   skillStats?: SkillStatsCheckpoint
   /** Market-stats snapshot (stars/downloads per repo, hourly TTL). */
   marketStats?: MarketStatsSnapshot
-  /** Drag-reorder: collection name order for 来源分组 */
-  collectionOrder?: string[]
-  /** Drag-reorder: 来源顶层分组整体顺序（project / col:xxx / uncategorized-source） */
-  sourceGroupOrder?: string[]
 }
 
 /** Resolve the DSH home directory (the filesystem provider's user-dsh root base). */

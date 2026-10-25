@@ -200,7 +200,6 @@ export function useSkillHub(api: SkillHubApi) {
     confirmVersionDialog: marketFlow.confirmVersionDialog, requestDeleteSkill: sourceFlow.requestDeleteSkill,
     runDeleteSkill: sourceFlow.runDeleteSkill, requestDeleteGroup: sourceFlow.requestDeleteGroup,
     runDeleteGroup: sourceFlow.runDeleteGroup,
-    reorderSourceGroups: groupFlow.reorderSourceGroups,
     addSource: marketFlow.addSource, addMarketSource: marketFlow.addMarketSource,
     removeMarketSource: marketFlow.removeMarketSource, scanRepo: marketFlow.scanRepo,
     confirmBranchChoice: marketFlow.confirmBranchChoice, toggleRepoSelected: marketFlow.toggleRepoSelected,

@@ -15,8 +15,6 @@ export class SkillHubStore {
   private trashByPath = new Map<string, TrashEntry>()
   private skillStats: SkillStatsCheckpoint | undefined = undefined
   private marketStats: MarketStatsSnapshot | undefined = undefined
-  private collectionOrder: string[] = []
-  private sourceGroupOrder: string[] = []
   private loaded = false
   /** Serializes persist runs: concurrent mutators must not let an earlier
    *  snapshot overwrite a later one (rename is atomic, ordering is not). */
@@ -43,8 +41,6 @@ export class SkillHubStore {
         this.trashByPath = state.trashByPath
         this.skillStats = state.skillStats
         this.marketStats = state.marketStats
-        this.collectionOrder = state.collectionOrder
-        this.sourceGroupOrder = state.sourceGroupOrder
         // A file from an older schema is rewritten at the current version once
         // on load, so a dropped field (v4 scenes / trash tagIds) really leaves
         // the disk instead of lingering until the next unrelated mutation.
@@ -101,36 +97,6 @@ export class SkillHubStore {
     }
     this.config = next
     await this.persist()
-  }
-
-  /** Collection order for 来源分组拖拽 */
-  async getCollectionOrder(): Promise<string[]> {
-    await this.ensureLoaded()
-    return [...this.collectionOrder]
-  }
-
-  /** Reorder collections by orderedNames (drag-and-drop). */
-  async reorderCollections(orderedNames: string[]): Promise<string[]> {
-    await this.ensureLoaded()
-    const uniq = [...new Set(orderedNames.filter((n): n is string => typeof n === 'string' && n !== ''))]
-    this.collectionOrder = uniq
-    await this.persist()
-    return [...this.collectionOrder]
-  }
-
-  /** Source top-level group order for 来源分组（project / col:xxx / personal） */
-  async getSourceGroupOrder(): Promise<string[]> {
-    await this.ensureLoaded()
-    return [...this.sourceGroupOrder]
-  }
-
-  /** Reorder source top-level groups by orderedKeys */
-  async reorderSourceGroups(orderedKeys: string[]): Promise<string[]> {
-    await this.ensureLoaded()
-    const uniq = [...new Set(orderedKeys.filter((k): k is string => typeof k === 'string' && k !== ''))]
-    this.sourceGroupOrder = uniq
-    await this.persist()
-    return [...this.sourceGroupOrder]
   }
 
   // ------------------------------------------------------------ sources
@@ -433,8 +399,6 @@ export class SkillHubStore {
         ...(this.trashByPath.size > 0 ? { trash: [...this.trashByPath.values()] } : {}),
         ...(this.skillStats !== undefined ? { skillStats: this.skillStats } : {}),
         ...(this.marketStats !== undefined ? { marketStats: this.marketStats } : {}),
-        ...(this.collectionOrder.length > 0 ? { collectionOrder: [...this.collectionOrder] } : {}),
-        ...(this.sourceGroupOrder.length > 0 ? { sourceGroupOrder: [...this.sourceGroupOrder] } : {}),
       }
       const tmp = this.file + '.tmp'
       await mkdir(dirname(this.file), { recursive: true })
