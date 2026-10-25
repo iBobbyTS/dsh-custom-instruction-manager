@@ -3,6 +3,13 @@
  * check/sync/follow-delete actions, and the raw SKILL.md body. Pure
  * presentation — every state value and action arrives as a prop, so the
  * panel stays the single owner of state.
+ *
+ * The source card is the only place update information appears, and it is
+ * rendered solely for skills recorded against an upstream repo (imported
+ * from a market source or a direct repo address). Built-in, plugin-provided,
+ * hand-placed and project skills have no upstream, so they get no update UI
+ * at all rather than a "no update checks" note — an empty slot is honest,
+ * a label turning every skill into a "personal skill" is not.
  */
 
 import { useEffect, useRef, useState, type JSX } from 'react'
@@ -151,9 +158,7 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
             ) : null}
           </div>
         </div>
-      ) : (
-        <p className={css.hintLine}>{tt('source.private')}</p>
-      )}
+      ) : null}
       <pre className={css.detailContent}>{detail.content}</pre>
     </div>
   )
