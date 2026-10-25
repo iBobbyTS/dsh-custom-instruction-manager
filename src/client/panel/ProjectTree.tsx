@@ -1,5 +1,5 @@
 /**
- * ProjectTree — 项目级顶层卡片：把项目技能按 workspace 聚合（可折叠），
+ * ProjectTree — 项目级顶层分组：把项目技能按 workspace 聚合（可折叠），
  * 并支持按 .dsh/.agents 细分两层。顶层拖拽 props 由 SourcesView 传入，
  * 拖拽排序状态与回调仍归 SourcesView 所有。
  */
@@ -98,7 +98,11 @@ export function ProjectTree(props: ProjectTreeProps): JSX.Element {
                     )
                   })}
                 </div>
-              ) : proj.skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)
+              ) : (
+                <div className={css.list}>
+                  {proj.skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
+                </div>
+              )
             ) : null}
           </div>
         )

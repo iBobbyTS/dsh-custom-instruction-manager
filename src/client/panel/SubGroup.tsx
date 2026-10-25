@@ -30,7 +30,7 @@ export function SubGroup(props: SubGroupProps): JSX.Element {
           <span className={css.groupTitle} title={titleHint}>{title} · {count}</span>
         </button>
       </div>
-      {!collapsed ? children : null}
+      {!collapsed ? <div className={css.list}>{children}</div> : null}
     </div>
   )
 }

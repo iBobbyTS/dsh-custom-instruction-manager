@@ -82,7 +82,7 @@ export function MarketSourceRow(props: { hub: SkillHubState; record: MarketSourc
           )
         })()}
       </div>
-      <button type='button' className={css.button + ' ' + css.primary} style={{ padding:'4px 10px', fontSize:12 }} disabled={scanning} onClick={() => { void scanRepo(record.repo) }}>
+      <button type='button' className={css.button + ' ' + css.sm + ' ' + css.primary} disabled={scanning} onClick={() => { void scanRepo(record.repo) }}>
         {scanning ? tt('market.scanning') : tt('market.scan')}
       </button>
       <button
@@ -96,12 +96,11 @@ export function MarketSourceRow(props: { hub: SkillHubState; record: MarketSourc
       </button>
       <button
         type='button'
-        className={css.opBtn}
+        className={css.opBtn + ' ' + css.iconBtn}
         disabled={listBusy}
         title={tt('market.removeHint')}
         aria-label={tt('market.deleteSource')}
         onClick={() => { void removeMarketSource(record.repo) }}
-        style={{ padding:'4px 8px', minWidth:28 }}
       >×</button>
     </div>
   )

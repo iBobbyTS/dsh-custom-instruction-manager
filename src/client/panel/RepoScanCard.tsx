@@ -36,8 +36,8 @@ export function RepoScanCard(props: { hub: SkillHubState }): JSX.Element | null 
 
   if (repoDiscoverState.status === 'idle' && repoResult === null) return null
   return (
-    <section className={css.section} style={{ borderLeft: '3px solid var(--hub-model, #2f81f7)', background: 'rgba(47,129,247,0.04)' }}>
-      <div className={css.sectionTitle + ' ' + css.sectionHeadRow} style={{ margin: '10px 14px 6px' }}>
+    <section className={css.section + ' ' + css.board}>
+      <div className={css.sectionTitle + ' ' + css.sectionHeadRow}>
         <span className={css.sectionTitleFill} style={{ display:'flex', alignItems:'center', gap:6 }}>
           {tt('repo.scanTitle')}
           <span style={{ fontWeight:400, opacity:.75 }}>
@@ -47,7 +47,7 @@ export function RepoScanCard(props: { hub: SkillHubState }): JSX.Element | null 
         </span>
         <button type='button' className={css.opBtn} onClick={() => { hub.clearScan() }}>{tt('repo.close')}</button>
       </div>
-      <div style={{ padding:'0 12px 12px' }}>
+      <div>
         {repoDiscoverState.status === 'scanning' ? <div className={css.empty} style={{ padding:'12px 0' }}>{tt('market.scanning')}</div> : null}
         {repoDiscoverState.status === 'error' ? <div className={css.errorBanner}>{repoDiscoverState.message}</div> : null}
         {repoDiscoverState.status === 'ready' ? (() => {
@@ -72,7 +72,7 @@ export function RepoScanCard(props: { hub: SkillHubState }): JSX.Element | null 
     return (
       <>
         <p className={css.hintLine + ' ' + css.hintInline}>{tt('repo.ready', { count: entries.length })} · {repoDiscoverState.data.ref !== null ? `ref ${repoDiscoverState.data.ref}` : ''}</p>
-        {repoDiscoverState.data.truncated === true ? <div className={css.errorBanner} style={{ background:'rgba(210,153,34,0.08)', color:'#d29922', borderLeft:'3px solid #d29922' }}>{tt('repo.truncated')}</div> : null}
+        {repoDiscoverState.data.truncated === true ? <div className={css.warnBanner}>{tt('repo.truncated')}</div> : null}
         {entries.length === 0 ? <div className={css.empty}>{tt('repo.empty')}</div> : (
           <>
             {/* 搜索 + 过滤 + 统计 — 精简 */}
@@ -95,9 +95,9 @@ export function RepoScanCard(props: { hub: SkillHubState }): JSX.Element | null 
                     onChange={(e) => setRepoSearch(e.target.value)}
                     placeholder={tt('repo.searchPlaceholder')}
                   />
-                  <button type='button' className={css.button + (repoFilter === 'all' ? ' ' + css.primary : '')} style={{ padding:'6px 10px', fontSize:12 }} onClick={() => setRepoFilter('all')}>{tt('repo.allRoots', { count: entries.length })}</button>
+                  <button type='button' className={css.button + ' ' + css.sm + (repoFilter === 'all' ? ' ' + css.primary : '')} onClick={() => setRepoFilter('all')}>{tt('repo.allRoots', { count: entries.length })}</button>
                   {roots.map((root) => (
-                    <button key={root === '' ? 'repo-root' : root} type='button' className={css.button + (repoFilter === root ? ' ' + css.primary : '')} style={{ padding:'6px 10px', fontSize:12 }} onClick={() => setRepoFilter(root)}>{tt(rootLabelKey(root), { root })} {counts.get(root) ?? 0}</button>
+                    <button key={root === '' ? 'repo-root' : root} type='button' className={css.button + ' ' + css.sm + (repoFilter === root ? ' ' + css.primary : '')} onClick={() => setRepoFilter(root)}>{tt(rootLabelKey(root), { root })} {counts.get(root) ?? 0}</button>
                   ))}
                 </div>
               )
@@ -105,9 +105,9 @@ export function RepoScanCard(props: { hub: SkillHubState }): JSX.Element | null 
             <div className={css.hintLine} style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8 }}>
               <span>{tt('repo.selection', { selected: selected.length, total: entries.length, size: formatBytes(selectedBytes), shown: paged.length, filtered: filtered.length })}</span>
               <span style={{ display:'flex', gap:6 }}>
-                <button type='button' className={css.button} style={{ padding:'4px 8px', fontSize:11 }} onClick={() => { setRepoSelected(new Set(filtered.filter((e)=>!isExisting(e)).slice(0, visibleCount).map((e)=>e.path))) }}>{tt('repo.selectVisible')}</button>
-                <button type='button' className={css.button} style={{ padding:'4px 8px', fontSize:11 }} onClick={() => { setRepoSelected(new Set(entries.filter((e)=>!isExisting(e)).map((e)=>e.path))) }}>{tt('repo.selectAllN', { count: entries.filter(e=>!isExisting(e)).length })}</button>
-                <button type='button' className={css.button} style={{ padding:'4px 8px', fontSize:11 }} onClick={() => { setRepoSelected(new Set()) }}>{tt('repo.clearAll')}</button>
+                <button type='button' className={css.opBtn} onClick={() => { setRepoSelected(new Set(filtered.filter((e)=>!isExisting(e)).slice(0, visibleCount).map((e)=>e.path))) }}>{tt('repo.selectVisible')}</button>
+                <button type='button' className={css.opBtn} onClick={() => { setRepoSelected(new Set(entries.filter((e)=>!isExisting(e)).map((e)=>e.path))) }}>{tt('repo.selectAllN', { count: entries.filter(e=>!isExisting(e)).length })}</button>
+                <button type='button' className={css.opBtn} onClick={() => { setRepoSelected(new Set()) }}>{tt('repo.clearAll')}</button>
               </span>
             </div>
 

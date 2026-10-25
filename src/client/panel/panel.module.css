@@ -1,28 +1,31 @@
-/* dsh-skill-hub panel — Apple-style: generous whitespace, inset grouped
-   cards, hairline separators, restrained accents.
-   Colours come from the host theme tokens (dsh-client-ui-theme defines them
-   on :root, with dark overrides on body[data-ds-dark-theme]). Every var()
-   keeps the colour this file used before the token pass as its fallback, so a
-   host without the theme package renders exactly as before. Sizes, spacing,
-   radii, fonts and layout are deliberately untouched.
+/* dsh-skill-hub panel — aligned with the built-in dsh pages (插件 /
+   自动化任务): one 960px content column, flat rows on the page background
+   with a hover fill and a 12px row radius, 500-weight type, monochrome
+   primary buttons and switches, and every colour/shape from the host
+   theme tokens (dsh-client-ui-theme on :root, dark overrides on
+   body[data-ds-dark-theme]).
+
+   Every var() keeps a DSH-accurate fallback (the light-theme value), so a
+   host without the theme package renders the same palette instead of a
+   third-party one. Sizes follow the official scale: 20/28/500 page title,
+   14/22 body, 13/20 secondary, 12/18 caption; 28px pills, 32px buttons,
+   36px fields; .5px hairlines.
 
    color-scheme is deliberately NOT declared here. The host layout writes the
    *resolved* scheme to document.documentElement.style.colorScheme; declaring
    `light dark` locally overrides that and makes native controls (<select>
    popups, scrollbars) follow the *OS* preference instead — with a manually
    selected dark theme on a light OS the <option> list renders light while
-   .select inherits light text, i.e. invisible (issue #13). Inheriting from the
-   root keeps both dark paths (manual + system) correct. */
+   .select inherits light text, i.e. invisible (issue #13). Inheriting from
+   the root keeps both dark paths (manual + system) correct. */
 
-/* Page shell (adapted from dsh ui-conversation ConversationRoot.module.css,
-   MIT License, Copyright (c) 2026 DeepSeek — see THIRD_PARTY_NOTICES.md):
-   relative band owning the scroll area plus the two width handles. The
-   shared width axis rides --hub-content-width: --hub-user-width when the
-   user has dragged a preference (published by PanelWidthControls), else the
-   720px fallback this panel always used. */
-.pageShell { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; --hub-content-width: var(--hub-user-width, 720px); }
+/* Page shell: relative band owning the scroll area plus the two width
+   handles. The shared width axis rides --hub-content-width: --hub-user-width
+   when the user has dragged a preference (published by PanelWidthControls),
+   else the 960px column the built-in pages use. */
+.pageShell { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; --hub-content-width: var(--hub-user-width, 960px); }
 
-.scrollArea { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; /* 滚动条槽永久预留（同官方 ConversationRoot .scrollBody）：auto 会让滚动条出现/消失时把居中的内容列顶偏一个滚动条宽（本主题 5px）。 */ scrollbar-gutter: stable; }
+.scrollArea { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; /* 滚动条槽永久预留（同官方 ConversationRoot .scrollBody）：auto 会让滚动条出现/消失时把居中的内容列顶偏一个滚动条宽（本主题 9px）。 */ scrollbar-gutter: stable; }
 
 /* Width drag strips: invisible until hovered/dragged; positioned 24px outside
    the content column, extending 10px outward, clamped so a 24px safe zone
@@ -84,21 +87,58 @@
   z-index: 8;
 }
 
-.panel { padding: calc(28px + var(--dsh-frame-top-clearance, 0px)) 20px 44px; display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: var(--hub-content-width); margin: 0 auto; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; -webkit-font-smoothing: antialiased; /* Dot colors mirror src/client/SkillHubSettingsCard.tsx (DEFAULT_DOT_MODEL_COLOR / DEFAULT_DOT_USER_COLOR) — CSS cannot import TS, so keep the two in sync. */ --hub-model: #2f81f7; --hub-user: #3fb950; /* Host theme tokens (--dsw-alias-*, dsh-client-ui-theme). Each var() carries the pre-token colour of this file as its fallback, so a missing theme package changes nothing. */ --hub-accent: var(--dsw-alias-state-business-primary, #2f81f7); --hub-text: var(--dsw-alias-label-primary, currentColor); --hub-text-2: var(--dsw-alias-label-secondary, #61666b); --hub-text-3: var(--dsw-alias-label-tertiary, #81858c); --hub-text-4: var(--dsw-alias-label-caption, #adb2b8); --hub-surface: var(--dsw-alias-bg-module-platform, rgba(128,128,128,.06)); --hub-hover: var(--dsw-alias-interactive-bg-hover, rgba(128,128,128,.08)); --hub-active: var(--dsw-alias-interactive-bg-active, rgba(128,128,128,.16)); --hub-border: var(--dsw-alias-border-l2, rgba(128,128,128,.13)); --hub-border-2: var(--dsw-alias-border-l3, rgba(128,128,128,.2)); --hub-danger: var(--dsw-alias-state-error-primary, #d1242f); --hub-success: var(--dsw-alias-state-success-primary, #3fb950); --hub-warn: var(--dsw-alias-state-warn-primary, #d29922); --hub-on-accent: var(--dsw-alias-label-primary-foreground, #fff); --hub-skeleton: var(--dsw-alias-bg-skeleton, rgba(128,128,128,.1)); }
+/* Page container: official page paddings (28px top + window clearance, the
+   responsive side gutter, 48px bottom) and a 960px content column. Font
+   family is inherited from body so the user's 字体 setting applies. */
+.panel {
+  padding: calc(28px + var(--dsh-frame-top-clearance, 0px)) clamp(24px, 4vw, 48px) 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: calc(var(--hub-content-width) + 2 * clamp(24px, 4vw, 48px));
+  margin: 0 auto;
+  box-sizing: border-box;
+  /* 状态圆点默认色（与 src/client/SkillHubSettingsCard.tsx 的 DEFAULT_DOT_*_COLOR 保持一致）。 */
+  --hub-model: #2f81f7;
+  --hub-user: #3fb950;
+  /* Host theme tokens (--dsw-alias-*, dsh-client-ui-theme). Fallbacks are the
+     light-theme values so a missing theme package still renders DSH colours. */
+  --hub-accent: var(--dsw-alias-state-business-primary, #4176e6);
+  --hub-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary, #4176e6));
+  --hub-focus-width: var(--dsw-focus-ring-width, 2px);
+  --hub-brand: var(--dsw-alias-button-primary-fill, #0f1115);
+  --hub-brand-hover: var(--dsw-alias-button-primary-hover, #ebeef2);
+  --hub-on-brand: var(--dsw-alias-label-primary-foreground, #fff);
+  --hub-text: var(--dsw-alias-label-primary, #0f1115);
+  --hub-text-2: var(--dsw-alias-label-secondary, #61666b);
+  --hub-text-3: var(--dsw-alias-label-tertiary, #81858c);
+  --hub-text-4: var(--dsw-alias-label-caption, #adb2b8);
+  --hub-surface: var(--dsw-alias-bg-module-platform, #f5f6f7);
+  --hub-layer: var(--dsw-alias-bg-layer-1, #fff);
+  --hub-hover: var(--dsw-alias-interactive-bg-hover, #2631480f);
+  --hub-active: var(--dsw-alias-interactive-bg-active, #2631481a);
+  --hub-border: var(--dsw-alias-border-l2, #0000001a);
+  --hub-border-2: var(--dsw-alias-border-l3, #0000001f);
+  --hub-danger: var(--dsw-alias-state-error-primary, #ec1313);
+  --hub-success: var(--dsw-alias-state-success-primary, #22c55e);
+  --hub-warn: var(--dsw-alias-state-warn-primary, #f59e0b);
+  --hub-skeleton: var(--dsw-alias-bg-skeleton, #0000000a);
+  --hub-elevation: var(--dsw-elevation-prominent, 0 0 0 .5px rgba(0,0,0,.08), 0 3px 8px rgba(0,0,0,.04));
+  --hub-mono: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
 
 /* ---- 标题行 + 分类导航：照官方「自动化任务」一级页面
    (ui-schedule TaskManagerPage.module.css .pageHeading / .filterTabs) ----
-   标题条自带 28px 顶部内边距，macOS 下再加窗口条预留的
-   --dsh-frame-top-clearance（官方写法）。这里把它折进 .panel 的 padding：
-   主列表 / 技能详情 / 分组编辑三个视图共用同一个 .panel，写在容器上
-   一次就对，且三者顶部对齐。 */
+   标题条自带 28px 顶部内边距（已折进 .panel 的 padding，三个视图共用
+   同一个容器，所以顶部天然对齐）。 */
 .pageHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; /* 官方标题行到筛选条是 24px：容器 14px gap + 这 10px。 */ margin-bottom: 10px; }
 /* 官方一级页面标题的刻度：20px/28px/500，无图标。 */
 .title { flex: 0 1 auto; min-width: 0; max-width: 100%; margin: 0; font-size: 20px; line-height: 28px; font-weight: 500; }
 
-/* 版本号 + 计数 + 诊断提示成一组，跟在标题右侧；组内 8px，组与标题之间由
-   .pageHeading 的 16px 列间距给出。整组与标题同基线。 */
+/* 版本号 + 计数 + 诊断提示成一组，跟在标题右侧；整组与标题同基线。 */
 .headingMeta { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.headerCount { font-size: 13px; line-height: 20px; color: var(--hub-text-3); white-space: nowrap; }
 
 /* 分类导航：官方自动化任务页的分段筛选项——28px 胶囊、10px 内边距、
    14px 圆角、14px/22px 文字；未选中三级墨色，hover 与选中取同一种
@@ -108,9 +148,7 @@
 .filterTab:hover { background: var(--hub-hover); }
 .filterTabActive { background: var(--hub-hover); color: var(--hub-text); }
 
-/* 尚未接入数据的分类：官方自动化任务页的居中空状态
-   (TaskManagerPage.module.css .empty)——14px/1.6 三级墨色标题，
-   下方一段 caption 墨色的说明，48px 上下留白、居中。 */
+/* 尚未接入数据的分类：官方自动化任务页的居中空状态。 */
 .placeholder { display: flex; align-items: center; flex-direction: column; padding: 48px 20px; text-align: center; color: var(--hub-text-3); font-size: 14px; line-height: 1.6; }
 .placeholderTitle { margin: 0 0 8px; font-size: 14px; line-height: 1.6; font-weight: 400; }
 .placeholderBody { max-width: 460px; margin: 0; color: var(--hub-text-4); font-size: 13px; line-height: 21px; }
@@ -119,10 +157,10 @@
    (ui-chat settings/PreferenceRow.module.css)：左侧 14px 主墨色标题、右侧取值，
    行间 0.5px 发丝线，末行不留线。 */
 .about { display: flex; flex-direction: column; gap: 10px; padding-top: 6px; }
-.aboutTitle { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; }
+.aboutTitle { margin: 0; font-size: 14px; line-height: 22px; font-weight: 500; }
 .aboutLead { max-width: 560px; margin: 0; color: var(--hub-text-3); font-size: 13px; line-height: 21px; }
-.aboutCard { display: flex; flex-direction: column; margin-top: 4px; padding: 0 16px; background: var(--hub-surface); border-radius: 12px; }
-.aboutRow { box-sizing: border-box; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 0; border-bottom: 0.5px solid var(--hub-border); }
+.aboutCard { display: flex; flex-direction: column; margin-top: 4px; padding: 0 16px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-lg, 16px); }
+.aboutRow { box-sizing: border-box; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 0; border-bottom: .5px solid var(--hub-border); }
 .aboutRow:last-child { border-bottom: 0; }
 .aboutRowText { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
 .aboutRowTitle { color: var(--hub-text); font-size: 14px; line-height: 22px; }
@@ -131,88 +169,97 @@
 .aboutControl { display: inline-flex; flex: none; align-items: center; gap: 10px; }
 .aboutLink { color: var(--hub-accent); font-size: 13px; text-decoration: none; }
 .aboutLink:hover { text-decoration: underline; }
-.hint { font-size: 12px; color: var(--hub-text-3); }
-.actions { margin-left: auto; display: flex; gap: 8px; }
+.hint { font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
+.actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
-/* Segmented control: soft capsule, neutral active fill. */
-.segmented { display: flex; background: var(--hub-hover); border-radius: 9px; padding: 2px; gap: 2px; }
-.segBtn { padding: 5px 13px; font-size: 12px; border: none; border-radius: 7px; background: transparent; color: var(--hub-text-2); cursor: pointer; transition: background .15s ease, opacity .15s ease; }
-.segBtn:hover { color: var(--hub-text); }
-.segBtnActive { background: var(--hub-active); opacity: 1; font-weight: 600; }
+/* 分段切换：与官方筛选胶囊同一套刻度（28px / 14px 圆角 / 14px 文字），
+   容器不铺底，选中取 hover 底色 + 一级墨色。 */
+.segmented { display: inline-flex; align-items: center; gap: 8px; }
+.segBtn { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border: 0; border-radius: 14px; background: transparent; color: var(--hub-text-3); font: inherit; font-size: 14px; line-height: 22px; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.segBtn:hover { color: var(--hub-text); background: var(--hub-hover); }
+.segBtnActive { background: var(--hub-hover); color: var(--hub-text); }
 
-/* Search: filled rounded field, no border. */
-.search { width: 100%; padding: 10px 14px; border: none; border-radius: 10px; background: var(--hub-surface); color: inherit; font-size: 13px; outline: none; transition: background .15s ease; }
-.search::placeholder { opacity: .45; }
-.search:focus { background: var(--hub-active); }
+/* 输入框：官方写法是 0.5px 描边 + 透明底 + 12px 圆角（自动化任务的
+   .searchField / 插件安装表单的 input），聚焦只换描边色。 */
+.search { width: 100%; box-sizing: border-box; height: 36px; padding: 0 12px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); background: transparent; color: var(--hub-text); font: inherit; font-size: 13px; line-height: 20px; outline: none; transition: border-color .15s ease; }
+.search::placeholder { color: var(--hub-text-4); }
+.search:focus { border-color: var(--hub-accent); }
 
-/* Inset grouped list: one rounded card per group. */
-.section { display: flex; flex-direction: column; background: var(--hub-surface); border-radius: 12px; overflow: hidden; margin-top: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.03), 0 4px 12px rgba(0,0,0,.04); }
-.sectionTitle { font-size: 13px; font-weight: 700; margin: 14px 16px 2px; }
-.groupHead { display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 44px; box-sizing: border-box; }
-.groupTitle { font-size: 13px; font-weight: 600; color: var(--hub-text); flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; line-height: 1; }
-.groupOps { flex: none; display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+/* 列表：一行一条，2px 行距，悬停/选中靠底色，不再用卡片面与发丝分隔线。 */
+.section { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.section + .section { margin-top: 18px; /* 容器 14px gap + 18px = 官方分组间的 32px */ }
+.sectionTitle { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; line-height: 22px; font-weight: 500; }
+.list { display: flex; flex-direction: column; gap: 2px; }
+.groupHead { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0; box-sizing: border-box; }
+.groupTitle { font-size: 14px; line-height: 22px; font-weight: 500; color: var(--hub-text); flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; }
+.groupOps { flex: none; display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.groupTitleInner { display: inline-flex; align-items: baseline; }
 
-/* Small neutral pill buttons (group-level actions). */
-.opBtn { font-size: 11px; padding: 3px 11px; border-radius: 999px; border: none; background: var(--hub-hover); color: inherit; cursor: pointer; transition: background .15s ease; }
-.opBtn:hover { background: var(--hub-active); }
-.opBtn:disabled { opacity: .4; cursor: default; }
+/* Small ghost buttons (group-level actions): DSH's small button scale. */
+.opBtn { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--dsw-radius-sm, 8px); background: transparent; color: var(--hub-text-2); font: inherit; font-size: 13px; line-height: 20px; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.opBtn:hover { background: var(--hub-hover); color: var(--hub-text); }
+.opBtn:disabled { opacity: .45; cursor: default; }
 
-/* Rows: hairline separators inside a card, no outer borders. */
-.row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: transparent; cursor: pointer; transition: background .12s ease; }
+/* Rows: flat, hover-filled, 12px radius (official row geometry). */
+.row { display: flex; align-items: center; gap: 14px; padding: 8px; border-radius: var(--dsw-radius-md, 12px); background: transparent; cursor: pointer; transition: background .12s ease; }
 .row:hover { background: var(--hub-hover); }
 /* Keyboard focus ring for the div-as-button skill row (theme-agnostic). */
-.row:focus-visible { outline: 2px solid var(--hub-accent); outline-offset: -2px; }
+.row:focus-visible { outline: var(--hub-focus-width) solid var(--hub-focus); outline-offset: -2px; }
 .rowStatic { cursor: default; }
 .rowStatic:hover { background: transparent; }
-.row + .row { border-top: 0.5px solid var(--hub-border); }
 .rowMain { flex: 1; min-width: 0; }
-.rowName { display: flex; align-items: center; gap: 5px; font-size: 13.5px; }
-.rowNameText { font-weight: 600; }
-.rowDesc { font-size: 12.5px; color: var(--hub-text-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rowName { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 14px; line-height: 20px; }
+.rowNameText { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rowDesc { font-size: 13px; line-height: 18px; color: var(--hub-text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* No badge chips on list rows; keep only for the detail head. */
+/* Tags: official Tag (11/17, 500 weight, module-platform fill, no border). */
 .badges { display: flex; gap: 6px; align-items: center; flex: none; }
-.badge { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 0.5px solid var(--hub-border-2); color: var(--hub-text-2); white-space: nowrap; }
-.badgeReadonly { opacity: .5; }
+.badge { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border: 0; border-radius: 999px; background: var(--hub-surface); color: var(--hub-text-2); font-size: 11px; line-height: 17px; font-weight: 500; white-space: nowrap; }
+.badgeReadonly { color: var(--hub-text-3); }
 
-/* iOS-style switch (kept, already matches the system look). */
-.switch { flex: none; width: 36px; height: 21px; padding: 2px; border: 1px solid var(--hub-border-2); border-radius: 999px; background: var(--dsw-alias-bg-module-platform, rgba(128,128,128,.3)); cursor: pointer; transition: background .18s ease; }
+/* iOS-style switch, exactly the host component's geometry and colours:
+   off = border-l3 track + switch-thumb, on = brand track + foreground thumb. */
+.switch { box-sizing: border-box; flex: none; width: 36px; height: 20px; padding: 2px; border: 0; border-radius: 999px; background: var(--dsw-alias-border-l3, var(--hub-border-2)); cursor: pointer; transition: background .18s ease; }
 .switch:disabled { opacity: .5; cursor: default; }
-.switchOn { background: var(--dsw-alias-state-business-primary, #34c759); }
-.switchThumb { display: block; width: 17px; height: 17px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transform: translateX(0); transition: transform .18s ease; }
-.switchOn .switchThumb { transform: translateX(15px); }
+.switchOn { background: var(--hub-brand); }
+.switchThumb { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--dsw-alias-switch-thumb, #adb2b8); transform: translateX(0); transition: transform .18s ease, background .18s ease; }
+.switchOn .switchThumb { background: var(--dsw-alias-label-primary-foreground, #0f1115); transform: translateX(16px); }
 
-.empty { font-size: 13px; color: var(--hub-text-3); padding: 20px 0; text-align: center; }
-.diagRow { font-size: 12px; padding: 9px 14px; border-left: 3px solid var(--hub-warn); background: rgba(210,153,34,.06); }
-.diagPath { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--hub-text-2); word-break: break-all; }
+.empty { font-size: 14px; line-height: 20px; color: var(--hub-text-3); padding: 48px 20px; text-align: center; }
+.diagRow { border-radius: var(--dsw-radius-md, 12px); background: var(--dsw-alias-state-warn-tertiary, #fef5e7); color: var(--hub-text); padding: 10px 12px; font-size: 12px; line-height: 18px; }
+.diagPath { font-family: var(--hub-mono); font-size: 11.5px; line-height: 16px; color: var(--hub-text-2); word-break: break-all; }
 .diagReason { color: var(--hub-text-3); margin-top: 1px; }
 
-.errorBanner { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; color: var(--hub-danger); background: rgba(209,36,47,.07); border-radius: 10px; padding: 10px 14px; white-space: pre-wrap; word-break: break-all; }
+.errorBanner { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 20px; color: var(--hub-danger); background: color-mix(in srgb, var(--hub-danger) 10%, transparent); border-radius: var(--dsw-radius-md, 12px); padding: 10px 14px; white-space: pre-wrap; word-break: break-all; }
 /* Green success banner (create finished); mirrors the error banner shape. */
-.successBanner { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; color: var(--hub-success); background: rgba(63,185,80,.08); border-radius: 10px; padding: 10px 14px; white-space: pre-wrap; word-break: break-all; }
+.successBanner { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 20px; color: var(--hub-success); background: color-mix(in srgb, var(--hub-success) 10%, transparent); border-radius: var(--dsw-radius-md, 12px); padding: 10px 14px; white-space: pre-wrap; word-break: break-all; }
 
 .detailHead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.back { background: var(--hub-hover); border: none; color: inherit; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; }
-.back:hover { background: var(--hub-active); }
-.detailName { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
-.detailMeta { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--hub-text-3); }
+.back { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border: 0; border-radius: var(--dsw-radius-sm, 8px); background: transparent; color: var(--hub-text-2); font: inherit; font-size: 13px; line-height: 20px; cursor: pointer; }
+.back:hover { background: var(--hub-hover); color: var(--hub-text); }
+.detailName { font-size: 20px; line-height: 28px; font-weight: 500; }
+.detailMeta { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
 .detailMetaLine { word-break: break-all; }
-.detailContent { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: var(--hub-surface); border-radius: 12px; padding: 14px 16px; max-height: 62vh; overflow: auto; }
+.detailContent { font-family: var(--hub-mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: var(--hub-layer); border: .5px solid var(--hub-border); border-radius: var(--dsw-radius-lg, 16px); padding: 14px 16px; max-height: 62vh; overflow: auto; }
 
-.form { display: flex; flex-direction: column; gap: 10px; background: var(--hub-surface); border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.03), 0 4px 12px rgba(0,0,0,.04); }
-.formRow { display: flex; flex-direction: column; gap: 5px; }
-.formLabel { font-size: 12px; color: var(--hub-text-3); }
-.input, .select { padding: 9px 12px; border: none; border-radius: 9px; background: var(--hub-surface); color: inherit; font-size: 13px; outline: none; }
-.input:focus, .select:focus { background: var(--hub-active); }
+.form { display: flex; flex-direction: column; gap: 10px; background: transparent; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-lg, 16px); padding: 14px 16px; }
+.formRow { display: flex; flex-direction: column; gap: 6px; }
+.formLabel { font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
+.input, .select { box-sizing: border-box; height: 36px; padding: 0 12px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); background: transparent; color: var(--hub-text); font: inherit; font-size: 13px; outline: none; transition: border-color .15s ease; }
+.input:focus, .select:focus { border-color: var(--hub-accent); }
 .buttons { display: flex; gap: 8px; align-items: center; }
-.button { padding: 6px 13px; border-radius: 8px; font-size: 12.5px; cursor: pointer; border: none; background: var(--hub-hover); color: inherit; transition: background .15s ease; }
-.button:hover { background: var(--hub-active); }
-.primary { background: var(--hub-accent); color: var(--hub-on-accent); }
-.primary:hover { background: var(--hub-accent); opacity: .92; }
-.primary:disabled { opacity: .45; cursor: default; }
-.danger { background: var(--hub-danger); color: var(--hub-on-accent); }
-.danger:hover { background: var(--hub-danger); opacity: .92; }
+.button { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; border: 0; border-radius: var(--dsw-radius-md, 12px); background: transparent; color: var(--hub-text); font: inherit; font-size: 13px; line-height: 20px; white-space: nowrap; cursor: pointer; transition: background .15s ease, opacity .15s ease; }
+.button:hover { background: var(--hub-hover); }
+.button:disabled { opacity: .45; cursor: default; }
+/* Primary = the host's brand fill (black on light, white on dark), like
+   添加插件 / 新建任务 — business blue stays reserved for links and focus. */
+.primary { background: var(--hub-brand); color: var(--hub-on-brand); }
+.primary:hover { background: var(--hub-brand-hover); }
+.danger { color: var(--hub-danger); }
+.danger:hover { background: color-mix(in srgb, var(--hub-danger) 10%, transparent); }
 .danger:disabled { opacity: .45; cursor: default; }
+/* Small button variant (official 28px compact action). */
+.sm { height: 28px; padding: 0 10px; font-size: 12px; }
 .formError { color: var(--hub-danger); }
 .formSuccess { color: var(--hub-success); }
 
@@ -221,60 +268,49 @@
 .dotModel { background: var(--hub-model); }
 .dotUser { background: var(--hub-user); }
 .displayName { font-size: 11px; color: var(--hub-text-3); margin-left: 6px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; min-width: 0; flex-shrink: 1; }
-.legend { display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--hub-text-3); flex-wrap: wrap; padding: 2px 2px 0; }
+.legend { display: flex; align-items: center; gap: 12px; font-size: 12px; line-height: 18px; color: var(--hub-text-3); flex-wrap: wrap; padding: 2px 2px 0; }
 .legendItem { display: inline-flex; align-items: center; gap: 4px; }
 .legendItem .dot { margin-left: 0; }
 .legendHint { opacity: .8; }
 
-/* Chips become quiet text pills (no colored borders). */
-.badgeSource { background: var(--hub-hover); border: none; opacity: .72; }
-.badgeCount { background: var(--hub-hover); border: none; opacity: .72; }
+/* Chips are plain module-platform tags, same as the host's Tag. */
+.badgeSource { color: var(--hub-text-3); }
+.badgeCount { color: var(--hub-text-3); }
 
-/* Collapsible drawer headers (groups view). */
+/* Collapsible group headers (groups view): plain 14/22/500 text row. */
 .disclosure { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 2px 0; border: none; background: none; color: inherit; cursor: pointer; text-align: left; min-height: 24px; }
 .disclosure:hover .groupTitle { opacity: 1; }
 .chevron { flex: none; width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-1px); transition: transform .15s ease; opacity: .55; margin-right: 2px; align-self: center; }
 .chevronCollapsed { transform: rotate(-45deg) translateY(-1px); }
 
-/* 标题行右侧的元信息（目录计数 + 诊断提示）；标题本身是纯文字行盒。 */
-.headerCount { font-size: 12px; color: var(--hub-text-3); white-space: nowrap; }
-.subbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.legendToggle { flex: none; width: 22px; height: 22px; border-radius: 50%; border: none; background: var(--hub-hover); color: inherit; font-size: 12px; line-height: 1; cursor: pointer; opacity: .55; transition: opacity .15s ease, background .15s ease; }
-.legendToggle:hover { opacity: 1; }
-.legendToggleActive { opacity: 1; background: var(--hub-active); }
+.subbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.legendToggle { flex: none; width: 28px; height: 28px; border-radius: var(--dsw-radius-sm, 8px); border: none; background: transparent; color: var(--hub-text-3); font-size: 13px; line-height: 1; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.legendToggle:hover { background: var(--hub-hover); color: var(--hub-text); }
+.legendToggleActive { background: var(--hub-hover); color: var(--hub-text); }
 
 /* Source filter row (分类 view). */
 .filterBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .filterBar .formLabel { margin: 0; }
 
-/* Invocation count: amber chip beside the skill name. */
-.useCount { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--hub-warn); background: rgba(210,153,34,.12); border-radius: 999px; padding: 0 6px; line-height: 1.6; vertical-align: 1px; }
+/* Invocation count: neutral tag beside the skill name. */
+.useCount { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 500; color: var(--hub-text-2); background: var(--hub-surface); border-radius: 999px; padding: 0 6px; line-height: 17px; vertical-align: 1px; }
 /* Relative last-used time: right-aligned on the name row, above the description. */
-.useTime { margin-left: auto; font-size: 11px; color: var(--hub-text-4); white-space: nowrap; }
+.useTime { margin-left: auto; font-size: 12px; line-height: 18px; color: var(--hub-text-4); white-space: nowrap; }
 
-
-
-/* ---- v0.3: tri-state switches, dialogs, source headers ---- */
-
-/* Tri-state group switch: mixed = half-filled (thumb centered, soft accent).
-   The rgba is the pre-token blue (--hub-model at 45%), kept as the fallback
-   declaration for hosts/browsers without color-mix(). */
-.switchMixed { background: rgba(47,129,247,.45); background: color-mix(in srgb, var(--hub-accent) 45%, transparent); }
-.switchMixed .switchThumb { transform: translateX(7.5px); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
-
-/* Group title inner summary (count + last used) sits inline after the name. */
-.groupTitleInner { display: inline-flex; align-items: baseline; }
+/* Tri-state group switch: mixed = half-filled (thumb centered, soft accent). */
+.switchMixed { background: rgba(47,129,247,.45); background: color-mix(in srgb, var(--hub-brand) 45%, transparent); }
+.switchMixed .switchThumb { transform: translateX(8px); }
 
 /* Source link inside group titles / rows. */
-.sourceLink { color: inherit; font-weight: 600; text-decoration: none; border-bottom: 1px dotted currentColor; opacity: .9; }
+.sourceLink { color: inherit; font-weight: 500; text-decoration: none; border-bottom: 1px dotted currentColor; opacity: .9; }
 .sourceLink:hover { opacity: 1; }
 
-/* Source status badges (check results). */
+/* Source status badges (check results): Tag shape, state colours from tokens. */
 .statusBadges { display: inline-flex; gap: 4px; align-items: center; flex: none; }
-.statusBadge { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 0.5px solid var(--hub-border-2); opacity: .8; white-space: nowrap; background: var(--hub-hover); }
-.statusOk { color: var(--hub-success); border-color: currentColor; background: transparent; }
-.statusUpdated { color: var(--hub-warn); border-color: currentColor; background: rgba(210,153,34,.08); }
-.statusError { color: var(--hub-danger); border-color: currentColor; background: rgba(209,36,47,.08); }
+.statusBadge { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border: 0; border-radius: 999px; background: var(--hub-surface); color: var(--hub-text-2); font-size: 11px; line-height: 17px; font-weight: 500; white-space: nowrap; }
+.statusOk { color: var(--hub-success); background: color-mix(in srgb, var(--hub-success) 10%, transparent); border-color: currentColor; }
+.statusUpdated { color: var(--hub-warn); background: color-mix(in srgb, var(--hub-warn) 12%, transparent); }
+.statusError { color: var(--hub-danger); background: color-mix(in srgb, var(--hub-danger) 10%, transparent); }
 
 /* Clickable status badge (group-header re-check affordance). */
 .statusWrap { display: inline-flex; gap: 4px; align-items: center; border: none; background: none; padding: 0; cursor: pointer; font-family: inherit; }
@@ -283,30 +319,30 @@
 .statusButton:hover { opacity: 1; }
 
 /* Danger pill (follow upstream deletion). */
-.opDanger { color: var(--hub-danger); background: rgba(209,36,47,.1); }
-.opDanger:hover { background: rgba(209,36,47,.18); }
+.opDanger { color: var(--hub-danger); }
+.opDanger:hover { background: color-mix(in srgb, var(--hub-danger) 10%, transparent); color: var(--hub-danger); }
 
 /* Icon-only pill button (fixed size so rows never shift). */
-.iconBtn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border-radius: 999px; }
+.iconBtn { width: 28px; padding: 0; justify-content: center; }
 
 /* Source card in the detail view. */
-.sourceCard { display: flex; flex-direction: column; gap: 4px; font-size: 12px; background: var(--hub-surface); border-radius: 12px; padding: 12px 14px; }
+.sourceCard { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 18px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); padding: 12px 14px; }
 .sourceCardTitle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* iOS-style centered dialog (conflict / sync confirm). */
-.dialogOverlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.35); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); padding: 24px; }
-.dialog { min-width: min(320px, 100%); max-width: 380px; background: var(--dsw-alias-bg-layer-1, #f5f5f7); color: var(--dsw-alias-label-primary, #1d1d1f); border-radius: 14px; padding: 18px 18px 14px; box-shadow: 0 12px 40px rgba(0,0,0,.28), 0 2px 8px rgba(0,0,0,.16); }
-.dialogTitle { margin: 0 0 8px; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
-.dialogText { margin: 0 0 10px; font-size: 12.5px; color: var(--hub-text-3); line-height: 1.5; }
+.dialogOverlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: var(--dsw-alias-bg-mask-1, rgba(0,0,0,.4)); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); padding: 24px; }
+.dialog { min-width: min(320px, 100%); max-width: 380px; background: var(--dsw-alias-bg-layer-2, #fff); color: var(--hub-text); border-radius: var(--dsw-radius-lg, 16px); padding: 18px 18px 14px; box-shadow: var(--hub-elevation); }
+.dialogTitle { margin: 0 0 8px; font-size: 15px; line-height: 22px; font-weight: 600; }
+.dialogText { margin: 0 0 10px; font-size: 13px; line-height: 20px; color: var(--hub-text-3); }
 .dialogList { margin: 0 0 14px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; max-height: 200px; overflow: auto; }
-.dialogList li { font-size: 12.5px; opacity: .85; word-break: break-all; }
+.dialogList li { font-size: 13px; line-height: 20px; opacity: .85; word-break: break-all; }
 .dialogActions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* Search + filter + view control share one row (skills tab); the search
    field stretches over the remaining width so the row never looks hollow. */
-.filterBar .search { flex: 1; min-width: 160px; }
+.filterBar .search { flex: 1; min-width: 200px; }
 .filterBar .formLabel { flex: none; }
-.filterBar .select { flex: none; max-width: 150px; }
+.filterBar .select { flex: none; max-width: 160px; }
 .filterBar .segmented { flex: none; }
 
 
@@ -315,7 +351,7 @@
    .useTime) so the later rule wins at equal specificity. ---- */
 .grow { flex: 1; }
 /* Muted one-line hint (replaces <p class="muted" style="margin:0;font-size:11.5px">). */
-.hintLine { margin: 0; font-size: 11.5px; color: var(--hub-text-3); }
+.hintLine { margin: 0; font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
 .hintPadded { margin: 6px 12px 2px; }
 .hintInline { margin: 4px 2px; }
 /* Repo preview row for an already-installed skill (cursor default + dimmed). */
@@ -330,54 +366,49 @@
 .dialogRow { display: flex; align-items: center; gap: 8px; }
 /* Workspace (project path) picker in the subbar. */
 .workspaceBox { display: inline-flex; align-items: center; gap: 6px; }
-.workspaceInput { width: 200px; padding: 6px 10px; font-size: 12px; }
-/* Project-level three-tier tree: outer card (the .section), inner levels are
-   flat — indent + a hairline guide only, no nested card surfaces. */
-.projectNest { display: flex; flex-direction: column; margin: 2px 0 0 14px; border-left: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.14)); }
+.workspaceInput { width: 200px; height: 32px; font-size: 13px; }
+/* Project-level three-tier tree: inner levels are flat — indent + a hairline
+   guide only, no nested surfaces. */
+.projectNest { display: flex; flex-direction: column; gap: 8px; margin: 0 0 0 14px; border-left: .5px solid var(--hub-border); }
 
 /* Drag handle + reorder states — 窄版：尽量收窄占位，仍保留抓取感 */
-.dragHandle { cursor: grab; opacity: .28; font-size: 10px; letter-spacing: 0; padding: 0 1px; width: 8px; overflow: hidden; user-select: none; flex: none; display: inline-flex; align-items: center; justify-content: center; height: 16px; align-self: center; }
+.dragHandle { cursor: grab; opacity: .22; font-size: 12px; line-height: 1; letter-spacing: -2px; padding: 0; width: 14px; overflow: hidden; user-select: none; flex: none; display: inline-flex; align-items: center; justify-content: center; height: 16px; align-self: center; }
 .dragHandle:active { cursor: grabbing; }
+.groupHead:hover .dragHandle { opacity: .5; }
 .dragging { opacity: .45; }
-.dragOver { outline: 2px dashed var(--hub-accent); outline-offset: -2px; background: rgba(47,129,247,.07); }
+.dragOver { outline: 2px dashed var(--hub-accent); outline-offset: -2px; background: color-mix(in srgb, var(--hub-accent) 7%, transparent); }
 
 /* Scan list for 276-skill import — theme-agnostic, replaces inline styles */
-.scanList { max-height: 360px; overflow: auto; border: 0.5px solid var(--hub-border-2); border-radius: 12px; margin-top: 8px; background: var(--hub-surface); }
+.scanList { max-height: 360px; overflow: auto; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); margin-top: 8px; background: transparent; }
+/* Scan-result board: a bordered section (no brand-tinted fill). */
+.board { border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); padding: 10px 14px 12px; }
+.warnBanner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 20px; color: var(--hub-text); background: var(--dsw-alias-state-warn-tertiary, #fef5e7); border-radius: var(--dsw-radius-md, 12px); padding: 10px 14px; }
 .scanProgressTrack { flex: 1; height: 6px; background: var(--hub-surface); border-radius: 4px; overflow: hidden; }
-.scanProgressFill { height: 100%; background: var(--hub-accent); transition: width .2s; }
+.scanProgressFill { height: 100%; background: var(--hub-brand); transition: width .2s; }
 
-/* ---- 阶段3/4：筛选面板、列表工具、焦点环、点击区域、骨架屏、减少动效 ---- */
+/* ---- 筛选面板、列表工具、焦点环、点击区域、骨架屏、减少动效 ---- */
 
 /* 筛选面板：搜索/排序/视图切换常驻，「来源 + 调用方式」收进这里。 */
-.filterPanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; background: var(--hub-surface); border-radius: 10px; }
+.filterPanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); }
 .filterField { display: inline-flex; align-items: center; gap: 6px; }
 .filterField .formLabel { margin: 0; }
-.filterField .select { max-width: 150px; }
+.filterField .select { max-width: 160px; }
 
 /* 列表工具行（全部折叠 / 全部展开）。 */
 .listTools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 2px; }
 
-/* 键盘焦点环：只在 focus-visible（键盘操作）时出现，鼠标点击不打扰。 */
+/* 键盘焦点环：官方写法（--dsw-focus-ring-width / -color），只在
+   focus-visible（键盘操作）时出现，鼠标点击不打扰。 */
 .opBtn:focus-visible, .button:focus-visible, .segBtn:focus-visible, .disclosure:focus-visible,
 .filterTab:focus-visible,
 .switch:focus-visible, .legendToggle:focus-visible, .back:focus-visible, .statusWrap:focus-visible,
 .input:focus-visible, .select:focus-visible, .search:focus-visible, .sourceLink:focus-visible {
-  outline: 2px solid var(--hub-accent);
+  outline: var(--hub-focus-width) solid var(--hub-focus);
   outline-offset: 2px;
 }
 
-/* 点击区域：小控件补到 28px（原 22-24px 偏小）。 */
-.opBtn { padding: 4px 12px; }
-.segBtn { padding: 6px 13px; }
-.iconBtn { width: 28px; height: 28px; }
-.legendToggle { width: 28px; height: 28px; }
-
-/* 拖拽把手：原 8px 宽 + 0.28 透明度太细太淡，鼠标不好抓。 */
-.dragHandle { width: 16px; opacity: .45; }
-.dragHandle:hover { opacity: 1; }
-
 /* 加载骨架屏（替代单行「加载中」）。 */
-.skeleton { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: var(--hub-surface); border-radius: 12px; }
+.skeleton { display: flex; flex-direction: column; gap: 8px; padding: 12px 8px; }
 .skeletonRow { height: 14px; border-radius: 7px; background: var(--hub-skeleton); animation: hubPulse 1.4s ease-in-out infinite; }
 .skeletonRow:nth-child(2) { width: 82%; }
 .skeletonRow:nth-child(3) { width: 64%; }
@@ -393,13 +424,13 @@
 }
 
 /* 详情页「调用方式」：两个 checkbox + 一行脚注（key 名写进脚注）。 */
-.invocationCard { display: flex; flex-direction: column; gap: 6px; background: var(--hub-surface); border-radius: 12px; padding: 12px 16px; }
+.invocationCard { display: flex; flex-direction: column; gap: 6px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); padding: 12px 16px; }
 .invocationHead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.invocationTitle { font-size: 13px; font-weight: 700; }
-.invocationReadonly { font-size: 11.5px; color: var(--hub-text-3); }
-.invocationRow { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--hub-text); cursor: pointer; }
-.invocationRow input { margin: 2px 0 0; flex: none; accent-color: var(--hub-accent); }
+.invocationTitle { font-size: 13px; line-height: 20px; font-weight: 600; }
+.invocationReadonly { font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
+.invocationRow { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 20px; color: var(--hub-text); cursor: pointer; }
+.invocationRow input { margin: 2px 0 0; flex: none; accent-color: var(--hub-brand); }
 .invocationRow:has(input:disabled) { cursor: default; opacity: .55; }
 .invocationLabel { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.invocationName { font-weight: 600; }
-.invocationHint { font-size: 11.5px; color: var(--hub-text-3); }
+.invocationName { font-weight: 500; }
+.invocationHint { font-size: 12px; line-height: 18px; color: var(--hub-text-3); }

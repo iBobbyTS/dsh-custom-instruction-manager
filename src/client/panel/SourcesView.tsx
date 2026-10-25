@@ -1,9 +1,9 @@
 /**
  * Sources tab: the flat skill list or the grouped view — a project-level
  * three-tier tree (workspaces from workspace.json, each optionally split by
- * .dsh/.agents), one card per upstream collection with check/sync/
+ * .dsh/.agents), one group per upstream collection with check/sync/
  * follow-delete actions and the tri-state switch, plus the uncategorized
- * "personal" card (project skills never count as personal).
+ * "personal" group (project skills never count as personal).
  */
 
 import { useMemo, useState, type JSX } from 'react'
@@ -88,7 +88,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, editMode: hub.editMode, listBusy: hub.listBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill }
 
   if (skillView === 'flat') {
-    return <>{sourceFiltered.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}</>
+    return <div className={css.list}>{sourceFiltered.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}</div>
   }
 
   // 空状态：没有任何分组时提示
@@ -104,7 +104,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
         </div>
       ) : null}
       {topOrderedKeys.map((topKey) => {
-        // Project 顶层卡片（可拖）
+        // Project 顶层分组（可拖）
         if (topKey === 'project' && hasProject) {
           return (
             <ProjectTree
@@ -123,7 +123,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
             />
           )
         }
-        // Collection 卡片（可拖，归属顶层排序）
+        // Collection 分组（可拖，归属顶层排序）
         if (topKey.startsWith('col:')) {
           const colName = topKey.slice(4)
           const entry = visible.find((item) => item.collection.name === colName)
@@ -163,7 +163,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
             />
           )
         }
-        // Personal 顶层卡片（可拖）
+        // Personal 顶层分组（可拖）
         if (topKey === 'uncategorized-source' && hasPersonal) {
           if (allPersonalNames.length === 0) return null
           const collapsed = collapsedGroups.has('uncategorized-source')
@@ -215,10 +215,10 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                     )
                   })
                 ) : (
-                  <>
+                  <div className={css.list}>
                     {uncategorized.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
                     {personalDisabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
-                  </>
+                  </div>
                 )
               ) : null}
             </section>

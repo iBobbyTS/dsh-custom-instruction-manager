@@ -1,5 +1,5 @@
 /**
- * CollectionCard — 一个上游来源集合卡片：组头（来源链接 + 成员数 + 用量
+ * CollectionCard — 一个上游来源集合分组：组头（来源链接 + 成员数 + 用量
  * 汇总）、检查/同步/跟删徽章、三态开关、编辑态删除分组，以及展开后的
  * 启用行与禁用行。数据、动作与顶层拖拽 props 均由 SourcesView 传入。
  */
@@ -24,7 +24,7 @@ export interface CollectionCardProps {
   skills: CatalogSkill[]
   /** 该集合内已禁用、且通过筛选的记录。 */
   disabledMembers: DisabledSkill[]
-  /** 该集合卡片是否折叠。 */
+  /** 该集合分组是否折叠。 */
   collapsed: boolean
   /** 成员开关状态（groupSwitchView 派生）。 */
   view: GroupSwitchView
@@ -113,12 +113,12 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
         </span>
       </div>
       {!collapsed ? (
-        <>
+        <div className={css.list}>
           {skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
           {disabledMembers.map((record) => (
             <DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void openDetail(record.name) }} />
           ))}
-        </>
+        </div>
       ) : null}
     </section>
   )

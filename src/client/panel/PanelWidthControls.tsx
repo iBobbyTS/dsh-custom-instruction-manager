@@ -26,6 +26,8 @@ import css from './panel.module.css'
 const WIDTH_PREF_KEY = 'dsh.skill-hub.panelWidth'
 /** Floor for a dragged content width; the panel stays readable below the chat column's 640. */
 const CONTENT_MIN = 480
+/** Default content width: the built-in pages' 960px column (ui-plugin-manager / ui-schedule). */
+const CONTENT_DEFAULT = 960
 /** Horizontal room reserved for both handles and their safe edge zones. */
 const CONTENT_EDGE_BUDGET = 176
 const WHEEL_DELTA_LINE = 1
@@ -44,7 +46,7 @@ function readWidthPreference(): number | null {
 function resolveContentWidth(shellWidth: number, preference: number | null): number {
   const max = Math.max(CONTENT_MIN, shellWidth - CONTENT_EDGE_BUDGET)
   if (preference !== null) return Math.min(Math.max(preference, CONTENT_MIN), max)
-  return 720
+  return Math.min(CONTENT_DEFAULT, max)
 }
 
 /** Convert a wheel event's vertical delta to scrollport pixels. */
@@ -170,7 +172,7 @@ export function PanelWidthControls(props: { container: HTMLDivElement | null }):
   }, [container, publishWidths])
 
   const onStart = useCallback((): number => {
-    if (container === null) return 720
+    if (container === null) return CONTENT_DEFAULT
     return resolveContentWidth(container.offsetWidth, readWidthPreference())
   }, [container])
   const onDrag = useCallback((width: number): void => {

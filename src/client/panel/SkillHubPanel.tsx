@@ -337,15 +337,17 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
                 <span className={css.sectionTitleFill}>{tt('source.trash')}</span>
                 <button type='button' className={css.opBtn + ' ' + css.opDanger} disabled={listBusy} onClick={() => { setConfirmClearTrash(true) }}>{tt('source.clearTrash')}</button>
               </div>
-              {sourcesState.trash.map((entry) => (
-                <div key={entry.name} className={css.row + ' ' + css.rowStatic}>
-                  <div className={css.rowMain}>
-                    <div className={css.rowName}>{entry.name}</div>
-                    <div className={css.rowDesc}>{relativeTimeText(entry.movedAt)}</div>
+              <div className={css.list}>
+                {sourcesState.trash.map((entry) => (
+                  <div key={entry.name} className={css.row + ' ' + css.rowStatic}>
+                    <div className={css.rowMain}>
+                      <div className={css.rowName}>{entry.name}</div>
+                      <div className={css.rowDesc}>{relativeTimeText(entry.movedAt)}</div>
+                    </div>
+                    <button type='button' className={css.opBtn} disabled={listBusy} onClick={() => { void restoreTrash(entry.name) }}>{tt('source.restore')}</button>
                   </div>
-                  <button type='button' className={css.opBtn} disabled={listBusy} onClick={() => { void restoreTrash(entry.name) }}>{tt('source.restore')}</button>
-                </div>
-              ))}
+                ))}
+              </div>
             </section>
           ) : null}
 
