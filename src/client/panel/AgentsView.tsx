@@ -112,7 +112,7 @@ export function AgentsView(props: AgentsViewProps): React.JSX.Element {
       {props.data === null && props.loading ? <p className={css.empty}>{tt('agents.loading')}</p> : null}
 
       {(props.data?.groups ?? []).map((group, index) => (
-        <section key={group.kind + '\0' + index} className={css.section}>
+        <section key={group.kind + '\0' + index} className={css.section + ' ' + css.agentsGroup}>
           <h2 className={css.sectionTitle}>{group.kind === 'user' ? tt('agents.user') : (group.title ?? '')}</h2>
           {group.files.length === 0
             ? <p className={css.agentsEmpty}>{tt('agents.none')}</p>

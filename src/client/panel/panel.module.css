@@ -502,3 +502,8 @@
 .agentsInput { max-width: 220px; height: 28px; }
 .agentsEmpty { margin: 0; padding: 4px 8px; color: var(--hub-text-4); font-size: 13px; line-height: 21px; }
 .agentPath { margin-top: 2px; color: var(--hub-text-3); font-family: var(--hub-mono); font-size: 12px; line-height: 18px; word-break: break-all; }
+
+/* AGENTS.md 页：不同分组之间（用户级 ↔ 项目、项目 ↔ 项目）用一条横向发丝线
+   断开，避免一长串 AGENTS.md 行连成一片。上下各 16px 留白（面板自身 14px
+   gap + 2px margin），线宽 .5px 与面板其它分隔一致。 */
+.agentsGroup + .agentsGroup { margin-top: 2px; padding-top: 16px; border-top: .5px solid var(--hub-border-2); }
