@@ -26,9 +26,9 @@ function setLang(lang: string | undefined): void {
 afterEach(() => { setLang(undefined) })
 
 describe('formatDateTime', () => {
-  it('uses the Chinese pattern and a 24-hour clock for a Chinese UI', () => {
+  it('uses YYYY/MM/DD and a 24-hour clock for a Chinese UI', () => {
     setLang('zh-CN')
-    expect(formatDateTime(stamp)).toBe('2026年8月10日 20:16:51')
+    expect(formatDateTime(stamp)).toBe('2026/08/10 20:16:51')
   })
 
   it('uses the English pattern for an English UI', () => {
@@ -39,18 +39,18 @@ describe('formatDateTime', () => {
   it('falls back to Chinese for a language the panel does not ship', () => {
     setLang('ja-JP')
     expect(panelLocale()).toBe('zh')
-    expect(formatDateTime(stamp)).toBe('2026年8月10日 20:16:51')
+    expect(formatDateTime(stamp)).toBe('2026/08/10 20:16:51')
   })
 
   it('follows a language switch at render time', () => {
     setLang('en-GB')
     expect(formatDateTime(stamp)).toBe('Aug 10, 2026, 8:16:51 PM')
     setLang('zh')
-    expect(formatDateTime(stamp)).toBe('2026年8月10日 20:16:51')
+    expect(formatDateTime(stamp)).toBe('2026/08/10 20:16:51')
   })
 
   it('defaults to Chinese without a document (SSR/tests)', () => {
     expect(panelLocale()).toBe('zh')
-    expect(formatDateTime(stamp)).toBe('2026年8月10日 20:16:51')
+    expect(formatDateTime(stamp)).toBe('2026/08/10 20:16:51')
   })
 })

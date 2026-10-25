@@ -33,16 +33,30 @@ export function relativeTimeText(ms: number): string {
 
 /**
  * Absolute time for the detail meta, formatted in the panel's language
- * ("2026年8月10日 20:16:51" / "Aug 10, 2026, 8:16:51 PM"). The locale comes
+ * ("2026/08/10 20:16:51" / "Aug 10, 2026, 8:16:51 PM"). The locale comes
  * from DSH's UI language, not from `Intl`'s default, which the desktop app
  * pins to en-US via `--lang` (see `panelLocale`).
+ *
+ * Chinese uses an explicit YYYY/MM/DD HH:mm:ss pattern: ICU's own zh
+ * `dateStyle` renders "2026年8月10日 20:16:51", which is noisier than this
+ * panel's metadata lines need and was explicitly not wanted.
  */
+function dateFormatter(locale: 'zh' | 'en'): Intl.DateTimeFormat {
+  if (locale === 'zh') {
+    return new Intl.DateTimeFormat('zh', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    })
+  }
+  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'medium' })
+}
+
 let cachedDateFormatter: Intl.DateTimeFormat | undefined
 let cachedDateLocale = ''
 export function formatDateTime(ms: number): string {
   const locale = panelLocale()
   if (cachedDateFormatter === undefined || cachedDateLocale !== locale) {
-    cachedDateFormatter = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' })
+    cachedDateFormatter = dateFormatter(locale)
     cachedDateLocale = locale
   }
   return cachedDateFormatter.format(new Date(ms))
