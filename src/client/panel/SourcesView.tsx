@@ -27,6 +27,8 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   const [topOverKey, setTopOverKey] = useState<string | null>(null)
   /** 重复技能名集合：整表只建一次，行内用 has 取代逐行线性 includes。 */
   const duplicateNames = useMemo(() => new Set(catalog?.duplicateNames ?? []), [catalog])
+  /** dsh 侧面栏的工作区顺序；项目级分组按它排列（未知名排最后）。 */
+  const workspaceOrder = useMemo(() => (catalog?.workspaces ?? []).map((entry) => entry.path), [catalog])
 
   // ----- 顶层分组统一拖拽（project / col:xxx / personal 全部可拖） -----
   const sourceFiltered = filterBySource(sorted, sourceFilter, origins)
@@ -120,6 +122,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               toggleSubdivide={hub.toggleSubdivide}
               rowProps={rowProps}
               dragProps={drag('project')}
+              workspaceOrder={workspaceOrder}
             />
           )
         }

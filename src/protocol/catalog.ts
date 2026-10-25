@@ -80,6 +80,18 @@ export interface CatalogResponse {
   diagnostics: DiagnosticEntry[]
   /** Skill names that appeared in multiple roots (first wins, others hidden). Mirrors codex name_counts. */
   duplicateNames?: string[]
+  /**
+   * 已知工作区，按 dsh 侧面栏的显示顺序（workspace.json 的
+   * `global.workspaceIds`）排列；面板据此排项目级分组。默认视图才带此字段
+   * （显式 cwd 时只有一个临时工作区）。
+   */
+  workspaces?: WorkspaceRef[]
+}
+
+/** 一个已知工作区的路径与显示标题（目录响应的排序轴）。 */
+export interface WorkspaceRef {
+  path: string
+  title: string
 }
 
 /** GET /api/skill-hub/skill */

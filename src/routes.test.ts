@@ -277,6 +277,32 @@ describe('skill-hub routes', () => {
     expect(byName.get('shared-user')?.workspace).toBeUndefined()
   })
 
+  it('orders workspaces by the sidebar registry order (global.workspaceIds), not the table key order', async () => {
+    // 表键顺序只是插入顺序（与界面顺序相反）；侧面栏和分组都应按
+    // global.workspaceIds 排。顺带确认目录响应把这份顺序带给了面板。
+    await mkdir(join(home, 'storages'), { recursive: true })
+    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
+      global: { workspaceIds: ['b', 'a', 'missing'] },
+      tables: {
+        workspaces: {
+          a: { title: 'Alpha', path: '/ws/a' },
+          b: { title: 'Beta', path: '/ws/b' },
+        },
+      },
+    }), 'utf8')
+    skills.snapshot = async (options?: { cwd?: string }) => {
+      if (options?.cwd === '/ws/a') return { skills: [summary({ name: 'a-skill', source: 'project-dsh', provider: 'skill-hub' })], complete: true }
+      if (options?.cwd === '/ws/b') return { skills: [summary({ name: 'b-skill', source: 'project-agents', provider: 'skill-hub' })], complete: true }
+      return { skills: [], complete: true }
+    }
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.catalog).handler(fakeReq('GET', SKILL_HUB_API.catalog), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as CatalogResponse
+    expect(body.workspaces).toEqual([{ path: '/ws/b', title: 'Beta' }, { path: '/ws/a', title: 'Alpha' }])
+    expect(body.skills.map((skill) => skill.name)).toEqual(['b-skill', 'a-skill'])
+  })
+
   it('reads interface metadata per workspace for same-named project skills', async () => {
     // 两个工作区各有同名项目技能 dup：interface 必须按（名字+工作区）各取各的，
     // 否则两行会串显示最后读到的那份 agents/openai.yaml。

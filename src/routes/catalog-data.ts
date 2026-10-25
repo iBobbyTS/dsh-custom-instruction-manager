@@ -42,34 +42,61 @@ export interface WorkspaceEntry {
   title: string
 }
 
+/** 已知工作区条目（dsh 的 workspace.json 表 + 显示顺序）。 */
+export interface WorkspaceEntry {
+  /** Workspace 注册 id（workspace.json 的 tables 键）。 */
+  id?: string
+  path: string
+  title: string
+}
+
 /**
  * 读取 dsh 的已知工作区清单（~/.dsh/storages/workspace.json 的
- * tables.workspaces 表）。面板默认视图据此合并所有工作区的项目技能；
- * 文件缺失/损坏时返回空清单（回退为仅用户级视图）。
+ * tables.workspaces 表），**按侧面栏的显示顺序**返回：global.workspaceIds
+ * 是注册表维护的有序 id 表（dsh-workspace 的 `workspaceRegistry.list()`），
+ * 侧面栏就按它渲染；表键顺序只是插入顺序，会与界面顺序相反。没有
+ * workspaceIds（旧文件/手写测试）时退回表键顺序。文件缺失/损坏时返回
+ * 空清单（回退为仅用户级视图）。
  */
 export async function workspaceEntries(home: string): Promise<WorkspaceEntry[]> {
   try {
     const raw = await readFile(join(home, 'storages', 'workspace.json'), 'utf8')
     const parsed: unknown = JSON.parse(raw)
-    const tables = typeof parsed === 'object' && parsed !== null
-      ? (parsed as Record<string, unknown>).tables as Record<string, unknown> | undefined
+    if (typeof parsed !== 'object' || parsed === null) return []
+    const root = parsed as Record<string, unknown>
+    const tables = typeof root.tables === 'object' && root.tables !== null
+      ? root.tables as Record<string, unknown>
       : undefined
-    const workspaces = tables !== undefined && typeof tables === 'object'
-      ? (tables as Record<string, unknown>).workspaces as Record<string, unknown> | undefined
+    const workspaces = tables !== undefined && typeof tables.workspaces === 'object' && tables.workspaces !== null
+      ? tables.workspaces as Record<string, unknown>
       : undefined
-    const entries: WorkspaceEntry[] = []
-    if (workspaces !== undefined && typeof workspaces === 'object') {
-      for (const record of Object.values(workspaces)) {
-        const entry = record as { path?: unknown; title?: unknown } | null
-        if (entry !== null && typeof entry === 'object' && typeof entry.path === 'string' && entry.path !== '') {
-          entries.push({
-            path: entry.path,
-            title: typeof entry.title === 'string' && entry.title !== '' ? entry.title : entry.path,
-          })
-        }
+    if (workspaces === undefined) return []
+    const byId = new Map<string, WorkspaceEntry>()
+    for (const [id, record] of Object.entries(workspaces)) {
+      const entry = record as { path?: unknown; title?: unknown } | null
+      if (entry === null || typeof entry !== 'object') continue
+      if (typeof entry.path !== 'string' || entry.path === '') continue
+      byId.set(id, {
+        id,
+        path: entry.path,
+        title: typeof entry.title === 'string' && entry.title !== '' ? entry.title : entry.path,
+      })
+    }
+    // global.workspaceIds 决定显示顺序；不在表里的 id 忽略，表里多出来的
+    // 记录按插入顺序补在末尾（不能让它们从分组里消失）。
+    const order = (root.global as { workspaceIds?: unknown } | undefined)?.workspaceIds
+    const ordered: WorkspaceEntry[] = []
+    if (Array.isArray(order)) {
+      for (const id of order) {
+        if (typeof id !== 'string') continue
+        const entry = byId.get(id)
+        if (entry === undefined) continue
+        ordered.push(entry)
+        byId.delete(id)
       }
     }
-    return entries
+    ordered.push(...byId.values())
+    return ordered
   } catch {
     return []
   }
@@ -206,6 +233,13 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
     scanDiagnostics('user-agents', home),
   ])
   const diagnostics = [...userDshDiagnostics, ...userAgentsDiagnostics]
+  // 默认视图把工作区顺序带回面板：项目级分组按它排（与侧面栏一致）。
+  // 显式 cwd 只有一个临时工作区，不对外声明顺序。
+  const workspaceRefs = cwd !== undefined && cwd !== ''
+    ? undefined
+    : workspaces
+      .filter((entry) => entry.path !== '')
+      .map((entry) => ({ path: entry.path, title: entry.title }))
   return {
     ok: true,
     pluginVersion: CURRENT_VERSION,
@@ -213,6 +247,7 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
     skills,
     disabled,
     diagnostics,
+    ...(workspaceRefs !== undefined && workspaceRefs.length > 0 ? { workspaces: workspaceRefs } : {}),
     ...(duplicateNames.length > 0 ? { duplicateNames } : {}),
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogSkill, CollectionGroup, DisabledSkill } from '../protocol.ts'
-import { conflictsOnClose, disabledRowKey, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, personalProviderBuckets, PRIVATE_SOURCE, skillRowKey, sortSkills, visibleCollections } from './grouping.ts'
+import { conflictsOnClose, disabledRowKey, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, personalProviderBuckets, PRIVATE_SOURCE, skillRowKey, sortSkills, visibleCollections, workspaceRank } from './grouping.ts'
 
 function skill(name: string, writable = true): CatalogSkill {
   return {
@@ -211,5 +211,20 @@ describe('row identity keys', () => {
     const record = { name: 'shared', description: '', path: '/x', root: 'user-dsh', disabledAt: 1 } as DisabledSkill
     expect(disabledRowKey(record)).not.toBe(skillRowKey(row))
     expect(disabledRowKey(record)).toBe(disabledRowKey({ ...record }))
+  })
+})
+
+describe('workspaceRank', () => {
+  // 项目级分组的顺序来自 dsh 侧面栏（workspace.json 的 global.workspaceIds）。
+  it('ranks known paths by the sidebar order and trails unknown ones', () => {
+    const order = ['/ws/b', '/ws/a']
+    expect(workspaceRank('/ws/b', order)).toBe(0)
+    expect(workspaceRank('/ws/a', order)).toBe(1)
+    expect(workspaceRank('/ws/unknown', order)).toBe(order.length)
+    expect(workspaceRank(undefined, order)).toBe(order.length)
+  })
+
+  it('keeps the incoming order when no workspace is known', () => {
+    expect(['/x', '/y'].map((path) => workspaceRank(path, [])).every((rank) => rank === 0)).toBe(true)
   })
 })

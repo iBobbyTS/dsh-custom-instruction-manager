@@ -6,7 +6,7 @@
 
 import type { JSX } from 'react'
 import type { CatalogSkill } from '../../protocol.ts'
-import { skillRowKey } from '../grouping.ts'
+import { skillRowKey, workspaceRank } from '../grouping.ts'
 import { tt } from '../helpers.ts'
 import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
@@ -35,10 +35,12 @@ export interface ProjectTreeProps {
   canMoveDown: boolean
   /** 键盘排序：-1 上移，1 下移。 */
   onMove: (direction: -1 | 1) => void
+  /** 已知工作区路径，按 dsh 侧面栏顺序（catalog.workspaces）；空数组即保持原序。 */
+  workspaceOrder?: readonly string[]
 }
 
 export function ProjectTree(props: ProjectTreeProps): JSX.Element {
-  const { skills, collapsedGroups, toggleGroupCollapse, subdividedProjects, toggleSubdivide, rowProps, dragProps, editMode, canMoveUp, canMoveDown, onMove } = props
+  const { skills, collapsedGroups, toggleGroupCollapse, subdividedProjects, toggleSubdivide, rowProps, dragProps, editMode, canMoveUp, canMoveDown, onMove, workspaceOrder = [] } = props
   const topCollapsed = collapsedGroups.has('project')
   // 按 workspace 聚合，与拆分前逻辑一致
   const byProject = new Map<string, { title: string; skills: CatalogSkill[] }>()
@@ -48,6 +50,9 @@ export function ProjectTree(props: ProjectTreeProps): JSX.Element {
     if (entry === undefined) byProject.set(key, { title: skill.workspaceTitle ?? skill.workspace ?? tt('groups.project'), skills: [skill] })
     else entry.skills.push(skill)
   }
+  // 项目分组顺序 = 侧面栏的工作区顺序；未知工作区按出现顺序排在后面。
+  const projects = [...byProject.entries()]
+    .sort((a, b) => workspaceRank(a[0], workspaceOrder) - workspaceRank(b[0], workspaceOrder))
   return (
     <section {...dragProps}>
       <div className={css.groupHead}>
@@ -62,7 +67,7 @@ export function ProjectTree(props: ProjectTreeProps): JSX.Element {
           </span>
         ) : null}
       </div>
-      {!topCollapsed ? [...byProject.entries()].map(([key, proj]) => {
+      {!topCollapsed ? projects.map(([key, proj]) => {
         const projKey = 'project:' + key
         const projCollapsed = collapsedGroups.has(projKey)
         const subdivided = subdividedProjects.has(key)

@@ -232,6 +232,18 @@ export function sortSkills(skills: readonly CatalogSkill[], key: SortKey, getUse
   return list
 }
 
+/**
+ * Rank one workspace path in the dsh sidebar (registry) order.
+ * Unknown paths — including the cwd-scoped pseudo workspace and project skills
+ * whose workspace is unset — trail every known one, so a partially known order
+ * still renders deterministically.
+ */
+export function workspaceRank(path: string | undefined, order: readonly string[]): number {
+  if (path === undefined) return order.length
+  const index = order.indexOf(path)
+  return index === -1 ? order.length : index
+}
+
 /** Localized relative-time tuple; the caller resolves it via tt(). */
 export interface RelativeTime {
   key: 'time.justNow' | 'time.minutesAgo' | 'time.hoursAgo' | 'time.daysAgo' | 'time.weeksAgo'
