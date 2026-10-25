@@ -22,6 +22,8 @@ export type {
   SkillDetailResponse,
   SkillDeleteRequest,
   SkillDeleteResponse,
+  SkillRevealRequest,
+  SkillRevealResponse,
   SkillInvocationRequest,
   SkillInvocationResponse,
   ToggleRequest,

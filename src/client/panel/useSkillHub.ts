@@ -189,6 +189,7 @@ export function useSkillHub(api: SkillHubApi) {
     setVersionDialog: marketFlow.setVersionDialog,
     toggleGroupCollapse, toggleSubdivide, setAllGroupsCollapsed, checkUpdate: meta.checkUpdate, loadMarket: marketFlow.loadMarket,
     openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle, enableDisabled: catalogFlow.enableDisabled,
+    reveal: catalogFlow.reveal,
     toggleGroup: groupFlow.toggleGroup,
     resolveConflict: groupFlow.resolveConflict,
     runConfirmed: sourceFlow.runConfirmed, checkSources: sourceFlow.checkSources,

@@ -12,14 +12,19 @@
  * content is the body after the frontmatter block, trimmed.
  */
 
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
+import { promisify } from 'node:util'
 import { dump } from 'js-yaml'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
 import { parseFrontmatter, repairFrontmatterFileText, setInvocationInText, type InvocationPolicy } from './skillfs/frontmatter.ts'
 import { editableSkillFile, rootOfPath, rootPath } from './skillfs/paths.ts'
 import { dshHome } from './store.ts'
 import type { TrashEntry, WritableRoot } from './protocol.ts'
+
+const execFileAsync = promisify(execFile)
 
 // Barrel: the frontmatter parser, the writable-root path helpers and the
 // discovery scanner live under ./skillfs/ and are re-exported here unchanged.
@@ -124,6 +129,88 @@ export function trashSourceOf(discoveryPath: string): string {
 export async function trashSkill(sourcePath: string): Promise<{ path: string; source: string }> {
   return moveIntoTrash(trashSourceOf(sourcePath))
 }
+
+/* --------------------------------------------------------------------------
+ * System trash & reveal
+ *
+ * Deleting a skill from the panel is a user action, not hub bookkeeping: the
+ * entry goes to the OS trash so Finder (or the desktop's file manager) owns
+ * the recovery. The hub's own `.trash` stays reserved for follow-up deletions
+ * driven by upstream source tracking, which the panel can restore in place.
+ * ------------------------------------------------------------------------ */
+
+/** Whether a path needs `exists`-style probing (trash naming, reveal checks). */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The user's system trash directory: macOS `~/.Trash`, Linux XDG
+ * `~/.local/share/Trash/files`. Windows has no filesystem-level Recycle Bin,
+ * so the caller gets a TypeError it can surface as a clear refusal.
+ */
+export function systemTrashDir(home = homedir()): string {
+  if (process.platform === 'darwin') return join(home, '.Trash')
+  if (process.platform === 'win32') throw new TypeError('the system trash is not reachable from a plugin on Windows')
+  return join(home, '.local', 'share', 'Trash', 'files')
+}
+
+/**
+ * First free target for an entry inside the trash: the plain name when it is
+ * free, otherwise `<name>-<timestamp>`, then `-2`, `-3`… for the (unlikely)
+ * case of two trashes within the same millisecond. Never overwrite.
+ */
+async function freeTrashTarget(dir: string, base: string): Promise<string> {
+  const plain = join(dir, base)
+  if (!await pathExists(plain)) return plain
+  const stamp = Date.now()
+  const stamped = join(dir, base + '-' + stamp)
+  if (!await pathExists(stamped)) return stamped
+  for (let n = 2; ; n += 1) {
+    const candidate = stamped + '-' + n
+    if (!await pathExists(candidate)) return candidate
+  }
+}
+
+/**
+ * Move one skill entry (bundle directory or flat .md) into the system trash.
+ * A same-named entry already in the trash gains a timestamp suffix instead of
+ * being overwritten — deleting must never destroy an earlier trash item.
+ * @returns the path inside the trash.
+ */
+export async function trashSkillToSystem(source: string, trashDir = systemTrashDir()): Promise<string> {
+  await mkdir(trashDir, { recursive: true })
+  const target = await freeTrashTarget(trashDir, basename(source))
+  await rename(source, target)
+  return target
+}
+
+/** Whether a path lives inside an asar archive (the app bundle ships these). */
+export function isBundledPath(path: string): boolean {
+  return /\.asar[\\/]/.test(path)
+}
+
+/**
+ * Show one file or directory in the OS file manager: Finder selects it
+ * (`open -R`), Explorer selects it, and Linux desktops open its folder.
+ */
+export async function revealInFileManager(path: string): Promise<void> {
+  if (process.platform === 'darwin') {
+    await execFileAsync('open', ['-R', path])
+    return
+  }
+  if (process.platform === 'win32') {
+    await execFileAsync('explorer.exe', ['/select,' + path])
+    return
+  }
+  await execFileAsync('xdg-open', [dirname(path)])
+}
+
 
 /** Restore a trashed skill (directory or flat file) to its original location. */
 export async function restoreSkill(entry: TrashEntry, home = dshHome()): Promise<string> {

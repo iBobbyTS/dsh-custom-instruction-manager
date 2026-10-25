@@ -70,7 +70,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   /** 可折叠节点是否已全部折叠（决定「全部折叠/展开」按钮的文案）。 */
   const allCollapsed = collapsibleKeys.length > 0 && collapsibleKeys.every((key) => collapsedGroups.has(key))
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
-  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, editMode: hub.editMode, listBusy: hub.listBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill }
+  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, listBusy: hub.listBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill, reveal: hub.reveal }
 
   if (skillView === 'flat') {
     return <div className={css.list}>{sourceFiltered.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}</div>
@@ -177,14 +177,14 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                       onToggle={() => { toggleGroupCollapse(subKey) }}
                     >
                       {bucket.skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
-                      {bucket.disabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
+                      {bucket.disabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} reveal={() => { hub.reveal(record.name) }} requestDelete={() => { hub.requestDeleteSkill(record.name) }} />))}
                     </SubGroup>
                   )
                 })
               ) : (
                 <div className={css.list}>
                   {uncategorized.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
-                  {personalDisabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
+                  {personalDisabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} reveal={() => { hub.reveal(record.name) }} requestDelete={() => { hub.requestDeleteSkill(record.name) }} />))}
                 </div>
               )}
             </section>

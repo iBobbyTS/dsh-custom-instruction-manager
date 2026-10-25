@@ -31,6 +31,8 @@ import {
   type SkillInvocationResponse,
   type SkillDeleteRequest,
   type SkillDeleteResponse,
+  type SkillRevealRequest,
+  type SkillRevealResponse,
   type SourceCheckRequest,
   type SourceCheckResponse,
   type SourceDeleteRequest,
@@ -157,9 +159,17 @@ export class SkillHubApi {
     return this.post<SkillInvocationResponse>(SKILL_HUB_API.skillInvocation, payload)
   }
 
-  /** Move one writable skill into the restorable trash. */
-  deleteSkill(name: string): Promise<SkillDeleteResponse> {
-    return this.post<SkillDeleteResponse>(SKILL_HUB_API.skillDelete, { name } satisfies SkillDeleteRequest)
+  /**
+   * Move one writable skill into the system trash (~/.Trash, timestamped on a
+   * name clash) so Finder keeps the recovery path. Project skills pass cwd.
+   */
+  deleteSkill(name: string, cwd?: string): Promise<SkillDeleteResponse> {
+    return this.post<SkillDeleteResponse>(SKILL_HUB_API.skillDelete, { name, ...(cwd !== undefined && cwd !== '' ? { cwd } : {}) } satisfies SkillDeleteRequest)
+  }
+
+  /** Reveal one skill file in the OS file manager (Finder). */
+  revealSkill(name: string, cwd?: string): Promise<SkillRevealResponse> {
+    return this.post<SkillRevealResponse>(SKILL_HUB_API.skillReveal, { name, ...(cwd !== undefined && cwd !== '' ? { cwd } : {}) } satisfies SkillRevealRequest)
   }
 
   /** Toggle one skill; resolves with the fresh catalog from the route. */

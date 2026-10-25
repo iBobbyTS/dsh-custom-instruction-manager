@@ -78,6 +78,8 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe('skill-hub routes', () => {
   let dir: string
   let home: string
+  /** 注入的系统废纸篓目录（真实 ~/.Trash 由平台决定，测试隔离到临时目录）。 */
+  let systemTrash: string
   let store: SkillHubStore
   let skills: SkillHubRouteDeps['skills']
   let deps: SkillHubRouteDeps
@@ -85,13 +87,14 @@ describe('skill-hub routes', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-routes-'))
     home = join(dir, 'home')
+    systemTrash = join(dir, 'Trash')
     await mkdir(join(home, 'skills'), { recursive: true })
     store = new SkillHubStore(statePath(home))
     skills = {
       snapshot: async () => ({ skills: [], complete: true }),
       get: async () => undefined,
     }
-    deps = { skills, store, home }
+    deps = { skills, store, home, trashDir: systemTrash }
   })
 
   afterEach(async () => {
@@ -570,13 +573,13 @@ describe('skill-hub routes', () => {
     expect(missing.status).toBe(404)
   })
 
-  // -------------------------------------------------------- skill delete
-  it('deletes one writable skill into the restorable trash and cleans metadata', async () => {
-    const dir = join(home, 'skills', 'delete-me')
-    await mkdir(dir, { recursive: true })
-    await writeFile(join(dir, 'SKILL.md'), '---\nname: delete-me\ndescription: x\n---\n\nbody', 'utf8')
+  // ---------------------------------------------- skill reveal / delete
+  it('moves one writable skill into the system trash and cleans metadata', async () => {
+    const bundle = join(home, 'skills', 'delete-me')
+    await mkdir(bundle, { recursive: true })
+    await writeFile(join(bundle, 'SKILL.md'), '---\nname: delete-me\ndescription: x\n---\n\nbody', 'utf8')
     await store.addSourceSkill('repo/a', 'skills', 'sha', undefined, 'delete-me')
-    skills.get = async () => definition({ name: 'delete-me', path: join(dir, 'SKILL.md'), source: 'user-dsh' })
+    skills.get = async () => definition({ name: 'delete-me', path: join(bundle, 'SKILL.md'), source: 'user-dsh' })
     const invalidate = vi.fn()
     deps.invalidate = invalidate
 
@@ -584,36 +587,109 @@ describe('skill-hub routes', () => {
     await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'delete-me' }), res as never)
     expect(res.status).toBe(200)
     const body = res.json() as import('./protocol.ts').SkillDeleteResponse
-    expect(body.path.startsWith(join(home, 'skills', '.trash', 'delete-me-'))).toBe(true)
-    await expect(access(dir)).rejects.toThrow()
+    // 空废纸篓里没有重名：保留原名（Finder 里就是 delete-me 目录）。
+    expect(body.path).toBe(join(systemTrash, 'delete-me'))
+    await expect(access(bundle)).rejects.toThrow()
+    await expect(readFile(join(body.path, 'SKILL.md'), 'utf8')).resolves.toContain('body')
+    // 用户删除不进 hub 回收站（那是上游跟删的恢复通道）。
+    expect(await store.listTrash()).toEqual([])
     expect(await store.listSources()).toEqual([])
     expect(await store.listOrigins()).toEqual({})
     expect(invalidate).toHaveBeenCalledTimes(1)
-
-    const restore = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceRestore).handler(fakeReq('POST', SKILL_HUB_API.sourceRestore, { name: 'delete-me' }), restore as never)
-    expect(restore.status).toBe(200)
-    await expect(access(join(dir, 'SKILL.md'))).resolves.toBeUndefined()
-    // 恢复后来源归属一并恢复（不再变成「个人技能」）。
-    expect((await store.getSource('repo/a'))?.skills).toEqual(['delete-me'])
   })
 
-  it('deletes and restores a flat skill file', async () => {
+  it('adds a timestamp instead of overwriting a same-named trashed skill', async () => {
     const flat = join(home, 'skills', 'flat-delete.md')
     await writeFile(flat, '---\nname: flat-delete\ndescription: x\n---\n\nbody', 'utf8')
     skills.get = async () => definition({ name: 'flat-delete', path: flat, source: 'user-dsh' })
+    // 废纸篓里已有一条同名条目：必须保留它，新条目追加时间戳。
+    await mkdir(systemTrash, { recursive: true })
+    await writeFile(join(systemTrash, 'flat-delete.md'), 'older', 'utf8')
 
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'flat-delete' }), res as never)
     expect(res.status).toBe(200)
+    const body = res.json() as import('./protocol.ts').SkillDeleteResponse
+    expect(body.path.startsWith(join(systemTrash, 'flat-delete.md-'))).toBe(true)
+    expect(body.path).not.toBe(join(systemTrash, 'flat-delete.md'))
     await expect(access(flat)).rejects.toThrow()
-    const trash = await store.listTrash()
-    expect(trash[0].sourcePath).toBe(flat)
+    await expect(readFile(join(systemTrash, 'flat-delete.md'), 'utf8')).resolves.toBe('older')
+    await expect(readFile(body.path, 'utf8')).resolves.toContain('name: flat-delete')
+  })
 
-    const restore = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceRestore).handler(fakeReq('POST', SKILL_HUB_API.sourceRestore, { name: 'flat-delete' }), restore as never)
-    expect(restore.status).toBe(200)
-    await expect(access(flat)).resolves.toBeUndefined()
+  it('moves a hub-disabled bundle into the system trash and drops its record', async () => {
+    const bundle = join(home, 'skills', 'off-me')
+    await mkdir(bundle, { recursive: true })
+    await writeFile(join(bundle, 'SKILL.md.disabled'), '---\nname: off-me\ndescription: x\n---', 'utf8')
+    await store.addDisabled({ name: 'off-me', description: 'x', path: join(bundle, 'SKILL.md.disabled'), root: 'user-dsh', disabledAt: Date.now() })
+    skills.get = async () => undefined
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'off-me' }), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as import('./protocol.ts').SkillDeleteResponse
+    expect(body.path).toBe(join(systemTrash, 'off-me'))
+    await expect(access(join(body.path, 'SKILL.md.disabled'))).resolves.toBeUndefined()
+    expect(await store.getDisabled('off-me')).toBeUndefined()
+  })
+
+  it('reveals a skill file through the injected opener', async () => {
+    const file = join(home, 'skills', 'reveal-me', 'SKILL.md')
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, '---\nname: reveal-me\ndescription: x\n---', 'utf8')
+    skills.get = async () => definition({ name: 'reveal-me', path: file, source: 'user-dsh' })
+    const reveal = vi.fn(async () => {})
+    deps.reveal = reveal
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillReveal).handler(fakeReq('POST', SKILL_HUB_API.skillReveal, { name: 'reveal-me' }), res as never)
+    expect(res.status).toBe(200)
+    expect(res.json()).toEqual({ ok: true, name: 'reveal-me', path: file })
+    expect(reveal).toHaveBeenCalledWith(file)
+  })
+
+  it('reveals a disabled record via its sidecar path', async () => {
+    const file = join(home, 'skills', 'hidden-me', 'SKILL.md.disabled')
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, '---\nname: hidden-me\ndescription: x\n---', 'utf8')
+    await store.addDisabled({ name: 'hidden-me', description: 'x', path: file, root: 'user-dsh', disabledAt: Date.now() })
+    const reveal = vi.fn(async () => {})
+    deps.reveal = reveal
+    skills.get = async () => undefined
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillReveal).handler(fakeReq('POST', SKILL_HUB_API.skillReveal, { name: 'hidden-me' }), res as never)
+    expect(res.status).toBe(200)
+    expect(reveal).toHaveBeenCalledWith(file)
+  })
+
+  it('refuses reveal for virtual, missing, and malformed requests', async () => {
+    const reveal = vi.fn(async () => {})
+    deps.reveal = reveal
+    // 应用包内的技能：Finder 打不开 asar 里的文件。
+    skills.get = async () => definition({ name: 'packed', path: '/Applications/DeepSeek Harness.app/Contents/Resources/app.asar/dsh/skills/packed/SKILL.md', source: 'bundled' })
+    const packed = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillReveal).handler(fakeReq('POST', SKILL_HUB_API.skillReveal, { name: 'packed' }), packed as never)
+    expect(packed.status).toBe(409)
+    expect(String((packed.json() as { error: string }).error)).toContain('application bundle')
+
+    // 没有磁盘路径的 provider 技能。
+    skills.get = async () => definition({ name: 'virt', source: 'plugin:x', provider: 'x' })
+    const virt = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillReveal).handler(fakeReq('POST', SKILL_HUB_API.skillReveal, { name: 'virt' }), virt as never)
+    expect(virt.status).toBe(404)
+
+    // 路径存在但文件被手工删掉。
+    const ghost = join(home, 'skills', 'ghost', 'SKILL.md')
+    skills.get = async () => definition({ name: 'ghost', path: ghost, source: 'user-dsh' })
+    const missing = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillReveal).handler(fakeReq('POST', SKILL_HUB_API.skillReveal, { name: 'ghost' }), missing as never)
+    expect(missing.status).toBe(404)
+
+    const empty = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillReveal).handler(fakeReq('POST', SKILL_HUB_API.skillReveal, {}), empty as never)
+    expect(empty.status).toBe(400)
+    expect(reveal).not.toHaveBeenCalled()
   })
 
   it('rejects deleting read-only, missing, and out-of-root skills', async () => {
@@ -639,7 +715,7 @@ describe('skill-hub routes', () => {
 
   it('refuses to trash a hub-disabled record whose sidecar path is outside the writable roots', async () => {
     // 防御损坏的 sidecar：禁用态删除走 disabled.path，必须先做包含性校验，
-    // 否则一条伪造路径就能把任意目录挪进 .trash。
+    // 否则一条伪造路径就能把任意目录挪进废纸篓。
     skills.get = async () => undefined
     await store.addDisabled({ name: 'evil', description: '', path: '/etc/passwd', root: 'user-dsh', disabledAt: Date.now() })
     const res = new FakeResponse()
@@ -647,6 +723,7 @@ describe('skill-hub routes', () => {
     expect(res.status).toBe(409)
     expect(res.json()).toEqual({ error: 'disabled skill path is outside the hub writable roots' })
     expect(await store.listTrash()).toEqual([])
+    await expect(access('/etc/passwd')).resolves.toBeUndefined()
   })
 
   it('creates a skill scaffold and rejects bad names', async () => {

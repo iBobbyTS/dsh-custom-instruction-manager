@@ -17,6 +17,14 @@ import { isProjectSource } from '../protocol.ts'
 
 export { isProjectSource }
 
+/**
+ * 技能是否有真实磁盘文件（用户根 / 项目根）。bundled 与第三方 provider
+ * 注册的技能只存在于应用包或 provider 内存里，Finder 打不开。
+ */
+export function isFileSource(source: string): boolean {
+  return source === 'user-dsh' || source === 'user-agents' || isProjectSource(source)
+}
+
 /** Grouped switch state derived from member enablement. */
 export type GroupSwitchState = 'on' | 'off' | 'mixed'
 

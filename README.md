@@ -38,7 +38,8 @@ Two surfaces — the hub panel opens from the **Skills** entry in the main sideb
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding. Project workspaces are ordered exactly like the DSH sidebar (`workspace.json` → `global.workspaceIds`).
 - **Toggle** — per-skill switches and per-group tri-state switches with a conflict dialog (close all / keep on). Disabling renames the discovery file (never deletes); disabled skills stay inspectable and re-enableable from their detail page. Only `~/.dsh/skills` & `~/.agents/skills` are writable; everything else is read-only.
 - **Invocation** — two checkboxes on the skill detail page rewrite `SKILL.md`'s `disable-model-invocation` / `user-invocable` (absent key means allowed; writing a default back removes the key). User and project roots are writable; bundled or plugin-provided skills have no file, so theirs stay greyed out.
-- **Organize** — auto-aggregated source collections and a project tree ordered like the DSH sidebar. Top-level groups (项目级 / 个人) are plain section headings, like the official 插件 page; edit mode reveals the delete actions without cluttering the read view.
+- **Organize** — auto-aggregated source collections and a project tree ordered like the DSH sidebar. Top-level groups (项目级 / 个人) are plain section headings, like the official 插件 page; edit mode only reveals group deletion, while single-skill actions live in the row menu.
+- **Row menu** — every row ends in a "…" menu styled after the DSH workspace rows (shown on hover). "Show in Finder" selects the skill file; "Delete" moves the skill to the system trash `~/.Trash` (a timestamp is appended on a name clash — never a hard delete), restorable from Finder at any time. Read-only skills only get the Finder item; bundled skills grey it out because their files live inside the app asar.
 - **Diagnose & fix** — files the provider skips (missing frontmatter, bad YAML, name mismatch, short description) show up with reasons; auto-fixable ones (e.g. unquoted `:` in descriptions) get a one-click Fix button.
 - **Scaffold** — new-skill wizard writing to `~/.dsh/skills` or `~/.agents/skills` (`SKILL.md` template below).
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist), and a `SKILL.md` at the repo root itself scans as a single skill named after the repo (minus repo tooling such as `.github/`). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
@@ -89,7 +90,8 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 | --- | --- | --- |
 | `/api/skill-hub/catalog?cwd=` | GET | skills + disabled + diagnostics + duplicates |
 | `/api/skill-hub/skill?name=&cwd=` | GET | skill body (works for disabled too) |
-| `/api/skill-hub/skill/delete` | POST | move to trash (snapshots its source) |
+| `/api/skill-hub/skill/delete` | POST | move to the system trash `~/.Trash` (timestamped on clash) |
+| `/api/skill-hub/skill/reveal` | POST | reveal the skill file in Finder (`open -R`) |
 | `/api/skill-hub/toggle` | POST | `{name, enabled}` |
 | `/api/skill-hub/toggle-batch` | POST | `{names, enabled}` |
 | `/api/skill-hub/create` | POST | `{name, description?, root?}` |

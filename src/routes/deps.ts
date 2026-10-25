@@ -45,6 +45,16 @@ export interface SkillHubRouteDeps {
   saved?: () => Partial<HubConfig>
   /** Persist a config patch and re-sync plugin surfaces; resolves with the fresh config. */
   updateConfig?: (patch: Partial<HubConfig>) => Promise<HubConfig>
+  /**
+   * System trash directory override (tests point it at a temp dir). Absent uses
+   * the platform trash: macOS ~/.Trash, Linux ~/.local/share/Trash/files.
+   */
+  trashDir?: string
+  /**
+   * Reveal opener override (tests record the path instead of driving Finder).
+   * Absent shells out to `open -R` / Explorer / xdg-open.
+   */
+  reveal?: (path: string) => Promise<void>
 }
 
 /** The resolved hub config a route sees (the shared resolver fills defaults). */

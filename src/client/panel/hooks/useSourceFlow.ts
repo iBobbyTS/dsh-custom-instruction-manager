@@ -108,12 +108,12 @@ export function useSourceFlow(
     }, () => shared.setListBusy(false))
   }, [api, reloadCatalog, loadSources, shared])
 
-  /** 打开单个技能的删除确认（移入回收站，可恢复）。 */
+  /** 打开单个技能的删除确认（移入系统废纸篓 ~/.Trash，可在 Finder 中恢复）。 */
   const requestDeleteSkill = useCallback((name: string): void => {
     setDeleteSkillDialog(name)
   }, [])
 
-  /** 执行删除确认后的回收站迁移。 */
+  /** 执行删除确认：移到系统废纸篓（重名时 host 追加时间戳，不覆盖）。 */
   const runDeleteSkill = useCallback(async (): Promise<void> => {
     const name = deleteSkillDialog
     if (name === null) return
@@ -130,7 +130,7 @@ export function useSourceFlow(
     setDeleteGroupDialog({ name, skillNames })
   }, [])
 
-  /** 执行整组删除（逐个移入回收站，跳过只读）。 */
+  /** 执行整组删除（逐个移入系统废纸篓，跳过只读）。 */
   const runDeleteGroup = useCallback(async (): Promise<void> => {
     const dialog = deleteGroupDialog
     if (dialog === null) return
@@ -153,7 +153,7 @@ export function useSourceFlow(
     if (failures.length > 0) {
       shared.fail(`删除整组 "${dialog.name}"：成功 ${done} 个，失败 ${failures.length} 个：` + failures.join('; '))
     } else if (done > 0) {
-      shared.succeed(`已删除整组 "${dialog.name}"：${done} 个技能已移入回收站`)
+      shared.succeed(`已删除整组 "${dialog.name}"：${done} 个技能已移入废纸篓`)
     }
   }, [api, deleteGroupDialog, reloadCatalog, reloadGroups, loadSources, shared])
 

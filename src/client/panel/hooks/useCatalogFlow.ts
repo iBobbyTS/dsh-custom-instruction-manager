@@ -99,6 +99,11 @@ export function useCatalogFlow(
     })
   }, [api, shared])
 
+  /** 在 Finder 中显示一个技能文件（host 调 `open -R`；找不到文件时报错条幅）。 */
+  const reveal = useCallback((name: string, cwd?: string): void => {
+    void runFlow(shared, async () => { await api.revealSkill(name, cwd) })
+  }, [api, shared])
+
   /** Toggle an explicit name set in one write (enables disabled members too). */
   const batchToggleNames = useCallback(async (names: string[], enabled: boolean): Promise<void> => {
     if (names.length === 0) return
@@ -202,6 +207,6 @@ export function useCatalogFlow(
     filtered, sorted, shortenedCount,
     setDetail, setSearch, setWorkspace, setShowForm, setFormName, setFormDesc,
     setFormRoot, setFormMessage, setInvocationFilter, setSortKey,
-    load, openDetail, toggle, enableDisabled, batchToggleNames, fixDiagnostic, setInvocation, create, clearListFilters,
+    load, openDetail, toggle, enableDisabled, batchToggleNames, fixDiagnostic, setInvocation, create, clearListFilters, reveal,
   }
 }

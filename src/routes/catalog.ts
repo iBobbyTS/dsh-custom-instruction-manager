@@ -14,12 +14,13 @@ import {
   type SkillDetail,
   type SkillDetailResponse,
   type SkillInvocationResponse,
+  type SkillRevealResponse,
   type StatsResponse,
   type ToggleBatchResponse,
   type ToggleResponse,
   type WritableRoot,
 } from '../protocol.ts'
-import { createSkill, disableSkill, disabledOccupancyIn, editableSkillFile, enableSkill, occupancyOf, parseFrontmatter, readSkillInterface, rootOfPath, rootPath, setInvocationPolicy, trashSkill } from '../skillfs.ts'
+import { createSkill, disableSkill, disabledOccupancyIn, editableSkillFile, enableSkill, isBundledPath, occupancyOf, parseFrontmatter, readSkillInterface, revealInFileManager, rootOfPath, rootPath, setInvocationPolicy, systemTrashDir, trashSourceOf, trashSkillToSystem } from '../skillfs.ts'
 import { errorText } from '../error-text.ts'
 import {
   applyInterface,
@@ -188,8 +189,35 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         writeJson(res, 200, { ok: true, name, path, invocation: policy } satisfies SkillInvocationResponse)
       },
     },
+    // -------------------------------------------------------- skill/reveal
+    // 「在 Finder 中显示」：只处理真实磁盘文件。bundled / 插件 provider 的技能
+    // 文件在应用包（app.asar）里，Finder 打不开，直接拒绝而不是弹一个空窗口。
+    {
+      path: SKILL_HUB_API.skillReveal,
+      methods: ['POST'],
+      jsonBody: true,
+      handler: async ({ res, body }) => {
+        const name = readString(body, 'name')
+        if (name === '') { writeError(res, 400, 'name is required'); return }
+        const cwd = readString(body, 'cwd')
+        const skill = await findSkill(deps, name, cwd)
+        const target = skill?.path ?? (await deps.store.getDisabled(name))?.path
+        if (target === undefined) { writeError(res, 404, 'skill has no file on disk: ' + name); return }
+        if (isBundledPath(target)) { writeError(res, 409, 'skill lives inside the dsh application bundle: ' + target); return }
+        if (!await pathExists(target)) { writeError(res, 404, 'skill file is missing on disk: ' + target); return }
+        try {
+          await (deps.reveal ?? revealInFileManager)(target)
+        } catch (error) {
+          writeError(res, 500, 'cannot open the file manager: ' + errorText(error))
+          return
+        }
+        writeJson(res, 200, { ok: true, name, path: target } satisfies SkillRevealResponse)
+      },
+    },
     // -------------------------------------------------------- skill/delete
-    // 把单个技能（目录或平面文件）移入回收站（可恢复），并清理禁用记录与来源映射。
+    // 把单个技能（目录或平面文件）移入系统废纸篓（~/.Trash，可在 Finder 中恢复），
+    // 并清理禁用记录与来源映射。重名时目标名追加时间戳，绝不覆盖已有废纸篓条目。
+    // 上游跟删（sources/delete）走的是 hub 自己的 .trash，可在面板内恢复。
     {
       path: SKILL_HUB_API.skillDelete,
       methods: ['POST'],
@@ -200,10 +228,12 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         const cwd = readString(body, 'cwd')
         const resolved = await resolveWritableSkill(deps, name, cwd !== '' ? cwd : undefined)
         // 已禁用的技能不在 registry 中，resolve 会 404，这里单独处理：允许整组删除未开启的技能
-        let trashResult: { path: string; source: string } | null = null
-        if (!resolved.ok) {
-        const disabled = await deps.store.getDisabled(name)
-        if (disabled !== undefined) {
+        let entry: string
+        if (resolved.ok) {
+          entry = trashSourceOf(resolved.path)
+        } else {
+          const disabled = await deps.store.getDisabled(name)
+          if (disabled === undefined) { writeError(res, resolved.status, resolved.error); return }
           // sidecar 里的路径可能是外部写入/损坏的：移动前必须确认它落在
           // 可写根内（正常路径由 disableSkill 保证，这里只拦异常数据）。
           if (rootOfPath(disabled.path, homeOf(deps)) === undefined) {
@@ -218,26 +248,17 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             writeJson(res, 200, { ok: true, name, path: disabled.path } satisfies SkillDeleteResponse)
             return
           }
-          // 禁用态：SKILL.md.disabled 或 *.md.disabled，直接将其所在技能整体移入回收站
-          // （trashSkill 认两种发现文件名，目录包按整目录搬）。
-          trashResult = await trashSkill(disabled.path)
-        } else {
-            writeError(res, resolved.status, resolved.error); return
-          }
+          // 禁用态：SKILL.md.disabled 或 *.md.disabled，整个技能条目一起搬。
+          entry = trashSourceOf(disabled.path)
         }
-        // 入回收站前快照来源归属：恢复时挂回去，否则恢复后的技能会丢失来源
-        // （变成「个人技能」）。
-        const tracked = await deps.store.getSourceForSkill(name)
-        const { path, source } = trashResult ?? await trashSkill((resolved as { ok: true; path: string }).path)
-        await deps.store.addTrash({
-          name,
-          path,
-          movedAt: Date.now(),
-          sourcePath: source,
-          ...(tracked !== undefined
-            ? { origin: { repo: tracked.repo, root: tracked.root, ...(tracked.ref !== undefined && tracked.ref !== '' ? { ref: tracked.ref } : {}), commitSha: tracked.commitSha } }
-            : {}),
-        })
+        let path: string
+        try {
+          path = await trashSkillToSystem(entry, deps.trashDir ?? systemTrashDir())
+        } catch (error) {
+          // 不可达的废纸篓（例如无权限/平台不支持）是拒绝，不是 500 崩溃。
+          writeError(res, (error as NodeJS.ErrnoException).code === 'ENOENT' ? 404 : 409, 'cannot move the skill into the system trash: ' + errorText(error))
+          return
+        }
         await deps.store.removeDisabled(name)
         await deps.store.removeSkillFromSources(name)
         deps.invalidate?.()

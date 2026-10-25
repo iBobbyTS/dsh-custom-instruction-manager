@@ -38,7 +38,8 @@ https://github.com/iBobbyTS/dsh-skill-hub.git
 - **浏览** — `ctx.skills` 注册表全量：项目/用户/内置+第三方。按名称、描述、`displayName` 搜索；按来源、按调用方式（模型/用户）筛选；按名称/添加时间/调用次数排序。不同来源的同名技能挂重名徽标，不再静默隐藏。项目级分组按 dsh 侧面栏的工作区顺序排列（`workspace.json` 的 `global.workspaceIds`）。
 - **开关** — 单技能开关 + 整组三态开关，跨组冲突弹窗（全部关闭/保留开启）。禁用只重命名发现文件（不删除）；禁用的技能仍可查看正文、可一键重新启用。仅 `~/.dsh/skills` 与 `~/.agents/skills` 可写，其余只读。
 - **调用方式** — 详情页两个 checkbox 直接改写 `SKILL.md` 的 `disable-model-invocation` / `user-invocable`（缺键即默认允许，写回默认值会把键删掉）。用户根与项目根可写；内置/插件 provider 注册的技能没有文件，置灰只读。
-- **整理** — 自动聚合的来源集合 + 按 dsh 侧面栏顺序排列的项目树。顶层分组（项目级 / 个人）是照官方「插件」页做的小标题；编辑模式只收敛删除操作，阅读视图保持干净。
+- **整理** — 自动聚合的来源集合 + 按 dsh 侧面栏顺序排列的项目树。顶层分组（项目级 / 个人）是照官方「插件」页做的小标题；编辑模式只显示「删除整组」，单技能操作收进行尾菜单。
+- **行菜单** — 每行右侧的「…」（与 dsh 工作区行同款，悬停出现）。「在 Finder 中显示」打开技能文件所在位置；「删除」把技能移到系统废纸篓 `~/.Trash`（重名时追加时间戳，绝不直接删除），可随时在 Finder 里恢复。只读/内置技能只给 Finder 一项（内置技能在应用包内，该项置灰）。
 - **诊断与修复** — provider 跳过的文件给出原因（缺 frontmatter、YAML 非法、名称不一致、描述过短）；可自动修复的（如描述里未加引号的 `:`）一键 Fix 落盘。
 - **新建** — 新技能向导，写入 `~/.dsh/skills` 或 `~/.agents/skills`（`SKILL.md` 模板见下）。
 - **市场** — 内置精选仓库 + 自定义 `owner/repo`。任何含 `SKILL.md` 的顶层目录都可扫描（无白名单）；`SKILL.md` 直接放在仓库根时，整个仓库算一个技能，技能名取仓库名（`.github/` 等仓库基建不计入）。异步导入，字节级进度+取消。每个源钉一个版本 —— 点 ref 徽标可在发布版/分支/手输之间切换。
@@ -89,7 +90,8 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 | --- | --- | --- |
 | `/api/skill-hub/catalog?cwd=` | GET | 技能+禁用+诊断+重名 |
 | `/api/skill-hub/skill?name=&cwd=` | GET | 技能正文（禁用的也可） |
-| `/api/skill-hub/skill/delete` | POST | 移入回收站（快照来源） |
+| `/api/skill-hub/skill/delete` | POST | 移入系统废纸篓 `~/.Trash`（重名追加时间戳） |
+| `/api/skill-hub/skill/reveal` | POST | 在 Finder 中显示技能文件（`open -R`） |
 | `/api/skill-hub/toggle` | POST | `{name, enabled}` |
 | `/api/skill-hub/toggle-batch` | POST | `{names, enabled}` |
 | `/api/skill-hub/create` | POST | `{name, description?, root?}` |

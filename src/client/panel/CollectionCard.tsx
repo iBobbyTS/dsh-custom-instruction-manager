@@ -104,7 +104,7 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
         <div className={css.list}>
           {skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
           {disabledMembers.map((record) => (
-            <DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void openDetail(record.name) }} />
+            <DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void openDetail(record.name) }} reveal={() => { rowProps.reveal(record.name) }} requestDelete={() => { rowProps.requestDeleteSkill(record.name) }} />
           ))}
         </div>
       ) : null}

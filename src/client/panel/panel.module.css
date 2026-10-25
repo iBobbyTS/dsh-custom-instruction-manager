@@ -329,6 +329,54 @@
 /* Icon-only pill button (fixed size so rows never shift). */
 .iconBtn { width: 28px; padding: 0; justify-content: center; }
 
+/* ---- 行操作菜单（「…」）：照 dsh 工作区行的 rowActions / iconButton + Menu 卡片 ----
+   触发器 16px 三点图标，随行悬停/聚焦出现（不占位、不挤压右侧开关），
+   菜单打开时保持可见并把行底色钉住（dsh 的 .menuOpen）。 */
+.rowMenu { position: relative; flex: none; display: inline-flex; align-items: center; }
+.menuTrigger { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--dsw-radius-xs, 4px); background: transparent; color: var(--hub-text-3); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s ease, color .12s ease; }
+.row:hover .menuTrigger, .row:focus-within .menuTrigger, .row:has(.rowMenuOpen) .menuTrigger { opacity: 1; pointer-events: auto; }
+.menuTrigger:hover, .menuTrigger:focus-visible, .menuTriggerOpen { color: var(--hub-text); }
+.menuTrigger:focus-visible { outline: var(--hub-focus-width) solid var(--hub-focus); outline-offset: 2px; }
+.menuTrigger:disabled { opacity: .35; cursor: default; }
+/* 打开菜单时行保持 hover 底色（指针已移到卡片上，不靠 :hover）。 */
+.row:has(.rowMenuOpen), .row:has(.rowMenuOpen):hover { background: var(--hub-hover); }
+/* 无悬停设备（触屏）直接显示触发器，否则菜单无从打开。 */
+@media (hover: none) { .menuTrigger { opacity: 1; pointer-events: auto; } }
+
+/* 卡片挂在 body 上（fixed 定位、不受面板滚动裁剪），拿不到 .panel 里的
+   --hub-* 变量，所以这里直接从宿主主题 token 取值，并带上 DSH 的兜底值。 */
+.menuCard {
+  position: fixed;
+  z-index: 1100;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--dsw-radius-md, 12px);
+  --menu-text: var(--dsw-alias-label-primary, #0f1115);
+  --menu-text-3: var(--dsw-alias-label-tertiary, #81858c);
+  --menu-hover: var(--dsw-alias-interactive-bg-hover, #2631480f);
+  --menu-danger: var(--dsw-alias-state-error-primary, #ec1313);
+  --menu-danger-hover: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, .05));
+  color: var(--menu-text);
+  background: var(--dsw-menu-surface-fill, var(--dsw-alias-bg-layer-2, #fff));
+  box-shadow: var(--dsw-elevation-prominent, 0 0 0 .5px rgba(0, 0, 0, .08), 0 3px 8px rgba(0, 0, 0, .04), 0 0 20px rgba(0, 0, 0, .05));
+  backdrop-filter: var(--dsw-menu-backdrop-filter, blur(20px) saturate(150%));
+  -webkit-backdrop-filter: var(--dsw-menu-backdrop-filter, blur(20px) saturate(150%));
+}
+.menuItem { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 34px; padding: 6px 8px; border: 0; border-radius: var(--dsw-radius-md, 12px); background: transparent; color: var(--menu-text); font: inherit; font-size: 13px; line-height: 20px; text-align: left; cursor: pointer; }
+.menuItem:hover:not(:disabled), .menuItem:focus-visible:not(:disabled) { background: var(--menu-hover); outline: none; }
+.menuItem:disabled { opacity: .4; cursor: default; }
+.menuIcon { display: inline-flex; flex: none; width: 14px; height: 14px; align-items: center; justify-content: center; color: var(--menu-text-3); }
+.menuIcon svg { width: 14px; height: 14px; }
+.menuLabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 破坏性行：错误色文字/图标 + 危险 hover 底色（dsh Menu 的 .danger）。 */
+.menuItemDanger { color: var(--menu-danger); }
+.menuItemDanger .menuIcon { color: var(--menu-danger); }
+.menuItemDanger:hover:not(:disabled), .menuItemDanger:focus-visible:not(:disabled) { background: var(--menu-danger-hover); }
+
 /* Source card in the detail view. */
 .sourceCard { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 18px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); padding: 12px 14px; }
 .sourceCardTitle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

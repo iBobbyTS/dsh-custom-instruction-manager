@@ -127,9 +127,31 @@ export interface SkillDetailResponse {
   skill: SkillDetail
 }
 
-/** POST /api/skill-hub/skill/delete — 把单个技能移入回收站（可恢复）。 */
+/**
+ * POST /api/skill-hub/skill/delete — 把单个技能移入系统废纸篓（~/.Trash，
+ * 可在 Finder 中恢复；重名时追加时间戳，不直接删除）。
+ */
 export interface SkillDeleteRequest {
   name: string
+  /** 项目技能所属工作区（用户级技能可省略）。 */
+  cwd?: string
+}
+
+/**
+ * POST /api/skill-hub/skill/reveal — 在 Finder 中显示技能文件。
+ * 只受理真实磁盘文件（bundled / 插件 provider 技能在应用包内，拒绝）。
+ */
+export interface SkillRevealRequest {
+  name: string
+  /** 项目技能所属工作区；缺省按详情页同样的顺序解析（已知工作区 → 用户根）。 */
+  cwd?: string
+}
+
+export interface SkillRevealResponse {
+  ok: true
+  name: string
+  /** 被显示的文件（目录包为 SKILL.md / SKILL.md.disabled，平面技能为 .md）。 */
+  path: string
 }
 
 /**
@@ -161,7 +183,7 @@ export interface SkillInvocationResponse {
 export interface SkillDeleteResponse {
   ok: true
   name: string
-  /** 移入回收站后的路径（目录或文件）。 */
+  /** 移入系统废纸篓后的路径（目录或文件；重名时带时间戳后缀）。 */
   path: string
 }
 

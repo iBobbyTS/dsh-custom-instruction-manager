@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearTrash, createSkill, disableSkill, editableSkillFile, enableSkill, fixDiagnosticFile, parseFrontmatter, restoreSkill, rootOfPath, scanDiagnostics, setInvocationInText, setInvocationPolicy, trashSkill } from './skillfs.ts'
+import { clearTrash, createSkill, disableSkill, editableSkillFile, enableSkill, fixDiagnosticFile, isBundledPath, parseFrontmatter, restoreSkill, rootOfPath, scanDiagnostics, setInvocationInText, setInvocationPolicy, systemTrashDir, trashSkill, trashSkillToSystem } from './skillfs.ts'
 
 describe('parseFrontmatter', () => {
   it('parses a healthy frontmatter', () => {
@@ -317,6 +317,53 @@ describe('trashSkill / restoreSkill', () => {
 
   it('refuses to clear a path outside the hub trash roots', async () => {
     await expect(clearTrash({ name: 'x', path: '/tmp/.trash/x-1', movedAt: 1 }, home)).rejects.toThrow(/not a hub trashed skill path/)
+  })
+})
+
+describe('trashSkillToSystem', () => {
+  let dir: string
+  let systemTrash: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-systrash-'))
+    systemTrash = join(dir, 'Trash')
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('keeps the plain name when the trash has no clash', async () => {
+    const bundle = join(dir, 'skills', 'plain')
+    await mkdir(bundle, { recursive: true })
+    await writeFile(join(bundle, 'SKILL.md'), 'body', 'utf8')
+    const moved = await trashSkillToSystem(bundle, systemTrash)
+    expect(moved).toBe(join(systemTrash, 'plain'))
+    await expect(access(join(moved, 'SKILL.md'))).resolves.toBeUndefined()
+    await expect(access(bundle)).rejects.toThrow()
+  })
+
+  it('timestamps a clashing entry and never overwrites the older one', async () => {
+    await mkdir(systemTrash, { recursive: true })
+    await writeFile(join(systemTrash, 'clash.md'), 'older', 'utf8')
+    const flat = join(dir, 'skills', 'clash.md')
+    await mkdir(join(dir, 'skills'), { recursive: true })
+    await writeFile(flat, 'newer', 'utf8')
+    const moved = await trashSkillToSystem(flat, systemTrash)
+    expect(moved.startsWith(join(systemTrash, 'clash.md-'))).toBe(true)
+    await expect(readFile(join(systemTrash, 'clash.md'), 'utf8')).resolves.toBe('older')
+    await expect(readFile(moved, 'utf8')).resolves.toBe('newer')
+  })
+
+  it('recognizes asar-bundled paths as unreachable for Finder', () => {
+    expect(isBundledPath('/Applications/X.app/Contents/Resources/app.asar/dsh/skill/SKILL.md')).toBe(true)
+    expect(isBundledPath('/Applications/X.app/Contents/Resources/app.asar.unpacked/x/SKILL.md')).toBe(false)
+    expect(isBundledPath('/Users/me/.dsh/skills/x/SKILL.md')).toBe(false)
+  })
+
+  it('resolves the platform trash dir (macOS this run)', () => {
+    const trash = systemTrashDir('/Users/me')
+    expect(trash).toBe(process.platform === 'darwin' ? '/Users/me/.Trash' : process.platform === 'win32' ? join('/Users/me', '.Trash') : '/Users/me/.local/share/Trash/files')
   })
 })
 

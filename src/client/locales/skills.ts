@@ -1,7 +1,7 @@
 /** 技能浏览：行徽章/分组/过滤排序/相对时间。从 locales.ts 按前缀拆出，键集合不变。 */
 export const zhSkills = {
   'edit.start': '编辑',
-  'edit.hint': '开启后显示删除操作',
+  'edit.hint': '开启后显示整组删除操作',
   'edit.done': '完成',
   'groups.collapseAll': '全部折叠',
   'groups.expandAll': '全部展开',
@@ -40,7 +40,10 @@ export const zhSkills = {
   'row.readonly': '只读',
   'row.disable': '禁用',
   'row.enable': '启用',
-  'row.delete': '移入回收站',
+  'row.delete': '删除',
+  'row.reveal': '在 Finder 中显示',
+  'row.revealUnavailable': '内置技能位于应用包内，无法在 Finder 中显示',
+  'row.menu': '{name} 的更多操作',
   'row.open': '查看 {name} 详情（回车）',
   'row.duplicate': '重名',
   'row.duplicateHint': '同名技能存在多个来源，当前显示为优先级最高的版本',
@@ -54,7 +57,7 @@ export const zhSkills = {
 
 export const enSkills: Record<keyof typeof zhSkills, string> = {
   'edit.start': 'Edit',
-  'edit.hint': 'Show delete actions',
+  'edit.hint': 'Show group delete actions',
   'edit.done': 'Done',
   'groups.collapseAll': 'Collapse all',
   'groups.expandAll': 'Expand all',
@@ -93,7 +96,10 @@ export const enSkills: Record<keyof typeof zhSkills, string> = {
   'row.readonly': 'read-only',
   'row.disable': 'Disable',
   'row.enable': 'Enable',
-  'row.delete': 'Move to trash',
+  'row.delete': 'Delete',
+  'row.reveal': 'Show in Finder',
+  'row.revealUnavailable': 'Bundled skills live inside the application bundle and cannot be revealed',
+  'row.menu': 'More actions for {name}',
   'row.open': 'View {name} details (Enter)',
   'row.duplicate': 'duplicate',
   'row.duplicateHint': 'Multiple sources provide this name; the highest-priority one is shown',

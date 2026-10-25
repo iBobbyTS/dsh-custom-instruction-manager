@@ -1,8 +1,8 @@
 /** 来源跟踪与回收站（含删除确认）。从 locales.ts 按前缀拆出，键集合不变。 */
 export const zhSources = {
-  'delete.confirmTitle': '移入回收站？',
-  'delete.confirmText': '确定把「{name}」移入回收站吗？可随时恢复。',
-  'delete.confirm': '移入回收站',
+  'delete.confirmTitle': '删除技能？',
+  'delete.confirmText': '确定把「{name}」移入废纸篓吗？文件会移到 ~/.Trash（重名时追加时间戳），可在 Finder 中恢复。',
+  'delete.confirm': '移入废纸篓',
   'source.private': '个人技能（未绑定上游，不检查更新）',
   'source.commit': '已同步版本',
   'source.unverified': '尚未核对上游',
@@ -24,7 +24,7 @@ export const zhSources = {
   'source.deleteGroup': '删除整组',
   'source.deleteGroupHint': '删除该分组下的全部 {count} 个技能',
   'source.deleteGroupTitle': '删除整组？',
-  'source.deleteGroupText': '将把分组“{name}”下的全部 {count} 个技能移入回收站（可恢复），只读技能会跳过：',
+  'source.deleteGroupText': '将把分组“{name}”下的全部 {count} 个技能移入废纸篓（~/.Trash，可在 Finder 中恢复），只读技能会跳过：',
   'source.trash': '回收站',
   'source.restore': '恢复',
   'source.clearTrash': '清空回收站',
@@ -34,9 +34,9 @@ export const zhSources = {
 } as const
 
 export const enSources: Record<keyof typeof zhSources, string> = {
-  'delete.confirmTitle': 'Move to trash?',
-  'delete.confirmText': 'Move "{name}" to trash? It can be restored anytime.',
-  'delete.confirm': 'Move to trash',
+  'delete.confirmTitle': 'Delete skill?',
+  'delete.confirmText': 'Move "{name}" to the Trash? Its files go to ~/.Trash (a timestamp is appended on a name clash) and stay restorable in Finder.',
+  'delete.confirm': 'Move to Trash',
   'source.private': 'Personal skill (not bound to an upstream; no update checks)',
   'source.commit': 'Synced commit',
   'source.unverified': 'upstream not verified yet',
@@ -58,7 +58,7 @@ export const enSources: Record<keyof typeof zhSources, string> = {
   'source.deleteGroup': 'Delete group',
   'source.deleteGroupHint': 'Delete all {count} skills in this group',
   'source.deleteGroupTitle': 'Delete group?',
-  'source.deleteGroupText': 'All {count} skills in group "{name}" will be moved to trash (restorable); read-only skills will be skipped:',
+  'source.deleteGroupText': 'All {count} skills in group "{name}" will be moved to the Trash (~/.Trash, restorable in Finder); read-only skills will be skipped:',
   'source.trash': 'Trash',
   'source.restore': 'Restore',
   'source.clearTrash': 'Empty trash',
