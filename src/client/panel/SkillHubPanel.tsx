@@ -23,6 +23,7 @@ import { dotStyle, relativeTimeText } from './format.ts'
 import { PanelWidthControls } from './PanelWidthControls.tsx'
 import { AboutView } from './AboutView.tsx'
 import { AgentsView } from './AgentsView.tsx'
+import { AgentFileDetailView } from './AgentFileDetailView.tsx'
 import { SkillDetailView } from './SkillDetailView.tsx'
 import { SourcesView } from './SourcesView.tsx'
 import { MarketView } from './MarketView.tsx'
@@ -79,12 +80,13 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill, runDeleteGroup,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, enableDisabled,
     agents, agentsLoading, agentsError, excludeSaving, loadAgents, saveExcludeDirs,
+    agentsFile, openAgentsFile, closeAgentsFile,
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
   // 视图切换的滚动位置：进详情一律回到顶部，返回列表恢复进入前的位置。
   // 两种视图的外壳结构相同，React 复用同一个滚动容器，必须显式改 scrollTop。
-  const detailOpen = detail !== null
+  const detailOpen = detail !== null || agentsFile !== null
   useLayoutEffect(() => {
     const scroll = scrollRef.current
     if (scroll === null) return
@@ -97,6 +99,24 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   }, [category, loadAgents])
 
   // -------------------------------------------------------------- detail
+
+  // 指令文件详情：和技能详情同一套外壳（返回列表、整页视图、滚动到顶部）。
+  if (agentsFile !== null) {
+    return (
+      <div className={css.pageShell} ref={refShell}>
+        <div className={css.scrollArea} data-hub-scroll="" ref={scrollRef}>
+          <AgentFileDetailView
+            file={agentsFile.ref}
+            scope={agentsFile.scope}
+            detail={agentsFile.detail}
+            loading={agentsFile.loading}
+            error={agentsFile.error}
+            onBack={closeAgentsFile}
+          />
+        </div>
+      </div>
+    )
+  }
 
   if (detail !== null) {
     const disabledRecord = catalog?.disabled.find((record) => record.name === detail.name)
@@ -154,7 +174,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           // 取详情时的「加载中」占位会插在列表上方，浏览器的滚动锚定会把
           // scrollTop 顶高一段；那段位移不是用户的浏览位置，不能覆盖存档。
           // 市场 tab 复用同一个滚动容器，它的位置也不属于技能列表。
-          if (detailLoading || detail !== null || tab !== 'sources') return
+          if (detailLoading || detail !== null || agentsFile !== null || tab !== 'sources') return
           listScrollTop.current = event.currentTarget.scrollTop
         }}
       >
@@ -203,6 +223,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           saving={excludeSaving}
           onRefresh={() => { void loadAgents() }}
           onSaveExcludeDirs={(dirs) => { void saveExcludeDirs(dirs) }}
+          onOpenFile={(file, scope) => { void openAgentsFile(file, scope) }}
         />
       ) : category === 'about' ? (
         /* 「关于」页：版本与检查更新收在这里，标题行只留页面标题与列表级动作。 */

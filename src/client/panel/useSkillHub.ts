@@ -177,6 +177,7 @@ export function useSkillHub(api: SkillHubApi) {
     agents: agentsFlow.agents, agentsLoading: agentsFlow.agentsLoading,
     agentsError: agentsFlow.agentsError, excludeSaving: agentsFlow.excludeSaving,
     loadAgents: agentsFlow.loadAgents, saveExcludeDirs: agentsFlow.saveExcludeDirs,
+    agentsFile: agentsFlow.agentsFile, openAgentsFile: agentsFlow.openAgentsFile, closeAgentsFile: agentsFlow.closeAgentsFile,
     // derived
     actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
     normalized: catalogFlow.normalized, origins, sourceOptions,

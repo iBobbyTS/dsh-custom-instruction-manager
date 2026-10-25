@@ -18,6 +18,7 @@ function render(data: AgentsResponse | null, extra: Partial<AgentsViewProps> = {
     saving: false,
     onRefresh: () => {},
     onSaveExcludeDirs: () => {},
+    onOpenFile: () => {},
     ...extra,
   }
   return renderToStaticMarkup(createElement(AgentsView, props))
@@ -27,11 +28,11 @@ const data: AgentsResponse = {
   ok: true,
   excludeDirs: ['.agent-work'],
   groups: [
-    { kind: 'user', files: [{ name: 'AGENTS.md', path: '~/.dsh' }] },
+    { kind: 'user', files: [{ name: 'AGENTS.md', path: '~/.dsh', absolute: '/Users/me/.dsh/AGENTS.md' }] },
     { kind: 'project', title: 'lmdo-website', files: [
-      { name: 'AGENTS.md', path: 'lmdo-website' },
-      { name: 'AGENTS.local.md', path: 'lmdo-website' },
-      { name: 'AGENTS.md', path: 'lmdo-website/docs' },
+      { name: 'AGENTS.md', path: 'lmdo-website', absolute: '/Users/me/Projects/lmdo-website/AGENTS.md' },
+      { name: 'AGENTS.local.md', path: 'lmdo-website', absolute: '/Users/me/Projects/lmdo-website/AGENTS.local.md' },
+      { name: 'AGENTS.md', path: 'lmdo-website/docs', absolute: '/Users/me/Projects/lmdo-website/docs/AGENTS.md' },
     ] },
     { kind: 'project', title: 'DeskBrief', files: [] },
   ],
@@ -57,6 +58,12 @@ describe('AGENTS.md page', () => {
     const html = render(data)
     expect(html).toContain('DeskBrief')
     expect(html).toContain('无 AGENTS.md')
+  })
+
+  it('makes every file row keyboard-clickable so it can open the detail view', () => {
+    const html = render(data)
+    expect(html).toContain('role="button"')
+    expect(html).toContain('AGENTS.local.md')
   })
 
   it('offers the exclude-directory editor with the current count on this page', () => {

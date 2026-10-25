@@ -507,3 +507,6 @@
    断开，避免一长串 AGENTS.md 行连成一片。上下各 16px 留白（面板自身 14px
    gap + 2px margin），线宽 .5px 与面板其它分隔一致。 */
 .agentsGroup + .agentsGroup { margin-top: 2px; padding-top: 16px; border-top: .5px solid var(--hub-border-2); }
+
+/* 指令文件详情页：文件名下面是项目相对路径（等宽），与技能详情的元信息同一列。 */
+.detailSub { font-family: var(--hub-mono); font-size: 13px; line-height: 20px; color: var(--hub-text-3); word-break: break-all; }

@@ -66,3 +66,21 @@ export function formatDateTime(ms: number): string {
 export function shortSha(sha: string): string {
   return sha.length > 7 ? sha.slice(0, 7) : sha
 }
+
+/**
+ * Human byte size for file metadata ("824 B" / "1.2 KB" / "3.4 MB"). One
+ * decimal under 10 units so small instruction files stay readable, no decimal
+ * once the number is large enough that it adds noise.
+ */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—'
+  if (bytes < 1024) return Math.round(bytes) + ' B'
+  const units = ['KB', 'MB', 'GB'] as const
+  let value = bytes / 1024
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  return (value >= 10 ? value.toFixed(0) : value.toFixed(1)) + ' ' + units[unit]
+}

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hostTrustFence, makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { lastMarketCheck } from './routes/route-state.ts'
 import { SkillHubStore, statePath } from './store.ts'
-import { SKILL_HUB_API, SKILL_HUB_API_ROOT, type AgentsResponse, type CatalogResponse, type ConfigResponse, type ErrorResponse, type HubConfig } from './protocol.ts'
+import { SKILL_HUB_API, SKILL_HUB_API_ROOT, type AgentsResponse, type CatalogResponse, type InstructionFileResponse, type InstructionFileRef, type ConfigResponse, type ErrorResponse, type HubConfig } from './protocol.ts'
 
 /** Minimal response double recording status/headers/body. */
 class FakeResponse {
@@ -879,13 +879,43 @@ describe('skill-hub routes', () => {
     expect(res.status).toBe(200)
     const body = res.json() as AgentsResponse
     expect(body.excludeDirs).toEqual(['.agent-work'])
-    expect(body.groups).toEqual([
+    // 绝对路径是临时目录 + realpath，单独在 instructions.test.ts 断言。
+    const brief = (files: InstructionFileRef[]): Array<{ name: string; path: string }> => files.map(({ name, path }) => ({ name, path }))
+    expect(body.groups.map((group) => ({ kind: group.kind, ...(group.title !== undefined ? { title: group.title } : {}), files: brief(group.files) }))).toEqual([
       { kind: 'user', files: [{ name: 'AGENTS.md', path: home }] },
       { kind: 'project', title: 'proj', files: [
         { name: 'AGENTS.md', path: 'proj' },
         { name: 'AGENTS.md', path: 'proj/docs' },
       ] },
     ])
+  })
+
+  it('serves one instruction file body through the agents/file route', async () => {
+    const proj = join(dir, 'proj')
+    await mkdir(proj, { recursive: true })
+    await writeFile(join(proj, 'AGENTS.md'), '# proj\n', 'utf8')
+    await mkdir(join(home, 'storages'), { recursive: true })
+    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
+      global: { workspaceIds: ['a'] },
+      tables: { workspaces: { a: { path: proj, title: 'proj' } } },
+    }), 'utf8')
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsFile).handler(fakeReq('GET', SKILL_HUB_API.agentsFile + '?path=' + encodeURIComponent(join(proj, 'AGENTS.md'))), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as InstructionFileResponse
+    expect(body.file.name).toBe('AGENTS.md')
+    expect(body.file.path).toBe('proj')
+    expect(body.file.content).toBe('# proj\n')
+    expect(body.file.size).toBe(7)
+
+    const missing = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsFile).handler(fakeReq('GET', SKILL_HUB_API.agentsFile), missing as never)
+    expect(missing.status).toBe(400)
+
+    const outside = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsFile).handler(fakeReq('GET', SKILL_HUB_API.agentsFile + '?path=' + encodeURIComponent(join(dir, 'AGENTS.md'))), outside as never)
+    expect(outside.status).toBe(404)
   })
 
   it('persists the AGENTS.md exclude list through the config route and rejects paths', async () => {

@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { formatDateTime } from './format.ts'
+import { formatBytes, formatDateTime } from './format.ts'
 import { panelLocale } from '../helpers.ts'
 
 /** Local wall-clock stamp, so the formatted text is timezone independent. */
@@ -52,5 +52,27 @@ describe('formatDateTime', () => {
   it('defaults to Chinese without a document (SSR/tests)', () => {
     expect(panelLocale()).toBe('zh')
     expect(formatDateTime(stamp)).toBe('2026/08/10 20:16:51')
+  })
+})
+
+describe('formatBytes', () => {
+  it('keeps small files in bytes', () => {
+    expect(formatBytes(0)).toBe('0 B')
+    expect(formatBytes(824)).toBe('824 B')
+  })
+
+  it('scales to KB with one decimal under ten', () => {
+    expect(formatBytes(2048)).toBe('2.0 KB')
+    expect(formatBytes(1536)).toBe('1.5 KB')
+  })
+
+  it('drops the decimal once the value is large', () => {
+    expect(formatBytes(10 * 1024 * 1024)).toBe('10 MB')
+    expect(formatBytes(1024 * 1024 * 1024)).toBe('1.0 GB')
+  })
+
+  it('never renders a bogus size', () => {
+    expect(formatBytes(-1)).toBe('—')
+    expect(formatBytes(Number.NaN)).toBe('—')
   })
 })

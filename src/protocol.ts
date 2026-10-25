@@ -36,7 +36,7 @@ export type {
 export type { SkillStat, StatsResponse, SkillStatsCheckpoint } from './protocol/stats.ts'
 export type { ErrorResponse, HubConfig, HubSettingsValue, RedactedHubConfig, ConfigResponse, ConfigRequest } from './protocol/config.ts'
 export { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, GITHUB_TOKEN_RE, resolveExcludeDirs, resolveHubConfig, redactGithubToken } from './protocol/config.ts'
-export type { InstructionFileRef, InstructionGroup, AgentsResponse } from './protocol/instructions.ts'
+export type { InstructionFileRef, InstructionGroup, AgentsResponse, InstructionFileDetail, InstructionFileResponse } from './protocol/instructions.ts'
 export type {
   MarketSourceRecord,
   MarketSourcesResponse,

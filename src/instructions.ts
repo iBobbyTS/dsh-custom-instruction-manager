@@ -22,7 +22,7 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { resolveExcludeDirs, type AgentsResponse, type InstructionFileRef, type InstructionGroup } from './protocol.ts'
+import { resolveExcludeDirs, type AgentsResponse, type InstructionFileDetail, type InstructionFileRef, type InstructionGroup } from './protocol.ts'
 import { agentsHome, dshHome } from './store.ts'
 import { workspaceEntries } from './routes/catalog-data.ts'
 import { configOf, type SkillHubRouteDeps } from './routes/deps.ts'
@@ -184,7 +184,7 @@ async function projectRows(workspaceRoot: string, hits: readonly CandidateHit[])
         digests.add(trimmed)
       }
     }
-    rows.push({ name: basename(row.path), path: projectDisplayPath(workspaceRoot, row.dir) })
+    rows.push({ name: basename(row.path), path: projectDisplayPath(workspaceRoot, row.dir), absolute: row.path })
   }
   return rows
 }
@@ -203,9 +203,9 @@ async function userRows(dshRoot: string, agentsRoot: string): Promise<Instructio
       digests.add(trimmed)
     }
     const real = await realpath(file).catch(() => undefined)
-    // 链接到别处时显示原始文件名；目标不是候选文件名就保留链接自己的名字。
-    const name = real !== undefined && CANDIDATE_INDEX.has(basename(real)) ? basename(real) : USER_INSTRUCTION_FILE
-    rows.push({ name, path: homeDisplay(root) })
+    // 链接到别处时显示原始文件；目标不是候选文件名就保留链接自己的名字。
+    const canonical = real !== undefined && CANDIDATE_INDEX.has(basename(real)) ? real : file
+    rows.push({ name: basename(canonical), path: homeDisplay(root), absolute: canonical })
   }
   return rows
 }
@@ -242,4 +242,50 @@ export async function scanInstructionGroups(deps: SkillHubRouteDeps): Promise<Ag
     groups.push({ kind: 'project', title: title === '' ? basename(entry.path) : title, files: await projectRows(own, hits) })
   }
   return { ok: true, groups, excludeDirs }
+}
+
+/** 指令文件正文读取的上限；超过视为不可展示（dsh 自己也会忽略超大文件）。 */
+const MAX_DETAIL_BYTES = 1_048_576
+
+/** A refusal from the instruction-file detail reader, carrying its HTTP status. */
+export class InstructionFileError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'InstructionFileError'
+  }
+}
+
+/**
+ * Read one instruction file that the current scan reports.
+ *
+ * The lookup goes through a fresh scan on purpose: it validates that the path
+ * is actually one of this page's rows (no arbitrary file reads through the
+ * route) and reuses the same canonical/realpath rules the list shows — 0.6 s
+ * for a typical tree, and the list it compares against is exactly what the
+ * user clicked.
+ * @param deps - route dependencies (homes + config).
+ * @param absolutePath - the row's `absolute`, as sent by the panel.
+ * @returns the file body plus its on-disk metadata.
+ * @throws {InstructionFileError} 404 when the path is not a current row,
+ *  413 when the file is too large to display.
+ */
+export async function readInstructionFile(deps: SkillHubRouteDeps, absolutePath: string): Promise<InstructionFileDetail> {
+  // 清单里存的是 realpath（macOS 的 /var → /private/var 会让字面路径对不上），
+  // 所以两边都过一遍 realpath，同时接受调用方原样回传的行值。
+  const literal = resolve(absolutePath)
+  const canonical = await realpath(absolutePath).catch(() => literal)
+  const scan = await scanInstructionGroups(deps)
+  const ref = scan.groups
+    .flatMap((group) => group.files)
+    .find((row) => {
+      const own = resolve(row.absolute)
+      return own === canonical || own === literal
+    })
+  if (ref === undefined) throw new InstructionFileError('not an instruction file on this page: ' + absolutePath, 404)
+  const info = await stat(ref.absolute).catch(() => undefined)
+  if (info === undefined || !info.isFile()) throw new InstructionFileError('cannot read file: ' + absolutePath, 404)
+  if (info.size > MAX_DETAIL_BYTES) throw new InstructionFileError('instruction file is too large to display (' + info.size + ' bytes)', 413)
+  const content = await readFile(ref.absolute, 'utf8').catch(() => undefined)
+  if (content === undefined) throw new InstructionFileError('cannot read file: ' + absolutePath, 404)
+  return { ...ref, size: info.size, modifiedAt: info.mtimeMs, content }
 }

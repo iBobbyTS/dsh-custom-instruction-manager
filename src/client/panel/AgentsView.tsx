@@ -11,7 +11,7 @@
  */
 
 import { useState } from 'react'
-import type { AgentsResponse } from '../../protocol.ts'
+import type { AgentsResponse, InstructionFileRef } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import css from './panel.module.css'
 
@@ -24,6 +24,8 @@ export interface AgentsViewProps {
   onRefresh: () => void
   /** @param dirs - 完整清单；null = 清除覆盖、回落到默认清单。 */
   onSaveExcludeDirs: (dirs: string[] | null) => void
+  /** 点开一行：进入该文件的正文页（scope = 所属分组标题）。 */
+  onOpenFile: (file: InstructionFileRef, scope: string) => void
 }
 
 /** 目录名合法性：非空、不含路径分隔符（与 host 侧 /config 的校验一致）。 */
@@ -118,16 +120,34 @@ export function AgentsView(props: AgentsViewProps): React.JSX.Element {
             ? <p className={css.agentsEmpty}>{tt('agents.none')}</p>
             : (
               <div className={css.list}>
-                {group.files.map((file, fileIndex) => (
-                  <div key={file.path + '\0' + file.name + '\0' + fileIndex} className={css.row + ' ' + css.rowStatic}>
-                    <div className={css.rowMain}>
-                      <div className={css.rowName}>
-                        <span className={css.rowNameText}>{file.name}</span>
+                {group.files.map((file, fileIndex) => {
+                  const scope = group.kind === 'user' ? tt('agents.user') : (group.title ?? '')
+                  // 旧版 host 的清单行没有 absolute：那种行不当作按钮，避免点开一个空路径。
+                  const canOpen = file.absolute !== '' && file.absolute !== undefined
+                  const open = (): void => { if (canOpen) props.onOpenFile(file, scope) }
+                  return (
+                    <div
+                      key={(file.absolute ?? file.path) + '\0' + fileIndex}
+                      className={css.row + (canOpen ? '' : ' ' + css.rowStatic)}
+                      role={canOpen ? 'button' : undefined}
+                      tabIndex={canOpen ? 0 : undefined}
+                      title={file.absolute ?? file.path}
+                      onClick={open}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return
+                        event.preventDefault()
+                        open()
+                      }}
+                    >
+                      <div className={css.rowMain}>
+                        <div className={css.rowName}>
+                          <span className={css.rowNameText}>{file.name}</span>
+                        </div>
+                        <div className={css.agentPath}>{file.path}</div>
                       </div>
-                      <div className={css.agentPath}>{file.path}</div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
         </section>

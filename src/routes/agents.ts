@@ -7,8 +7,8 @@
  */
 
 import { SKILL_HUB_API } from '../protocol.ts'
-import { scanInstructionGroups } from '../instructions.ts'
-import { writeJson, writeRouteError, type RouteSpec, type SkillHubRouteDeps } from './helpers.ts'
+import { InstructionFileError, readInstructionFile, scanInstructionGroups } from '../instructions.ts'
+import { writeError, writeJson, writeRouteError, type RouteSpec, type SkillHubRouteDeps } from './helpers.ts'
 
 /** AGENTS.md 页的全部路由 spec（由 routes.ts 包上统一围栏）。 */
 export function agentsRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
@@ -20,6 +20,20 @@ export function agentsRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         try {
           writeJson(res, 200, await scanInstructionGroups(deps))
         } catch (error) {
+          writeRouteError(res, error)
+        }
+      },
+    },
+    {
+      path: SKILL_HUB_API.agentsFile,
+      methods: ['GET'],
+      handler: async ({ res, url }) => {
+        const requested = (url.searchParams.get('path') ?? '').trim()
+        if (requested === '') { writeError(res, 400, 'path is required'); return }
+        try {
+          writeJson(res, 200, { ok: true, file: await readInstructionFile(deps, requested) })
+        } catch (error) {
+          if (error instanceof InstructionFileError) { writeError(res, error.status, error.message); return }
           writeRouteError(res, error)
         }
       },

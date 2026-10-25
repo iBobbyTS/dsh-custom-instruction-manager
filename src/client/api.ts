@@ -5,6 +5,7 @@
 import {
   SKILL_HUB_API,
   type AgentsResponse,
+  type InstructionFileDetail,
   type CatalogResponse,
   type ConfigRequest,
   type ConfigResponse,
@@ -13,6 +14,7 @@ import {
   type DiagnosticFixRequest,
   type DiagnosticFixResponse,
   type GroupsResponse,
+  type InstructionFileResponse,
   type MarketCheckResponse,
   type MarketSourceAddResponse,
   type MarketSourceRefRequest,
@@ -274,6 +276,12 @@ export class SkillHubApi {
   /** AGENTS.md 页：磁盘上真实存在的指令文件清单（用户级 + 每个工作区）。 */
   agents(): Promise<AgentsResponse> {
     return this.get<AgentsResponse>(SKILL_HUB_API.agents)
+  }
+
+  /** AGENTS.md 页：按清单里的绝对路径读取一个文件的正文与元数据。 */
+  async agentsFile(path: string): Promise<InstructionFileDetail> {
+    const body = await this.get<InstructionFileResponse>(SKILL_HUB_API.agentsFile, '?path=' + encodeURIComponent(path))
+    return body.file
   }
 
   /** 系统集合组 + origin 映射。 */

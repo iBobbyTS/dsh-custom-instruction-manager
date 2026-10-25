@@ -1,9 +1,10 @@
 /**
  * AGENTS.md 页的线上形状：dsh 支持的指令文件名与磁盘上真实存在者的交集，
- * 按「用户级 + 每个工作区」分组。
+ * 按「用户级 + 每个工作区」分组；点开一行再读该文件的正文。
  *
- * 只在两个地方产生：host 的 GET /api/skill-hub/agents（扫描结果）与面板的
- * 只读渲染。没有任何写入口——这一页不新建、不编辑、不删除文件。
+ * 只在两个地方产生：host 的 GET /api/skill-hub/agents（清单）与
+ * GET /api/skill-hub/agents/file（正文）。没有任何写入口——这一页不新建、
+ * 不编辑、不删除文件。
  */
 
 /** 一行：大标题是磁盘上的真实文件名，副标题是从项目文件夹父目录算起的路径。 */
@@ -15,6 +16,11 @@ export interface InstructionFileRef {
    * 空字符串表示扫描到了但无法算出相对路径（不应出现，客户端照常渲染）。
    */
   path: string
+  /**
+   * 磁盘上的真实绝对路径（符号链接已折叠到原始文件）。详情页按它读取正文，
+   * 也是「复制路径」复制的内容。
+   */
+  absolute: string
 }
 
 /** 一个分组：kind='user' 是用户级（标题由客户端本地化），kind='project' 是工作区。 */
@@ -33,4 +39,20 @@ export interface AgentsResponse {
   groups: InstructionGroup[]
   /** 本次扫描实际生效的排除目录清单（默认 `['.agent-work']`）。 */
   excludeDirs: string[]
+}
+
+/** 一个指令文件的正文与磁盘元数据（详情页）。 */
+export interface InstructionFileDetail extends InstructionFileRef {
+  /** 文件字节大小。 */
+  size: number
+  /** 最后修改时间（epoch ms）。 */
+  modifiedAt: number
+  /** UTF-8 正文（原样返回，不渲染 Markdown）。 */
+  content: string
+}
+
+/** GET /api/skill-hub/agents/file?path=<绝对路径> */
+export interface InstructionFileResponse {
+  ok: true
+  file: InstructionFileDetail
 }
