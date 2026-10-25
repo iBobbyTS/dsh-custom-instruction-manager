@@ -420,8 +420,11 @@
 .workspaceBox { display: inline-flex; align-items: center; gap: 6px; }
 .workspaceInput { width: 200px; height: 32px; font-size: 13px; }
 /* Project-level three-tier tree: inner levels are flat — indent + a hairline
-   guide only, no nested surfaces. */
-.projectNest { display: flex; flex-direction: column; gap: 8px; margin: 0 0 0 14px; border-left: .5px solid var(--hub-border); }
+   guide only, no nested surfaces. The guide hangs 7px (half a 14px CJK glyph)
+   to the left of the indent so it reads under the section label's first
+   character instead of hugging the row text. */
+.projectNest { position: relative; display: flex; flex-direction: column; gap: 8px; margin: 0 0 0 14px; }
+.projectNest::before { content: ''; position: absolute; top: 0; bottom: 0; left: -7px; width: .5px; background: var(--hub-border); }
 
 
 /* Scan list for 276-skill import — theme-agnostic, replaces inline styles */

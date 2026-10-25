@@ -6,10 +6,11 @@
  * "personal" group (project skills never count as personal).
  *
  * Top-level groups follow the official 插件 page: a plain 14/500 section
- * heading ("个人" / "项目级"), not a collapsible header. Only nested nodes
+ * heading ("用户级" / "项目级"), not a collapsible header. Only nested nodes
  * (collections, project workspaces, provider buckets) keep their disclosure.
- * Ordering is derived — workspaces follow the dsh sidebar, collections follow
- * their name — because the hub no longer offers manual reordering.
+ * Ordering is derived — user-level first, then collections by name, then the
+ * project tree (workspaces follow the dsh sidebar) — because the hub no longer
+ * offers manual reordering.
  */
 
 import { useMemo, type JSX } from 'react'
@@ -49,11 +50,11 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   // 那一层的显示。只有一个提供者时不铺二级（单组的二级头纯属噪音）。
   const personalBuckets = personalProviderBuckets(uncategorized, personalDisabled)
   const subdividedPersonal = personalBuckets.length > 1
-  /** 顶层分组顺序：项目级 → 来源集合 → 个人（全部由数据推导，不可重排）。 */
+  /** 顶层分组顺序：用户级 → 来源集合 → 项目级（全部由数据推导，不可重排）。 */
   const topKeys: string[] = [
-    ...(hasProject ? ['project'] : []),
-    ...collections.map((c) => 'col:' + c.name),
     ...(hasPersonal ? ['uncategorized-source'] : []),
+    ...collections.map((c) => 'col:' + c.name),
+    ...(hasProject ? ['project'] : []),
   ]
   /** 仍然可以折叠的节点（顶层已改成小标题，只剩二级/集合）。 */
   const collapsibleKeys = useMemo(() => {
