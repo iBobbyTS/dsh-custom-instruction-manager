@@ -8,11 +8,12 @@
  * Thin shell: state and flows live in useSkillHub, the tab contents live in
  * SourcesView / MarketView, the dialog family lives in dialogs.tsx, and their
  * wiring lives in PanelDialogs.tsx. This component owns only the shared chrome
- * (header, banners, filter bar, shared sections) and the view routing — and
- * holds no hooks, so the detail early return is safe.
+ * (header, banners, filter bar, shared sections), the view routing and the
+ * scroll position across list ↔ detail; every hook runs above the detail early
+ * return, so that return stays safe.
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import type { WritableRoot } from '../../protocol.ts'
 import type { HubKey } from '../locales.ts'
 import type { SkillHubApi } from '../api.ts'
@@ -59,6 +60,10 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   /** 顶层分类（默认 Skill：其余三类还没有数据）。 */
   const [category, setCategory] = useState<Category>('skills')
   const refShell = useCallback((node: HTMLDivElement | null): void => { setShell(node) }, [])
+  /** 列表/详情共用的滚动容器（两种视图结构相同，React 会复用同一个 DOM 节点）。 */
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  /** 进入详情前列表的滚动位置；返回时原样恢复。 */
+  const listScrollTop = useRef(0)
   const {
     catalog, loading, loadError, successBanner, updateState, detail, detailLoading, showForm, formName, formDesc,
     formRoot, formBusy, formMessage, hubConfig, tab, skillView, sourceFilter, sortKey, search,
@@ -75,13 +80,22 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
+  // 视图切换的滚动位置：进详情一律回到顶部，返回列表恢复进入前的位置。
+  // 两种视图的外壳结构相同，React 复用同一个滚动容器，必须显式改 scrollTop。
+  const detailOpen = detail !== null
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current
+    if (scroll === null) return
+    scroll.scrollTop = detailOpen ? 0 : listScrollTop.current
+  }, [detailOpen])
+
   // -------------------------------------------------------------- detail
 
   if (detail !== null) {
     const disabledRecord = catalog?.disabled.find((record) => record.name === detail.name)
     return (
       <div className={css.pageShell} ref={refShell}>
-        <div className={css.scrollArea} data-hub-scroll="">
+        <div className={css.scrollArea} data-hub-scroll="" ref={scrollRef}>
           <SkillDetailView
             detail={detail}
             hubConfig={hubConfig}
@@ -125,7 +139,18 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
 
   return (
     <div className={css.pageShell} ref={refShell}>
-      <div className={css.scrollArea} data-hub-scroll="">
+      <div
+        className={css.scrollArea}
+        data-hub-scroll=""
+        ref={scrollRef}
+        onScroll={(event) => {
+          // 取详情时的「加载中」占位会插在列表上方，浏览器的滚动锚定会把
+          // scrollTop 顶高一段；那段位移不是用户的浏览位置，不能覆盖存档。
+          // 市场 tab 复用同一个滚动容器，它的位置也不属于技能列表。
+          if (detailLoading || detail !== null || tab !== 'sources') return
+          listScrollTop.current = event.currentTarget.scrollTop
+        }}
+      >
         <div className={css.panel} aria-busy={batchBusy || listBusy}>
       {/* 标题行：官方一级页面的标题条（ui-schedule TaskManagerPage 的
           .pageHeading）——一段 20px/28px/500 的无图标标题；列表级动作
