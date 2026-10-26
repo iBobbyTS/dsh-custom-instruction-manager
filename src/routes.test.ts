@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hostTrustFence, makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { lastMarketCheck } from './routes/route-state.ts'
 import { SkillHubStore, statePath } from './store.ts'
-import { SKILL_HUB_API, SKILL_HUB_API_ROOT, TOKEN_MODELS, type AgentsResponse, type CatalogResponse, type InstructionFileResponse, type InstructionFileRef, type ConfigResponse, type ErrorResponse, type HubConfig, type TokenCountResponse, type TokenModelsResponse, type TokenSelectResponse } from './protocol.ts'
+import { SKILL_HUB_API, SKILL_HUB_API_ROOT, TOKEN_MODELS, type AgentsCacheResponse, type AgentsScanFailure, type AgentsScanStep, type CatalogResponse, type InstructionFileResponse, type InstructionFileRef, type InstructionGroup, type ConfigResponse, type ErrorResponse, type HubConfig, type TokenCountResponse, type TokenModelsResponse, type TokenSelectResponse } from './protocol.ts'
 import { resetTokenizers } from './tokens.ts'
 import { existsSync } from 'node:fs'
 
@@ -864,7 +864,31 @@ describe('skill-hub routes', () => {
     expect(body.error).toContain('enabled must be a boolean or null')
   })
 
-  it('serves the AGENTS.md inventory: user level first, then each registered workspace', async () => {
+  /** 跑完一轮分步扫描（测试里扮演面板），返回每一步的响应体。 */
+  async function scanAll(): Promise<AgentsScanStep[]> {
+    const steps: AgentsScanStep[] = []
+    let scanId: string | undefined
+    for (let step = 0; ; step += 1) {
+      const query = '?step=' + step + (scanId !== undefined ? '&scan=' + encodeURIComponent(scanId) : '')
+      const res = new FakeResponse()
+      await routeFor(SKILL_HUB_API.agentsScan).handler(fakeReq('GET', SKILL_HUB_API.agentsScan + query), res as never)
+      expect(res.status).toBe(200)
+      const chunk = res.json() as AgentsScanStep
+      steps.push(chunk)
+      scanId = chunk.scanId
+      if (!chunk.more) return steps
+    }
+  }
+
+  /** 只保留可见字段（绝对路径是临时目录 + realpath，单独在 instructions.test.ts 断言）。 */
+  const brief = (files: InstructionFileRef[]): Array<{ name: string; path: string }> => files.map(({ name, path }) => ({ name, path }))
+  const groupsBrief = (groups: InstructionGroup[]): unknown => groups.map((group) => ({
+    kind: group.kind,
+    ...(group.title !== undefined ? { title: group.title } : {}),
+    files: brief(group.files),
+  }))
+
+  it('serves no cache before the first scan, then the completed index once the steps finish', async () => {
     const proj = join(dir, 'proj')
     await mkdir(join(proj, 'docs'), { recursive: true })
     await writeFile(join(proj, 'AGENTS.md'), 'root', 'utf8')
@@ -876,23 +900,37 @@ describe('skill-hub routes', () => {
     }), 'utf8')
     await writeFile(join(home, 'AGENTS.md'), 'user', 'utf8')
 
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as AgentsResponse
-    expect(body.excludeDirs).toEqual(['.agent-work'])
-    // 绝对路径是临时目录 + realpath，单独在 instructions.test.ts 断言。
-    const brief = (files: InstructionFileRef[]): Array<{ name: string; path: string }> => files.map(({ name, path }) => ({ name, path }))
-    expect(body.groups.map((group) => ({ kind: group.kind, ...(group.title !== undefined ? { title: group.title } : {}), files: brief(group.files) }))).toEqual([
+    // 第一次打开：host 里还没有索引，cached=false + 空 groups（面板据此跳过铺缓存）。
+    const empty = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), empty as never)
+    expect(empty.status).toBe(200)
+    expect(empty.json()).toEqual({ ok: true, cached: false, scannedAt: 0, groups: [], excludeDirs: ['.agent-work'] })
+
+    // 第 0 步只扫用户级；第 1 步是一个工作区。两步合起来就是整份清单。
+    const steps = await scanAll()
+    expect(steps).toHaveLength(2)
+    expect(steps[0]).toMatchObject({ step: 0, done: 1, total: 2, more: true, excludeDirs: ['.agent-work'] })
+    expect(groupsBrief([steps[0]!.group])).toEqual([{ kind: 'user', files: [{ name: 'AGENTS.md', path: home }] }])
+    expect(steps[1]).toMatchObject({ step: 1, done: 2, total: 2, more: false })
+    expect(groupsBrief(steps.map((chunk) => chunk.group))).toEqual([
       { kind: 'user', files: [{ name: 'AGENTS.md', path: home }] },
       { kind: 'project', title: 'proj', files: [
         { name: 'AGENTS.md', path: 'proj' },
         { name: 'AGENTS.md', path: 'proj/docs' },
       ] },
     ])
+
+    // 扫完即缓存：下一次打开直接拿这份。
+    const cached = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), cached as never)
+    const body = cached.json() as AgentsCacheResponse
+    expect(body.cached).toBe(true)
+    expect(body.scannedAt).toBeGreaterThan(0)
+    expect(body.excludeDirs).toEqual(['.agent-work'])
+    expect(groupsBrief(body.groups)).toEqual(groupsBrief(steps.map((chunk) => chunk.group)))
   })
 
-  it('reuses a short-lived scan cache and bypasses it with fresh=1', async () => {
+  it('keeps the cached index until a new scan replaces it, so a later file is only picked up by scanning', async () => {
     const proj = join(dir, 'cached-proj')
     await mkdir(proj, { recursive: true })
     await writeFile(join(proj, 'AGENTS.md'), 'one', 'utf8')
@@ -902,20 +940,88 @@ describe('skill-hub routes', () => {
       tables: { workspaces: { a: { path: proj, title: 'cached-proj' } } },
     }), 'utf8')
 
-    const first = new FakeResponse()
-    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), first as never)
-    expect((first.json() as AgentsResponse).groups[1]?.files).toHaveLength(1)
-
-    // 新文件落盘后，缓存内的清单（10 秒）还看不到它。
+    await scanAll()
+    // 新文件落盘后，缓存还是旧的那份（缓存只读、不重扫）。
     await mkdir(join(proj, 'docs'), { recursive: true })
     await writeFile(join(proj, 'docs', 'AGENTS.md'), 'two', 'utf8')
-    const cached = new FakeResponse()
-    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), cached as never)
-    expect((cached.json() as AgentsResponse).groups[1]?.files).toHaveLength(1)
+    const still = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), still as never)
+    expect((still.json() as AgentsCacheResponse).groups[1]?.files).toHaveLength(1)
 
-    const fresh = new FakeResponse()
-    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents + '?fresh=1'), fresh as never)
-    expect((fresh.json() as AgentsResponse).groups[1]?.files).toHaveLength(2)
+    // 再扫一轮才更新缓存。
+    const steps = await scanAll()
+    expect(steps[1]?.group.files).toHaveLength(2)
+    const refreshed = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), refreshed as never)
+    expect((refreshed.json() as AgentsCacheResponse).groups[1]?.files).toHaveLength(2)
+  })
+
+  it('refuses a step that does not belong to the running scan, and asks for a restart', async () => {
+    // 一个工作区 → 总步数 2，第 0 步之后这一轮还留着，越界步才轮得到 400。
+    const proj = join(dir, 'step-proj')
+    await mkdir(proj, { recursive: true })
+    await writeFile(join(proj, 'AGENTS.md'), 'x', 'utf8')
+    await mkdir(join(home, 'storages'), { recursive: true })
+    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
+      global: { workspaceIds: ['a'] },
+      tables: { workspaces: { a: { path: proj, title: 'step-proj' } } },
+    }), 'utf8')
+
+    const noSession = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsScan).handler(fakeReq('GET', SKILL_HUB_API.agentsScan + '?step=1'), noSession as never)
+    expect(noSession.status).toBe(409)
+    expect(noSession.json()).toEqual({ error: 'scan session expired', code: 'expired' })
+
+    const first = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsScan).handler(fakeReq('GET', SKILL_HUB_API.agentsScan + '?step=0'), first as never)
+    const started = first.json() as AgentsScanStep
+
+    const other = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsScan)
+      .handler(fakeReq('GET', SKILL_HUB_API.agentsScan + '?step=1&scan=scan_other'), other as never)
+    expect(other.status).toBe(409)
+    expect((other.json() as AgentsScanFailure).code).toBe('expired')
+
+    const outOfRange = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsScan)
+      .handler(fakeReq('GET', SKILL_HUB_API.agentsScan + '?step=3&scan=' + started.scanId), outOfRange as never)
+    expect(outOfRange.status).toBe(400)
+
+    const missing = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsScan).handler(fakeReq('GET', SKILL_HUB_API.agentsScan), missing as never)
+    expect(missing.status).toBe(400)
+  })
+
+  it('accepts a row the running scan already found, before the round completes', async () => {
+    const proj = join(dir, 'run-proj')
+    await mkdir(proj, { recursive: true })
+    const file = join(proj, 'AGENTS.md')
+    await writeFile(file, '# proj\n', 'utf8')
+    await mkdir(join(home, 'storages'), { recursive: true })
+    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
+      global: { workspaceIds: ['a'] },
+      tables: { workspaces: { a: { path: proj, title: 'run-proj' } } },
+    }), 'utf8')
+
+    const read = async (): Promise<FakeResponse> => {
+      const res = new FakeResponse()
+      await routeFor(SKILL_HUB_API.agentsFile)
+        .handler(fakeReq('GET', SKILL_HUB_API.agentsFile + '?path=' + encodeURIComponent(file)), res as never)
+      return res
+    }
+
+    // 只扫完第 0 步（用户级）时，工作区里的行还没进清单：成员资格校验拒绝它。
+    const first = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsScan).handler(fakeReq('GET', SKILL_HUB_API.agentsScan + '?step=0'), first as never)
+    const started = first.json() as AgentsScanStep
+    expect((await read()).status).toBe(404)
+
+    // 扫到那个工作区之后，同一个路径立刻可读（缓存 ∪ 进行中的扫描）。
+    const second = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsScan)
+      .handler(fakeReq('GET', SKILL_HUB_API.agentsScan + '?step=1&scan=' + started.scanId), second as never)
+    const body = (await read()).json() as InstructionFileResponse
+    expect(body.file.content).toBe('# proj\n')
   })
 
   it('serves one instruction file body through the agents/file route', async () => {

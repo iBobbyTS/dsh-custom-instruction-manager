@@ -80,7 +80,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     setConfirmClearTrash, setBranchChoice, setMarketSyncDialog,
     checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, enableDisabled,
-    agents, agentsLoading, agentsError, excludeSaving, loadAgents, saveExcludeDirs,
+    agents, agentsScan, agentsError, excludeSaving, loadAgents, saveExcludeDirs,
     agentsFile, openAgentsFile, closeAgentsFile, patchAgentsFile,
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
@@ -166,7 +166,8 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     scroll.scrollTop = detailOpen ? 0 : listScrollTop.current
   }, [detailOpen])
 
-  // AGENTS.md 分类：每次进入都重新扫一遍磁盘（文件是外部改动的，缓存没有意义）。
+  // AGENTS.md 分类：每次进入先铺缓存（没有就跳过），再分步重扫磁盘并把结果逐组
+  // 替换进来——文件是外部改动的，缓存只负责「先有东西看」，最终以扫描结果为准。
   useEffect(() => {
     if (category === 'agents') void loadAgents()
   }, [category, loadAgents])
@@ -324,7 +325,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         /* AGENTS.md 页：只读的指令文件清单，用户级 + 每个工作区各一组。 */
         <AgentsView
           data={agents}
-          loading={agentsLoading}
+          scan={agentsScan}
           error={agentsError}
           saving={excludeSaving}
           onRefresh={() => { void loadAgents(true) }}

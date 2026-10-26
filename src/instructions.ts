@@ -22,7 +22,7 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { resolveExcludeDirs, type AgentsResponse, type EditSnapshot, type InstructionFileDetail, type InstructionFileRef, type InstructionGroup } from './protocol.ts'
+import { resolveExcludeDirs, type EditSnapshot, type InstructionFileDetail, type InstructionFileRef, type InstructionGroup, type InstructionRoster } from './protocol.ts'
 import { readFileSnapshot, writeTextAtomic } from './skillfs/write.ts'
 import { agentsHome, dshHome } from './store.ts'
 import { workspaceEntries } from './routes/catalog-data.ts'
@@ -225,17 +225,39 @@ async function userRows(dshRoot: string, agentsRoot: string): Promise<Instructio
 }
 
 /**
- * Scan every scope for supported instruction files.
- * @param deps - route dependencies (home overrides for tests, hub config for the exclude list).
- * @returns the ordered groups plus the exclude list that produced them.
+ * 一次扫描的「计划」：先算出要扫哪些作用域，再逐个扫。
+ *
+ * 分步扫描靠它把工作切成 `1 + projects.length` 步（第 0 步用户级，其后每个
+ * 工作区一步）。计划本身要 stat 每个工作区（realpath + 目录存在性），很便宜；
+ * 真正贵的递归遍历留给各步。
  */
-export async function scanInstructionGroups(deps: SkillHubRouteDeps): Promise<AgentsResponse> {
+export interface InstructionScanPlan {
+  /** 本次扫描实际生效的排除目录清单。 */
+  excludeDirs: string[]
+  /** 用户级分组（第 0 步的结果）。 */
+  user: InstructionGroup
+  /** 每个已注册工作区一项，顺序即分组顺序。 */
+  projects: Array<{
+    title: string
+    /** 工作区根的 realpath（链接折叠后）。 */
+    own: string
+    /** 嵌套在本工作区里的其他已注册工作区根：它们的子树归各自的组。 */
+    nested: ReadonlySet<string>
+  }>
+}
+
+/**
+ * 算出一次扫描要覆盖的作用域。
+ * @param deps - route dependencies (homes + hub config).
+ * @returns 用户级分组、按侧边栏顺序的工作区清单，以及生效的排除目录。
+ */
+export async function planInstructionScan(deps: SkillHubRouteDeps): Promise<InstructionScanPlan> {
   const dshRoot = deps.home ?? dshHome()
   const agentsRoot = deps.agentsHome ?? agentsHome()
   const excludeDirs = resolveExcludeDirs(configOf(deps).excludeDirs)
   const excluded = new Set(excludeDirs)
 
-  const groups: InstructionGroup[] = [{ kind: 'user', files: await userRows(dshRoot, agentsRoot) }]
+  const user: InstructionGroup = { kind: 'user', files: await userRows(dshRoot, agentsRoot) }
 
   const entries = await workspaceEntries(dshRoot)
   // 工作区根先过 realpath：macOS 的 /var → /private/var 这类平台软链会让
@@ -243,6 +265,7 @@ export async function scanInstructionGroups(deps: SkillHubRouteDeps): Promise<Ag
   const ownOf = async (path: string): Promise<string> => (await realpath(path).catch(() => undefined)) ?? resolve(path)
   const registered: string[] = []
   for (const entry of entries) if (entry.path !== '') registered.push(await ownOf(entry.path))
+  const projects: InstructionScanPlan['projects'] = []
   for (const entry of entries) {
     if (entry.path === '') continue
     if (pathSegments(entry.path).some((segment) => excluded.has(segment))) continue
@@ -251,11 +274,36 @@ export async function scanInstructionGroups(deps: SkillHubRouteDeps): Promise<Ag
     const own = await ownOf(entry.path)
     // 嵌套工作区：父项不扫子工作区的子树，否则同一份文件会出现两次。
     const nested = new Set(registered.filter((other) => other !== own && isInside(own, other)))
-    const hits = await walkInstructionCandidates(own, excluded, nested)
     const title = entry.title === entry.path ? basename(entry.path) : entry.title
-    groups.push({ kind: 'project', title: title === '' ? basename(entry.path) : title, files: await projectRows(own, hits) })
+    projects.push({ title: title === '' ? basename(entry.path) : title, own, nested })
   }
-  return { ok: true, groups, excludeDirs }
+  return { excludeDirs, user, projects }
+}
+
+/**
+ * 扫一个已注册工作区，产出该组的行。
+ * @param plan - the scan plan this project came from (exclude list).
+ * @param project - one plan entry.
+ * @returns that workspace's group.
+ */
+export async function scanProjectGroup(
+  plan: InstructionScanPlan,
+  project: InstructionScanPlan['projects'][number],
+): Promise<InstructionGroup> {
+  const hits = await walkInstructionCandidates(project.own, new Set(plan.excludeDirs), project.nested)
+  return { kind: 'project', title: project.title, files: await projectRows(project.own, hits) }
+}
+
+/**
+ * Scan every scope for supported instruction files in one go.
+ * @param deps - route dependencies (home overrides for tests, hub config for the exclude list).
+ * @returns the ordered groups plus the exclude list that produced them.
+ */
+export async function scanInstructionGroups(deps: SkillHubRouteDeps): Promise<InstructionRoster> {
+  const plan = await planInstructionScan(deps)
+  const groups: InstructionGroup[] = [plan.user]
+  for (const project of plan.projects) groups.push(await scanProjectGroup(plan, project))
+  return { groups, excludeDirs: plan.excludeDirs }
 }
 
 /** 指令文件正文读取的上限；超过视为不可展示（dsh 自己也会忽略超大文件）。 */
@@ -280,7 +328,7 @@ export class InstructionFileError extends Error {
 export async function instructionRefOf(
   deps: SkillHubRouteDeps,
   absolutePath: string,
-  scan?: AgentsResponse,
+  scan?: InstructionRoster,
 ): Promise<InstructionFileRef | undefined> {
   const literal = resolve(absolutePath)
   const canonical = await realpath(absolutePath).catch(() => literal)
@@ -310,7 +358,7 @@ export async function instructionRefOf(
 export async function readInstructionFile(
   deps: SkillHubRouteDeps,
   absolutePath: string,
-  scan?: AgentsResponse,
+  scan?: InstructionRoster,
 ): Promise<InstructionFileDetail> {
   const ref = await instructionRefOf(deps, absolutePath, scan)
   if (ref === undefined) throw new InstructionFileError('not an instruction file on this page: ' + absolutePath, 404)
@@ -350,7 +398,7 @@ export async function saveInstructionFile(
   absolutePath: string,
   content: string,
   expected?: { modifiedAt?: number; size?: number },
-  scan?: AgentsResponse,
+  scan?: InstructionRoster,
 ): Promise<{ path: string; size: number; modifiedAt: number }> {
   const ref = await instructionRefOf(deps, absolutePath, scan)
   if (ref === undefined) throw new InstructionFileError('not an instruction file on this page: ' + absolutePath, 404)

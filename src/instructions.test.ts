@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { readInstructionFile, scanInstructionGroups } from './instructions.ts'
+import { planInstructionScan, readInstructionFile, scanInstructionGroups, scanProjectGroup } from './instructions.ts'
 import { SkillHubStore, statePath } from './store.ts'
 import type { SkillHubRouteDeps } from './routes/deps.ts'
 import type { InstructionFileRef, InstructionGroup } from './protocol.ts'
@@ -95,6 +95,23 @@ describe('AGENTS.md inventory scan', () => {
         { name: 'AGENTS.md', path: 'lmdo-website/docs' },
       ] },
     ])
+  })
+
+  it('splits one scan into steps that add up to the same inventory', async () => {
+    const first = await addWorkspace('steps-first')
+    await writeFile(join(first, 'AGENTS.md'), 'a\n', 'utf8')
+    await addWorkspace('steps-second')
+    await addWorkspace('steps-third')
+    await writeFile(join(home, 'AGENTS.md'), 'user\n', 'utf8')
+
+    const full = await scanInstructionGroups(deps)
+    const plan = await planInstructionScan(deps)
+    // 第 0 步是用户级，其后每个工作区一步：步数 = 1 + 工作区数。
+    expect(plan.projects).toHaveLength(full.groups.length - 1)
+    expect(plan.excludeDirs).toEqual(full.excludeDirs)
+    const stepped: InstructionGroup[] = [plan.user]
+    for (const project of plan.projects) stepped.push(await scanProjectGroup(plan, project))
+    expect(groupsBrief(stepped)).toEqual(groupsBrief(full.groups))
   })
 
   it('keeps empty project groups so every registered workspace stays visible', async () => {

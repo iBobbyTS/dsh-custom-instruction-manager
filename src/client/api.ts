@@ -4,7 +4,9 @@
  */
 import {
   SKILL_HUB_API,
+  type AgentsCacheResponse,
   type AgentsResponse,
+  type AgentsScanStep,
   type InstructionFileDetail,
   type CatalogResponse,
   type ConfigRequest,
@@ -290,9 +292,24 @@ export class SkillHubApi {
     return this.post<ConfigResponse>(SKILL_HUB_API.config, patch)
   }
 
-  /** AGENTS.md 页：磁盘上真实存在的指令文件清单（用户级 + 每个工作区）。 */
-  agents(options?: { fresh?: boolean }): Promise<AgentsResponse> {
-    return this.get<AgentsResponse>(SKILL_HUB_API.agents, options?.fresh === true ? '?fresh=1' : '')
+  /**
+   * AGENTS.md 页：上一次完成的索引缓存（不触发扫描）。
+   *
+   * `cached=false` 表示这个 host 进程还没扫过，面板据此跳过「先铺缓存」。
+   */
+  agentsCache(): Promise<AgentsCacheResponse> {
+    return this.get<AgentsCacheResponse>(SKILL_HUB_API.agents)
+  }
+
+  /**
+   * AGENTS.md 页：分批扫描的一步（一个作用域一步）。
+   *
+   * 第 0 步不带 scanId；后续步骤带上第 0 步返回的 id，`code='expired'` 时
+   * 说明这一轮已被别的扫描顶掉，从第 0 步重来即可。
+   */
+  agentsScan(scanId: string | undefined, step: number): Promise<AgentsScanStep> {
+    const query = '?step=' + step + (scanId !== undefined && scanId !== '' ? '&scan=' + encodeURIComponent(scanId) : '')
+    return this.get<AgentsScanStep>(SKILL_HUB_API.agentsScan, query)
   }
 
   /** AGENTS.md 页：按清单里的绝对路径读取一个文件的正文与元数据。 */

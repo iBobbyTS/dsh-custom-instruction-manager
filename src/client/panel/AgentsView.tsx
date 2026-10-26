@@ -13,11 +13,13 @@
 import { useState } from 'react'
 import type { AgentsResponse, InstructionFileRef } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
+import type { AgentsScanProgress } from './hooks/useAgentsFlow.ts'
 import css from './panel.module.css'
 
 export interface AgentsViewProps {
   data: AgentsResponse | null
-  loading: boolean
+  /** 扫描进度；null = 没有扫描在跑。有进度时「重新扫描」变成不可点的「扫描中（x%）」。 */
+  scan: AgentsScanProgress | null
   error: string | null
   /** 排除目录保存中：禁用输入与按钮，避免连点写两次。 */
   saving: boolean
@@ -35,10 +37,17 @@ function normalizeDirName(text: string): string | undefined {
   return name
 }
 
+/** 扫描百分比：第 0 步之前 total 还是 0，按 0% 显示。 */
+function scanPercent(scan: AgentsScanProgress | null): number {
+  if (scan === null || scan.total <= 0) return 0
+  return Math.max(0, Math.min(100, Math.round((scan.done / scan.total) * 100)))
+}
+
 export function AgentsView(props: AgentsViewProps): React.JSX.Element {
   const [editorOpen, setEditorOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const dirs = props.data?.excludeDirs ?? []
+  const scanning = props.scan !== null
 
   const addDraft = (): void => {
     const name = normalizeDirName(draft)
@@ -57,8 +66,8 @@ export function AgentsView(props: AgentsViewProps): React.JSX.Element {
           aria-expanded={editorOpen}
           onClick={() => { setEditorOpen((open) => !open) }}
         >{tt('agents.exclude')} ({dirs.length})</button>
-        <button type='button' className={css.opBtn} disabled={props.loading} onClick={props.onRefresh}>
-          {props.loading ? tt('agents.scanning') : tt('agents.rescan')}
+        <button type='button' className={css.opBtn} disabled={scanning} onClick={props.onRefresh}>
+          {scanning ? tt('agents.scanningPercent', { percent: scanPercent(props.scan) }) : tt('agents.rescan')}
         </button>
       </div>
 
@@ -111,7 +120,7 @@ export function AgentsView(props: AgentsViewProps): React.JSX.Element {
         : null}
 
       {props.error !== null ? <div className={css.errorBanner}>{tt('agents.error', { error: props.error })}</div> : null}
-      {props.data === null && props.loading ? <p className={css.empty}>{tt('agents.loading')}</p> : null}
+      {props.data === null && scanning ? <p className={css.empty}>{tt('agents.loading')}</p> : null}
 
       {(props.data?.groups ?? []).map((group, index) => (
         <section key={group.kind + '\0' + index} className={css.section + ' ' + css.agentsGroup}>

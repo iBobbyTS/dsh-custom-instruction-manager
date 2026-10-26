@@ -43,7 +43,11 @@ export { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, GITHUB_TOKEN_RE, resol
 export type {
   InstructionFileRef,
   InstructionGroup,
+  InstructionRoster,
   AgentsResponse,
+  AgentsCacheResponse,
+  AgentsScanStep,
+  AgentsScanFailure,
   InstructionFileDetail,
   InstructionFileResponse,
   InstructionFileSaveRequest,

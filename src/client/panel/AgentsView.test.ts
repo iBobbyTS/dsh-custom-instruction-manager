@@ -13,7 +13,7 @@ import type { AgentsResponse } from '../../protocol.ts'
 function render(data: AgentsResponse | null, extra: Partial<AgentsViewProps> = {}): string {
   const props: AgentsViewProps = {
     data,
-    loading: false,
+    scan: null,
     error: null,
     saving: false,
     onRefresh: () => {},
@@ -76,5 +76,30 @@ describe('AGENTS.md page', () => {
     const html = render(null, { error: 'boom' })
     expect(html).toContain('扫描失败')
     expect(html).not.toContain('用户级')
+  })
+
+  it('turns the rescan button into a disabled “scanning (x%)” label while a scan runs', () => {
+    const html = render(data, { scan: { done: 1, total: 4 } })
+    expect(html).toContain('扫描中（25%）')
+    expect(html).toContain('disabled')
+    expect(html).not.toContain('重新扫描')
+  })
+
+  it('rounds the percentage and clamps it, and starts at 0% before the first step', () => {
+    expect(render(data, { scan: { done: 2, total: 3 } })).toContain('扫描中（67%）')
+    expect(render(data, { scan: { done: 0, total: 0 } })).toContain('扫描中（0%）')
+    expect(render(data, { scan: { done: 9, total: 4 } })).toContain('扫描中（100%）')
+  })
+
+  it('keeps the cached list visible while scanning, so the page never flashes empty', () => {
+    const html = render(data, { scan: { done: 1, total: 3 } })
+    expect(html).toContain('用户级')
+    expect(html).toContain('lmdo-website')
+    expect(html).toContain('扫描中（33%）')
+  })
+
+  it('shows the scanning placeholder only when there is neither cache nor result yet', () => {
+    expect(render(null, { scan: { done: 0, total: 0 } })).toContain('正在扫描指令文件…')
+    expect(render(null, { scan: null })).not.toContain('正在扫描指令文件…')
   })
 })
