@@ -33,6 +33,8 @@ https://github.com/iBobbyTS/dsh-skill-hub.git
 
 ## 功能
 
+面板会记住上次离开时停留的页面——顶层分类（AGENTS.md / Skill / MCP / Hook / 关于）连同 Skill 里的**来源/市场**子 tab，存在本机 localStorage；下次进入直接回到那里，而不是总落到 Skill。没有记录（或记录损坏、分类已下线）时仍回落到 Skill / 来源。
+
 **侧边栏 → 其他插件 → AGENTS.md** — dsh 支持的指令文件清单（只读）。分组是「用户级」加上每个已注册工作区（按侧边栏顺序），没有单独的「项目级」总标题。每行大标题是磁盘上的真实文件名，副标题是从项目文件夹的父目录算起的路径：`lmdo-website/AGENTS.md` 显示为 `AGENTS.md` + `lmdo-website`，`lmdo-website/docs/AGENTS.md` 显示为 `AGENTS.md` + `lmdo-website/docs`；用户级两行的副标题是 `~/.dsh` 与 `~/.agents`。
 
 - **只列交集** — 「dsh 支持的文件名 ∩ 磁盘上真实存在」：用户级只有 `AGENTS.md`，项目目录里是 `AGENTS.md`、`CLAUDE.md` 加 `AGENTS.local.md`、`CLAUDE.local.md` 叠加层。没有候选文件的分组保留标题，显示一行灰字「无 AGENTS.md」。

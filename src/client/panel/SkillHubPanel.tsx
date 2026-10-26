@@ -28,6 +28,7 @@ import { SkillDetailView } from './SkillDetailView.tsx'
 import { SourcesView } from './SourcesView.tsx'
 import { MarketView } from './MarketView.tsx'
 import { PanelDialogs } from './PanelDialogs.tsx'
+import { CATEGORY_ORDER, readLastView, rememberView, type Category } from './last-view.ts'
 import { useGroupView } from './hooks/useGroupView.ts'
 import { useSkillHub } from './useSkillHub.ts'
 import css from './panel.module.css'
@@ -36,14 +37,6 @@ export interface SkillHubPanelProps {
   api: SkillHubApi
 }
 
-/**
- * 顶层内容分类：这一页是「其他插件」的管理入口，四类内容共用一条导航。
- * 只有 Skill 接入了数据；AGENTS.md / MCP / Hook 目前是占位页。
- */
-type Category = 'agents' | 'skills' | 'mcp' | 'hooks' | 'about'
-
-/** 分类顺序与标签键（内容分类在前，用户指定的 AGENTS.md → Skill → MCP → Hook；「关于」收尾）。 */
-const CATEGORY_ORDER: readonly Category[] = ['agents', 'skills', 'mcp', 'hooks', 'about']
 const CATEGORY_LABEL: Record<Category, HubKey> = {
   agents: 'category.agents',
   skills: 'category.skills',
@@ -53,7 +46,9 @@ const CATEGORY_LABEL: Record<Category, HubKey> = {
 }
 
 export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
-  const hub = useSkillHub(props.api)
+  /** 上次离开时停留的页面（无记录时是 Skill / 来源）：进入即路由到那里。 */
+  const [savedView] = useState(readLastView)
+  const hub = useSkillHub(props.api, savedView.tab)
   /** 分组视图的派生数据：列表用它渲染，「全部折叠」按钮用它算同一批折叠键。 */
   const groupView = useGroupView(hub)
   /** 工作区输入草稿：回车才应用，避免每次按键都触发目录重拉。 */
@@ -62,8 +57,8 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   const [filtersOpen, setFiltersOpen] = useState(false)
   /** 页壳元素（宽度手柄的挂载目标与 ResizeObserver 观察对象）。 */
   const [shell, setShell] = useState<HTMLDivElement | null>(null)
-  /** 顶层分类（默认 Skill：其余三类还没有数据）。 */
-  const [category, setCategory] = useState<Category>('skills')
+  /** 顶层分类：默认取上次离开的那一页。 */
+  const [category, setCategory] = useState<Category>(savedView.category)
   const refShell = useCallback((node: HTMLDivElement | null): void => { setShell(node) }, [])
   /** 列表/详情共用的滚动容器（两种视图结构相同，React 会复用同一个 DOM 节点）。 */
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -99,6 +94,15 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   useEffect(() => {
     if (category === 'agents') void loadAgents()
   }, [category, loadAgents])
+
+  // 上次停在市场：进入面板时补拉一次市场列表（用户点 tab 切换那条路径由按钮自己加载）。
+  useEffect(() => {
+    if (savedView.tab === 'market') void loadMarket()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 记住离开时的页面：分类与 Skill 的子 tab 一起写回，下次进入直接路由回来。
+  useEffect(() => { rememberView({ category, tab }) }, [category, tab])
 
   // -------------------------------------------------------------- detail
 

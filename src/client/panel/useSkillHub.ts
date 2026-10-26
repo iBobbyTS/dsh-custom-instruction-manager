@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SkillHubApi } from '../api.ts'
 import { isProjectSource, PRIVATE_SOURCE } from '../grouping.ts'
+import type { SkillTab } from './last-view.ts'
 import { useMetaFlow } from './hooks/useMetaFlow.ts'
 import { useCatalogFlow } from './hooks/useCatalogFlow.ts'
 import { useGroupFlow } from './hooks/useGroupFlow.ts'
@@ -20,7 +21,7 @@ import { markAutoChecked, POLL_MS, shouldAutoCheck, SLOW_POLL_MS, type FlowNotic
 /** The hook's result: the panel's complete state + action surface. */
 export type SkillHubState = ReturnType<typeof useSkillHub>
 
-export function useSkillHub(api: SkillHubApi) {
+export function useSkillHub(api: SkillHubApi, initialTab: SkillTab = 'sources') {
   // ------------------------------------------------------- shared notices
   // 多域共用的报错/成功条幅与忙碌开关：setter 本身引用稳定，memo 常驻后
   // 各域回调依赖它不会失稳。
@@ -39,7 +40,7 @@ export function useSkillHub(api: SkillHubApi) {
 
   // ------------------------------------------------------------ view state
   // 纯视图状态：不触发数据加载，只影响渲染。
-  const [tab, setTab] = useState<'sources' | 'market'>('sources')
+  const [tab, setTab] = useState<SkillTab>(initialTab)
   const [skillView, setSkillView] = useState<'flat' | 'groups'>('groups')
   const [sourceFilter, setSourceFilter] = useState('all')
   /** 分组视图里收起的分组（key 为 col:<name> 或 project 树键）。技能总数 >80 时首次加载自动折叠 personal。 */

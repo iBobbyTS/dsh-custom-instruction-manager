@@ -33,6 +33,8 @@ Two surfaces — the hub panel opens from the **Skills** entry in the main sideb
 
 ## Features
 
+The panel remembers the page you left — the top-level category (AGENTS.md / Skill / MCP / Hook / About) together with the Skill sub-tab (Sources / Market) — in local storage, so the next visit reopens there instead of always landing on Skill. With no record (or a corrupt/retired one) it falls back to Skill → Sources.
+
 **Sidebar → Other Plugins → AGENTS.md** — read-only inventory of the instruction files dsh supports. Groups are “user level” plus every registered workspace (sidebar order), with no separate project-level umbrella heading. Each row's title is the real file name on disk and its subtitle is the path from the project folder's parent: `lmdo-website/AGENTS.md` shows as `AGENTS.md` + `lmdo-website`, `lmdo-website/docs/AGENTS.md` as `AGENTS.md` + `lmdo-website/docs`; the two user-level rows show `~/.dsh` and `~/.agents`.
 
 - **Only the intersection** — names dsh supports that actually exist: at user level only `AGENTS.md`; inside a project `AGENTS.md`, `CLAUDE.md` plus the `AGENTS.local.md` / `CLAUDE.local.md` overlays. A group with no candidates keeps its title and shows a grey “No AGENTS.md” line.
