@@ -37,6 +37,9 @@ describe('token table', () => {
     const presets = TOKEN_MODELS.filter((entry) => entry.preset)
     for (const preset of presets) expect(html).toContain(preset.label)
     expect(html).toContain('管理模型')
+    // 展开/收起指示：收起时 aria-expanded=false，chevron 在按钮里（展开时转 180°）
+    expect(html).toContain('aria-expanded=\"false\"')
+    expect(html).toContain('<svg')
     expect(html).toContain('模型')
     expect(html).toContain('Tokens')
     expect(html).not.toContain('Kimi K3')

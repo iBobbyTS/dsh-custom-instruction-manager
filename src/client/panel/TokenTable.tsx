@@ -12,9 +12,10 @@
  * 纯展示：数据与动作都由 useTokenCount / useTokenModels 给。
  */
 
-import { useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { TOKEN_MODELS, type TokenModelState } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
+import { IconChevronDownOutline14 } from '../icons.tsx'
 import css from './panel.module.css'
 import type { TokenCountState } from './hooks/useTokenCount.ts'
 import { TokenModelPicker } from './TokenModelPicker.tsx'
@@ -44,6 +45,31 @@ const DEFAULT_ROWS = TOKEN_MODELS.filter((model) => model.preset).map((model) =>
 export function TokenTable(props: TokenTableProps): JSX.Element {
   const { state, models, busyModel, onSelectModel, modelError } = props
   const [open, setOpen] = useState(false)
+  /** 展开后的多选容器：用来把第一个模型滚到视口中间。 */
+  const pickerRef = useRef<HTMLDivElement | null>(null)
+  /** 每次展开只居中一次；之后选择变化引起的重渲染不该再拽动滚动位置。 */
+  const centered = useRef(false)
+
+  useEffect(() => {
+    if (!open) {
+      centered.current = false
+      return
+    }
+    if (centered.current) return
+    const first = pickerRef.current?.querySelector('li')
+    if (first === null || first === undefined) return
+    centered.current = true
+    // 面板的滚动容器是 [data-hub-scroll]；直接算 scrollTop 而不是用
+    // scrollIntoView，后者会连带滚动外层容器，也可能把整页顶出去。
+    const scroller = first.closest('[data-hub-scroll]')
+    if (!(scroller instanceof HTMLElement)) {
+      first.scrollIntoView({ block: 'center' })
+      return
+    }
+    const offset = first.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
+    const top = Math.max(0, offset - scroller.clientHeight / 2 + first.clientHeight / 2)
+    scroller.scrollTo({ top, behavior: 'smooth' })
+  }, [open, models])
 
   const cellOf = (modelId: string): Cell => {
     if (state.status !== 'ready') {
@@ -101,6 +127,10 @@ export function TokenTable(props: TokenTableProps): JSX.Element {
                 onClick={() => { setOpen((value) => !value) }}
               >
                 {tt('tokens.manage')}
+                <IconChevronDownOutline14
+                  size={12}
+                  className={css.tokenManageChevron + (open ? ' ' + css.tokenManageChevronOpen : '')}
+                />
               </button>
             </td>
           </tr>
@@ -108,10 +138,16 @@ export function TokenTable(props: TokenTableProps): JSX.Element {
       </table>
       {/* 展开后的多选放在表格外面：塞进单元格会把整张表的列宽撑开，
           点一下表头就跳。放在下面既贴着「管理模型」那一行，又不影响列宽。 */}
-      {open && models !== null
-        ? <TokenModelPicker models={models} busyModel={busyModel} onSelect={onSelectModel} error={modelError} />
-        : null}
-      {open && models === null ? <div className={css.tokenModelMeta}>{tt('tokens.loadingModels')}</div> : null}
+      <div ref={pickerRef}>
+        {open && models !== null
+          ? <TokenModelPicker models={models} busyModel={busyModel} onSelect={onSelectModel} error={modelError} />
+          : null}
+        {open && models === null ? <div className={css.tokenModelMeta}>{tt('tokens.loadingModels')}</div> : null}
+      </div>
+      {/* 表格在页面最底部时，光靠滚动条没有空间把第一个模型推到视口中间（会被
+          内容末尾卡住）。展开期间垫一段空白，收起即消失；它只影响可滚动范围，
+          不是内容。 */}
+      {open ? <div className={css.tokenCenterSpacer} aria-hidden='true' /> : null}
     </section>
   )
 }
