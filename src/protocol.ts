@@ -37,6 +37,8 @@ export type { SkillStat, StatsResponse, SkillStatsCheckpoint } from './protocol/
 export type { ErrorResponse, HubConfig, HubSettingsValue, RedactedHubConfig, ConfigResponse, ConfigRequest } from './protocol/config.ts'
 export { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, GITHUB_TOKEN_RE, resolveExcludeDirs, resolveHubConfig, redactGithubToken } from './protocol/config.ts'
 export type { InstructionFileRef, InstructionGroup, AgentsResponse, InstructionFileDetail, InstructionFileResponse } from './protocol/instructions.ts'
+export { TOKEN_COUNT_MAX_BYTES, TOKEN_MODELS } from './protocol/tokens.ts'
+export type { TokenModelSpec, TokenCountRequest, TokenCountEntry, TokenCountResponse } from './protocol/tokens.ts'
 export type {
   MarketSourceRecord,
   MarketSourcesResponse,

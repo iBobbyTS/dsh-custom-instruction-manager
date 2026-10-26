@@ -19,6 +19,7 @@ function render(extra: Partial<AgentFileDetailViewProps> = {}): string {
     file,
     scope: 'lmdo-website',
     loading: false,
+    tokens: { status: 'idle' },
     onBack: () => {},
     ...extra,
   }
@@ -33,6 +34,16 @@ describe('instruction file detail', () => {
     expect(html).toContain('lmdo-website')
     expect(html).toContain('/Users/me/Projects/lmdo-website/docs/AGENTS.md')
     expect(html).toContain('2.0 KB')
+  })
+
+  it('carries the token table with the counts it was given', () => {
+    const html = render({
+      detail: { ...file, size: 7, modifiedAt: 1792900000000, content: '# docs\n' },
+      tokens: { status: 'ready', entries: [{ id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', tokens: 1234 }] },
+    })
+    expect(html).toContain('DeepSeek V4.1 Flash')
+    expect(html).toContain('1,234')
+    expect(html).toContain('Token 统计')
   })
 
   it('renders the raw body and a way back to the list', () => {

@@ -22,7 +22,7 @@ const detail: SkillDetail = {
   content: '# Demo body',
 }
 
-function render(sources: SourcesResponse | null): string {
+function render(sources: SourcesResponse | null, tokens: SkillDetailViewProps['tokens'] = { status: 'idle' }): string {
   const props: SkillDetailViewProps = {
     detail,
     hubConfig: null,
@@ -32,6 +32,7 @@ function render(sources: SourcesResponse | null): string {
     checkingSource: null,
     syncingSource: null,
     invocationBusy: false,
+    tokens,
     onInvocationChange: () => {},
     onBack: () => {},
     onCheck: () => {},
@@ -58,6 +59,15 @@ describe('SkillDetailView upstream block', () => {
     expect(html).toContain('检查更新')
     expect(html).not.toContain('未绑定上游')
     expect(html).not.toContain('个人技能')
+  })
+
+  it('carries the token table with the counts it was given', () => {
+    const html = render({ ok: true, sources: [], origins: {}, collections: [], trash: [] }, {
+      status: 'ready',
+      entries: [{ id: 'glm-5.3', label: 'GLM-5.3', tokens: 987 }],
+    })
+    expect(html).toContain('GLM-5.3')
+    expect(html).toContain('987')
   })
 
   it('renders no update UI at all for an untracked skill', () => {

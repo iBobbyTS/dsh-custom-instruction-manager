@@ -11,6 +11,7 @@ import { enMarket, zhMarket } from './locales/market.ts'
 import { enSettings, zhSettings } from './locales/settings.ts'
 import { enSkills, zhSkills } from './locales/skills.ts'
 import { enSources, zhSources } from './locales/sources.ts'
+import { enTokens, zhTokens } from './locales/tokens.ts'
 
 export const zh = {
   ...zhCommon,
@@ -19,6 +20,7 @@ export const zh = {
   ...zhSources,
   ...zhDetail,
   ...zhSettings,
+  ...zhTokens,
 } as const
 
 /** Union of every translatable key (the namespace's registered dictionary type). */
@@ -31,6 +33,7 @@ export const en: Record<HubKey, string> = {
   ...enSources,
   ...enDetail,
   ...enSettings,
+  ...enTokens,
 }
 
 /** Template values accepted by the interpolator. */

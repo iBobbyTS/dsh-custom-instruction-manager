@@ -40,6 +40,7 @@ https://github.com/iBobbyTS/dsh-skill-hub.git
 - **只列交集** — 「dsh 支持的文件名 ∩ 磁盘上真实存在」：用户级只有 `AGENTS.md`，项目目录里是 `AGENTS.md`、`CLAUDE.md` 加 `AGENTS.local.md`、`CLAUDE.local.md` 叠加层。没有候选文件的分组保留标题，显示一行灰字「无 AGENTS.md」。
 - **折叠** — 同一目录内 trim 后内容相同的候选只算一条；符号链接隐藏链接、显示原始文件（`CLAUDE.md → AGENTS.md` 与反向都处理）。去重只发生在同一目录内，跨目录内容相同也各自显示。
 - **查看正文** — 点任意一行进入详情页（与技能详情同构）：文件名是标题、项目相对路径是副标题，下面是所属分组、绝对路径、大小、修改时间，最后是文件的原始正文。正文按原文用等宽字体呈现（和 SKILL.md 一样不渲染 Markdown）。只读，只提供「复制路径」。
+- **Token 统计** — 详情页在正文上方给出一张表（模型 / Tokens / 状态），数是 DeepSeek V4.1 Flash 与 GLM-5.3 两个**真 tokenizer** 数的文件原文，不是字符数估算；不含 BOS/EOS、提示词包装这类开销。进入页面时异步现算，期间显示「计数中」，一个模型失败不影响另一个。词表不随插件发布：首次计数时按固定 revision 从 Hugging Face 下载 `tokenizer.json`，落到 `$DSH_HOME/skill-hub/tokenizers/` 后只读本地缓存；结果本身不缓存，每次进页面都数当前内容。
 - **扫描** — 项目内递归整棵树，硬剪 `.git` 与 `node_modules`，另外跳过页面内可编辑的「排除目录」（默认 `.agent-work`，只作用于本页）。目录已不存在的工作区整节跳过；嵌套工作区的子树只归子工作区，父项不重复列出。这一页不写任何文件。
 
 **侧边栏 → 其他插件 → Skill** — 2 个 tab：**来源**（技能，平铺/分组+项目树，其中「用户级」卡片按技能管理方二级分类（市场来源显示上游仓库；用户自建统一显示 User Managed））、**市场**（安装与更新）。
@@ -47,6 +48,7 @@ https://github.com/iBobbyTS/dsh-skill-hub.git
 - **浏览** — `ctx.skills` 注册表全量：项目/用户/内置+第三方。按名称、描述、`displayName` 搜索；按来源、按调用方式（模型/用户）筛选；按名称/添加时间/调用次数排序。不同来源的同名技能挂重名徽标，不再静默隐藏。项目级分组按 dsh 侧面栏的工作区顺序排列（`workspace.json` 的 `global.workspaceIds`）。
 - **开关** — 单技能开关 + 整组三态开关，跨组冲突弹窗（全部关闭/保留开启）。禁用只重命名发现文件（不删除）；禁用的技能仍可查看正文、可一键重新启用。仅 `~/.dsh/skills` 与 `~/.agents/skills` 可写，其余只读。
 - **调用方式** — 详情页两个 checkbox 直接改写 `SKILL.md` 的 `disable-model-invocation` / `user-invocable`（缺键即默认允许，写回默认值会把键删掉）。用户根与项目根可写；内置/插件 provider 注册的技能没有文件，置灰只读。
+- **Token 统计** — 技能详情页在 `SKILL.md` 正文上方给出同一张表（DeepSeek V4.1 Flash / GLM-5.3），口径与 AGENTS.md 页一致：只数文件原文，进入页面时异步现算。
 - **整理** — 自动聚合的来源集合 + 按 dsh 侧面栏顺序排列的项目树。顶层分组（用户级 / 项目级）是照官方「插件」页做的小标题，顺序为**用户级 → 来源集合 → 项目级**；单技能操作收进行尾菜单，「全部折叠」在视图切换那一行紧贴「分组」。
 - **行菜单** — 每行右侧的「…」（与 dsh 工作区行同款，悬停出现）。「在 Finder 中显示」打开技能文件所在位置；「删除」把技能移到系统废纸篓 `~/.Trash`（重名时追加时间戳，绝不直接删除），可随时在 Finder 里恢复。只读/内置技能只给 Finder 一项（内置技能在应用包内，该项置灰）。
 - **诊断与修复** — provider 跳过的文件给出原因（缺 frontmatter、YAML 非法、名称不一致、描述过短）；可自动修复的（如描述里未加引号的 `:`）一键 Fix 落盘。
@@ -115,6 +117,7 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 | `/api/skill-hub/repo/import/progress?jobId=` | GET | 轮询进度 |
 | `/api/skill-hub/repo/import/cancel` | POST | 取消任务 |
 | `/api/skill-hub/sources` 等 | GET/POST | 来源 列表/检查/同步/删除/恢复/清空回收站 |
+| `/api/skill-hub/tokens` | POST | `{text}` → 各模型 token 数（首次调用下载词表，之后读本地缓存） |
 | `/api/skill-hub/update` | GET | 插件最新发布 |
 | 未知的 `/api/skill-hub/*` | GET/POST | `404 {error}` 且写明路径 —— 拼错路径不该被读成鉴权失败（宿主 SPA fallback 对自己不拥有的 `/api/*` 一律回 401） |
 

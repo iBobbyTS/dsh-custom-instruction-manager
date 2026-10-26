@@ -93,14 +93,18 @@ export function writeRouteError(res: ServerResponse, error: unknown): void {
   writeError(res, 500, error)
 }
 
-/** Read a JSON request body (undefined when too large or unparseable). */
-export async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | undefined> {
+/**
+ * Read a JSON request body (undefined when too large or unparseable).
+ * @param req - inbound request.
+ * @param limit - byte cap; a route that carries file text passes its own.
+ */
+export async function readJsonBody(req: IncomingMessage, limit = MAX_JSON_BODY_BYTES): Promise<Record<string, unknown> | undefined> {
   const chunks: Buffer[] = []
   let size = 0
   for await (const chunk of req) {
     const buffer = chunk as Buffer
     size += buffer.length
-    if (size > MAX_JSON_BODY_BYTES) return undefined
+    if (size > limit) return undefined
     chunks.push(buffer)
   }
   try {

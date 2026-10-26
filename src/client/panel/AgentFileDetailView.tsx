@@ -10,7 +10,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { InstructionFileDetail, InstructionFileRef } from '../../protocol.ts'
 import { copyTextToClipboard, tt } from '../helpers.ts'
 import { formatBytes, formatDateTime } from './format.ts'
+import type { TokenCountState } from './hooks/useTokenCount.ts'
 import css from './panel.module.css'
+import { TokenTable } from './TokenTable.tsx'
 
 export interface AgentFileDetailViewProps {
   /** 列表行（打开时立刻可用，正文尚未到达时用它渲染标题与路径）。 */
@@ -20,11 +22,13 @@ export interface AgentFileDetailViewProps {
   detail?: InstructionFileDetail
   loading: boolean
   error?: string
+  /** Token 统计（正文到达后由 useTokenCount 异步算）。 */
+  tokens: TokenCountState
   onBack: () => void
 }
 
 export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.Element {
-  const { file, scope, detail, loading, error, onBack } = props
+  const { file, scope, detail, loading, error, tokens, onBack } = props
   const [copied, setCopied] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => () => { window.clearTimeout(timer.current) }, [])
@@ -54,6 +58,7 @@ export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.
         {detail !== undefined ? <div className={css.detailMetaLine}>{tt('agents.size')}: {formatBytes(detail.size)}</div> : null}
         {detail !== undefined ? <div className={css.detailMetaLine}>{tt('agents.modifiedAt')}: {formatDateTime(detail.modifiedAt)}</div> : null}
       </div>
+      <TokenTable state={tokens} />
       {error !== undefined
         ? <div className={css.errorBanner}>{tt('agents.readError', { error })}</div>
         : detail !== undefined

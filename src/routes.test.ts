@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hostTrustFence, makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { lastMarketCheck } from './routes/route-state.ts'
 import { SkillHubStore, statePath } from './store.ts'
-import { SKILL_HUB_API, SKILL_HUB_API_ROOT, type AgentsResponse, type CatalogResponse, type InstructionFileResponse, type InstructionFileRef, type ConfigResponse, type ErrorResponse, type HubConfig } from './protocol.ts'
+import { SKILL_HUB_API, SKILL_HUB_API_ROOT, TOKEN_MODELS, type AgentsResponse, type CatalogResponse, type InstructionFileResponse, type InstructionFileRef, type ConfigResponse, type ErrorResponse, type HubConfig, type TokenCountResponse } from './protocol.ts'
+import { resetTokenizers } from './tokens.ts'
 
 /** Minimal response double recording status/headers/body. */
 class FakeResponse {
@@ -1797,5 +1798,81 @@ describe('skill-hub API surface', () => {
     await catchAll[0].handler(fakeReq('GET', '/api/skill-hub/market/sync'), res as never)
     expect(res.status).toBe(404)
     expect((res.json() as ErrorResponse).error).toContain('/api/skill-hub/market/sync')
+  })
+})
+
+/**
+ * Token 计数路由：正文从请求体来、结果按模型逐条返回，失败项不拖累别的
+ * 模型。词表下载在 deps.fetchImpl 上注入（这里不联网，也不写真实 $DSH_HOME）。
+ */
+describe('token count route', () => {
+  const FIXTURE = {
+    version: '1.0',
+    truncation: null,
+    padding: null,
+    added_tokens: [],
+    normalizer: null,
+    pre_tokenizer: { type: 'Whitespace' },
+    post_processor: null,
+    decoder: null,
+    model: { type: 'WordLevel', vocab: { '[UNK]': 0, hello: 1, world: 2 }, unk_token: '[UNK]' },
+  }
+
+  let dir: string
+  let deps: SkillHubRouteDeps
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-token-route-'))
+    const home = join(dir, 'home')
+    await mkdir(join(home, 'skills'), { recursive: true })
+    deps = {
+      skills: { snapshot: async () => ({ skills: [], complete: true }), get: async () => undefined },
+      store: new SkillHubStore(statePath(home)),
+      home,
+      tokenCacheDir: join(dir, 'tokenizers'),
+      fetchImpl: (async () => new Response(JSON.stringify(FIXTURE), { status: 200 })) as unknown as typeof globalThis.fetch,
+    }
+    resetTokenizers()
+  })
+
+  afterEach(async () => {
+    resetTokenizers()
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  function route() {
+    const found = makeRoutes(deps).find((candidate) => candidate.path === SKILL_HUB_API.tokens)
+    if (found === undefined) throw new Error('token route not registered')
+    return found
+  }
+
+  it('counts the posted body and answers one entry per model', async () => {
+    const res = new FakeResponse()
+    await route().handler(fakeReq('POST', SKILL_HUB_API.tokens, { text: 'hello world' }), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as TokenCountResponse
+    expect(body.ok).toBe(true)
+    expect(body.entries.map((entry) => entry.id)).toEqual(TOKEN_MODELS.map((model) => model.id))
+    expect(body.entries.every((entry) => entry.tokens === 2)).toBe(true)
+  })
+
+  it('counts an empty file as zero rather than rejecting it', async () => {
+    const res = new FakeResponse()
+    await route().handler(fakeReq('POST', SKILL_HUB_API.tokens, { text: '' }), res as never)
+    expect(res.status).toBe(200)
+    expect((res.json() as TokenCountResponse).entries.every((entry) => entry.tokens === 0)).toBe(true)
+  })
+
+  it('rejects a body without a string text field', async () => {
+    const res = new FakeResponse()
+    await route().handler(fakeReq('POST', SKILL_HUB_API.tokens, { text: 42 }), res as never)
+    expect(res.status).toBe(400)
+    expect((res.json() as ErrorResponse).error).toBe('text must be a string')
+  })
+
+  it('stays POST-only', async () => {
+    const res = new FakeResponse()
+    await route().handler(fakeReq('GET', SKILL_HUB_API.tokens), res as never)
+    expect(res.status).toBe(405)
   })
 })

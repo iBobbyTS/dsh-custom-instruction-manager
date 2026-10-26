@@ -17,6 +17,7 @@ export const SKILL_HUB_API = {
   catalog: '/api/skill-hub/catalog',
   agents: '/api/skill-hub/agents',
   agentsFile: '/api/skill-hub/agents/file',
+  tokens: '/api/skill-hub/tokens',
   skill: '/api/skill-hub/skill',
   skillDelete: '/api/skill-hub/skill/delete',
   skillReveal: '/api/skill-hub/skill/reveal',

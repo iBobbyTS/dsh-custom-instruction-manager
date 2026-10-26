@@ -473,6 +473,26 @@
 }
 
 /* 详情页「调用方式」：两个 checkbox + 一行脚注（key 名写进脚注）。 */
+/* Token 统计表（技能详情 / 指令文件详情）：一行一个模型，数字右对齐用
+   等宽数字，状态列吃掉失败原因（超长省略，全文在 title 里）。表格本身不
+   加外框——它紧贴在正文上方，边框会跟正文卡片挤在一起。 */
+.tokenBlock { display: flex; flex-direction: column; gap: 6px; }
+.tokenHead { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.tokenTitle { font-size: 13px; line-height: 20px; font-weight: 600; color: var(--hub-text); }
+.tokenHint { font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
+.tokenTable { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; table-layout: auto; }
+.tokenTable th { text-align: left; font-weight: 500; color: var(--hub-text-3); padding: 0 10px 6px; border-bottom: .5px solid var(--hub-border-2); white-space: nowrap; }
+.tokenTable td { padding: 7px 10px; color: var(--hub-text-2); border-bottom: .5px solid var(--hub-border); vertical-align: baseline; }
+.tokenTable tbody tr:last-child td { border-bottom: 0; }
+.tokenTable th:first-child, .tokenTable td:first-child { padding-left: 2px; }
+.tokenTable th:last-child, .tokenTable td:last-child { padding-right: 2px; }
+.tokenNum { text-align: right; font-family: var(--hub-mono); color: var(--hub-text); white-space: nowrap; }
+.tokenStatusHead { text-align: right; color: var(--hub-text-3); }
+.tokenDetail { color: var(--hub-text-3); }
+.tokenFailed { color: var(--hub-danger); }
+.tokenFailed .tokenDetail { color: var(--hub-danger); }
+.tokenFoot { font-size: 11px; line-height: 16px; color: var(--hub-text-3); word-break: break-word; }
+
 .invocationCard { display: flex; flex-direction: column; gap: 6px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); padding: 12px 16px; }
 .invocationHead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .invocationTitle { font-size: 13px; line-height: 20px; font-weight: 600; }

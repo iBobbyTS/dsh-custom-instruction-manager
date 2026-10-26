@@ -48,6 +48,9 @@ import {
   type SourceSyncRequest,
   type SourceSyncResponse,
   type StatsResponse,
+  type TokenCountEntry,
+  type TokenCountRequest,
+  type TokenCountResponse,
   type ToggleBatchRequest,
   type ToggleBatchResponse,
   type ToggleRequest,
@@ -282,6 +285,21 @@ export class SkillHubApi {
   async agentsFile(path: string): Promise<InstructionFileDetail> {
     const body = await this.get<InstructionFileResponse>(SKILL_HUB_API.agentsFile, '?path=' + encodeURIComponent(path))
     return body.file
+  }
+
+  /**
+   * 数一段文件原文在各模型词表下的 token 数。
+   *
+   * 超时给到 150s，而不是其余接口的 10s：第一次计数要先下载词表（DeepSeek
+   * 6 MB + GLM 19 MB），用默认超时会让首次进入详情页必然失败。词表落到宿主
+   * 本机缓存后，后续计数是毫秒级。
+   * @param text - 文件原文，原样传递（不 trim）。
+   * @returns 每个模型一条结果（失败项带 error，另一个模型不受影响）。
+   */
+  async countTokens(text: string): Promise<TokenCountEntry[]> {
+    const request: TokenCountRequest = { text }
+    const body = await this.post<TokenCountResponse>(SKILL_HUB_API.tokens, request, 150_000)
+    return body.entries
   }
 
   /** 系统集合组 + origin 映射。 */

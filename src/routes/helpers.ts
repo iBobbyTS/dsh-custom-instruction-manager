@@ -77,6 +77,11 @@ export interface RouteSpec {
   methods: readonly ('GET' | 'POST')[]
   /** POST requests must carry a JSON body (400 when missing/unparseable). */
   jsonBody?: boolean
+  /**
+   * JSON body byte cap for this route; defaults to MAX_JSON_BODY_BYTES.
+   * The token-count route carries the file text itself, so it raises this.
+   */
+  bodyLimit?: number
   /** Skip the master-switch gate (the config route stays up while disabled). */
   skipGate?: boolean
   handler: RouteHandler
@@ -112,8 +117,12 @@ export function createRoute(deps: SkillHubRouteDeps, spec: RouteSpec): WebRoute 
       const url = new URL(req.url ?? '/', 'http://localhost')
       let body: Record<string, unknown> = {}
       if (spec.jsonBody === true && req.method === 'POST') {
-        const parsed = await readJsonBody(req)
-        if (parsed === undefined) { writeError(res, 400, 'invalid JSON body'); return }
+        const parsed = await readJsonBody(req, spec.bodyLimit)
+        if (parsed === undefined) {
+          const cap = spec.bodyLimit === undefined ? '' : ' (limit ' + spec.bodyLimit + ' bytes)'
+          writeError(res, 400, 'invalid JSON body' + cap)
+          return
+        }
         body = parsed
       }
       try {

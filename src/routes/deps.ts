@@ -60,6 +60,16 @@ export interface SkillHubRouteDeps {
    * Absent shells out to `open -R` / Explorer / xdg-open.
    */
   reveal?: (path: string) => Promise<void>
+  /**
+   * Tokenizer vocabulary cache directory override (tests point it at a temp
+   * dir). Absent uses `$DSH_HOME/skill-hub/tokenizers`.
+   */
+  tokenCacheDir?: string
+  /**
+   * Tokenizer download override (tests serve a fixture instead of reaching
+   * Hugging Face). Absent uses the global fetch.
+   */
+  fetchImpl?: typeof globalThis.fetch
 }
 
 /** The resolved hub config a route sees (the shared resolver fills defaults). */

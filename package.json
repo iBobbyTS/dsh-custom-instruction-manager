@@ -86,6 +86,7 @@
     }
   },
   "dependencies": {
+    "@huggingface/tokenizers": "^0.2.0",
     "js-yaml": "^4.1.0"
   },
   "peerDependencies": {
