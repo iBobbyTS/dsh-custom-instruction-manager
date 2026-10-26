@@ -437,7 +437,7 @@
 .scanProgressTrack { flex: 1; height: 6px; background: var(--hub-surface); border-radius: 4px; overflow: hidden; }
 .scanProgressFill { height: 100%; background: var(--hub-brand); transition: width .2s; }
 
-/* ---- 筛选面板、列表工具、焦点环、点击区域、骨架屏、减少动效 ---- */
+/* ---- 筛选面板、焦点环、点击区域、骨架屏、减少动效 ---- */
 
 /* 筛选面板：搜索/排序/视图切换常驻，「来源 + 调用方式」收进这里。 */
 .filterPanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); }
@@ -445,8 +445,6 @@
 .filterField .formLabel { margin: 0; }
 .filterField .select { max-width: 160px; }
 
-/* 列表工具行（全部折叠 / 全部展开）。 */
-.listTools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 2px; }
 
 /* 键盘焦点环：官方写法（--dsw-focus-ring-width / -color），只在
    focus-visible（键盘操作）时出现，鼠标点击不打扰。 */

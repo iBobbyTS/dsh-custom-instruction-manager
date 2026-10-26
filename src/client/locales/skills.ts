@@ -1,8 +1,5 @@
 /** 技能浏览：行徽章/分组/过滤排序/相对时间。从 locales.ts 按前缀拆出，键集合不变。 */
 export const zhSkills = {
-  'edit.start': '编辑',
-  'edit.hint': '开启后显示整组删除操作',
-  'edit.done': '完成',
   'groups.collapseAll': '全部折叠',
   'groups.expandAll': '全部展开',
   'groups.noCollections': '暂无来源组。从市场导入技能后自动按来源聚合。',
@@ -56,9 +53,6 @@ export const zhSkills = {
 } as const
 
 export const enSkills: Record<keyof typeof zhSkills, string> = {
-  'edit.start': 'Edit',
-  'edit.hint': 'Show group delete actions',
-  'edit.done': 'Done',
   'groups.collapseAll': 'Collapse all',
   'groups.expandAll': 'Expand all',
   'groups.noCollections': 'No source groups yet. Import skills from the market to group them by source.',

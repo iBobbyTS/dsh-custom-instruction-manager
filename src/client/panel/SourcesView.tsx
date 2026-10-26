@@ -11,11 +11,16 @@
  * Ordering is derived — user-level first, then collections by name, then the
  * project tree (workspaces follow the dsh sidebar) — because the hub no longer
  * offers manual reordering.
+ *
+ * The grouping derivation lives in useGroupView (shared with the toolbar's
+ * collapse-all button, which sits next to the view switcher); this component
+ * only renders it.
  */
 
 import { useMemo, type JSX } from 'react'
 import { managedByText, tt } from '../helpers.ts'
-import { disabledRowKey, filterBySource, groupSwitchView, isProjectSource, personalManagedBuckets, PRIVATE_SOURCE, skillRowKey, visibleCollections } from '../grouping.ts'
+import { disabledRowKey, groupSwitchView, skillRowKey } from '../grouping.ts'
+import type { GroupView } from './hooks/useGroupView.ts'
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
@@ -25,52 +30,22 @@ import { CollectionCard } from './CollectionCard.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
 import css from './panel.module.css'
 
-export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
-  const { hub } = props
-  const { catalog, groupsState, skillView, sourceFilter, origins, sorted, normalized, collapsedGroups, viewNames, sourceCheck, actionNames, checkingSource, syncingSource, batchBusy, busyNames, toggleGroupCollapse, setAllGroupsCollapsed, checkSources, requestSync, requestDelete, requestDeleteGroup, toggleGroup, enableDisabled } = hub
+export function SourcesView(props: { hub: SkillHubState; view: GroupView }): JSX.Element {
+  const { hub, view } = props
+  const {
+    catalog, skillView, collapsedGroups, viewNames, sourceCheck, actionNames,
+    checkingSource, syncingSource, batchBusy, busyNames, toggleGroupCollapse,
+    checkSources, requestSync, requestDelete, toggleGroup, enableDisabled,
+  } = hub
+  const {
+    sourceFiltered, projectSkillsAll, hasProject, visible, collections,
+    uncategorized, personalDisabled, allPersonalNames, hasPersonal,
+    personalBuckets, subdividedPersonal, topKeys,
+  } = view
   /** 重复技能名集合：整表只建一次，行内用 has 取代逐行线性 includes。 */
   const duplicateNames = useMemo(() => new Set(catalog?.duplicateNames ?? []), [catalog])
   /** dsh 侧面栏的工作区顺序；项目级分组按它排列（未知名排最后）。 */
   const workspaceOrder = useMemo(() => (catalog?.workspaces ?? []).map((entry) => entry.path), [catalog])
-
-  const sourceFiltered = filterBySource(sorted, sourceFilter, origins)
-  const projectSkillsAll = sourceFiltered.filter((skill) => isProjectSource(skill.source))
-  const hasProject = projectSkillsAll.length > 0
-  // 无可见成员的来源组不渲染：来源记录指向的技能可能已被删除，或禁用记录
-  // 丢失导致技能既非启用也非禁用，留下一个组头有数字、展开 0 行的空壳。
-  const visible = visibleCollections(groupsState?.collections ?? [], sourceFiltered, catalog?.disabled ?? [], normalized, sourceFilter, origins)
-  const collections = visible.map((entry) => entry.collection)
-  const uncategorized = sourceFiltered.filter((skill) => origins[skill.name] === undefined && !isProjectSource(skill.source))
-  const personalDisabled = (catalog?.disabled ?? []).filter((record) => origins[record.name] === undefined)
-    .filter((record) => normalized.length === 0 || record.name.toLocaleLowerCase().includes(normalized) || record.description.toLocaleLowerCase().includes(normalized))
-    .filter(() => sourceFilter === 'all' || sourceFilter === PRIVATE_SOURCE)
-  const allPersonalNames = [...uncategorized.map((s) => s.name), ...personalDisabled.map((r) => r.name)]
-  const hasPersonal = allPersonalNames.length > 0
-  // 个人技能二级分类：按「管理方」聚合，复用项目级 .dsh/.agents 那一层的
-  // 显示。用户自己的技能统一成 User Managed，不再逐个显示 provider id；
-  // 只有一个管理方时不铺二级（单组的二级头纯属噪音）。
-  const personalBuckets = personalManagedBuckets(uncategorized, personalDisabled)
-  const subdividedPersonal = personalBuckets.length > 1
-  /** 顶层分组顺序：用户级 → 来源集合 → 项目级（全部由数据推导，不可重排）。 */
-  const topKeys: string[] = [
-    ...(hasPersonal ? ['uncategorized-source'] : []),
-    ...collections.map((c) => 'col:' + c.name),
-    ...(hasProject ? ['project'] : []),
-  ]
-  /** 仍然可以折叠的节点（顶层已改成小标题，只剩二级/集合）。 */
-  const collapsibleKeys = useMemo(() => {
-    const keys = new Set<string>()
-    for (const collection of collections) keys.add('col:' + collection.name)
-    for (const skill of projectSkillsAll) {
-      const workspace = skill.workspace ?? skill.source
-      keys.add('project:' + workspace)
-      if (hub.subdividedProjects.has(workspace)) keys.add('project:' + workspace + ':' + skill.source)
-    }
-    if (subdividedPersonal) for (const bucket of personalBuckets) keys.add('personal:' + bucket.key)
-    return [...keys]
-  }, [collections, projectSkillsAll, hub.subdividedProjects, subdividedPersonal, personalBuckets])
-  /** 可折叠节点是否已全部折叠（决定「全部折叠/展开」按钮的文案）。 */
-  const allCollapsed = collapsibleKeys.length > 0 && collapsibleKeys.every((key) => collapsedGroups.has(key))
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
   const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, listBusy: hub.listBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill, reveal: hub.reveal }
 
@@ -83,13 +58,6 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   return (
     <>
       {isEmptyTop ? <div className={css.empty}>{tt('groups.noCollections')}</div> : null}
-      {collapsibleKeys.length > 0 ? (
-        <div className={css.listTools}>
-          <button type='button' className={css.opBtn} onClick={() => { setAllGroupsCollapsed(allCollapsed ? null : collapsibleKeys) }}>
-            {allCollapsed ? tt('groups.expandAll') : tt('groups.collapseAll')}
-          </button>
-        </div>
-      ) : null}
       {topKeys.map((topKey) => {
         // Project 顶层分组：小标题 + 工作区树
         if (topKey === 'project' && hasProject) {
@@ -113,7 +81,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
           if (entry === undefined) return null
           const { collection, skills, disabledMembers } = entry
           const collapsed = collapsedGroups.has('col:' + collection.name)
-          const view = groupSwitchView(collection.skillNames, viewNames)
+          const switchView = groupSwitchView(collection.skillNames, viewNames)
           const check = sourceCheck[collection.name]
           const hasWritable = collection.skillNames.some((name) => actionNames.has(name))
           return (
@@ -123,10 +91,9 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               skills={skills}
               disabledMembers={disabledMembers}
               collapsed={collapsed}
-              view={view}
+              view={switchView}
               check={check}
               hasWritable={hasWritable}
-              editMode={hub.editMode}
               checkingSource={checkingSource}
               syncingSource={syncingSource}
               batchBusy={batchBusy}
@@ -136,7 +103,6 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               requestSync={requestSync}
               requestDelete={requestDelete}
               toggleGroup={toggleGroup}
-              requestDeleteGroup={requestDeleteGroup}
               enableDisabled={enableDisabled}
               openDetail={hub.openDetail}
             />
@@ -152,11 +118,6 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                   {tt('groups.personal')} · {allPersonalNames.length}
                   <GroupSummary members={allPersonalNames} uses={hub.uses} hubConfig={hub.hubConfig} />
                 </h2>
-                {hub.editMode ? (
-                  <span className={css.groupOps}>
-                    <button type='button' className={css.opBtn + ' ' + css.opDanger} title={tt('source.deleteGroupHint', { count: allPersonalNames.length })} onClick={(event) => { event.stopPropagation(); requestDeleteGroup(tt('groups.personal'), allPersonalNames) }}>{tt('source.deleteGroup')}</button>
-                  </span>
-                ) : null}
               </div>
               {subdividedPersonal ? (
                 /* 二级只有一层，不再套外层 .projectNest：缩进与项目级的

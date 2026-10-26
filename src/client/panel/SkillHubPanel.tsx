@@ -28,6 +28,7 @@ import { SkillDetailView } from './SkillDetailView.tsx'
 import { SourcesView } from './SourcesView.tsx'
 import { MarketView } from './MarketView.tsx'
 import { PanelDialogs } from './PanelDialogs.tsx'
+import { useGroupView } from './hooks/useGroupView.ts'
 import { useSkillHub } from './useSkillHub.ts'
 import css from './panel.module.css'
 
@@ -53,6 +54,8 @@ const CATEGORY_LABEL: Record<Category, HubKey> = {
 
 export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   const hub = useSkillHub(props.api)
+  /** 分组视图的派生数据：列表用它渲染，「全部折叠」按钮用它算同一批折叠键。 */
+  const groupView = useGroupView(hub)
   /** 工作区输入草稿：回车才应用，避免每次按键都触发目录重拉。 */
   const [workspaceDraft, setWorkspaceDraft] = useState('')
   /** 「筛选」面板开合（来源 + 调用方式收进这里；搜索/排序/视图切换始终可见）。 */
@@ -71,13 +74,12 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     formRoot, formBusy, formMessage, hubConfig, tab, skillView, sourceFilter, sortKey, search,
     workspace, setWorkspace,
     sourcesState, groupsState, listBusy, batchBusy, sourceOptions, filtered,
-    conflictDialog, confirmDialog, deleteSkillDialog, deleteGroupDialog, confirmClearTrash, branchChoice, branchBusy, marketSyncDialog,
+    conflictDialog, confirmDialog, deleteSkillDialog, confirmClearTrash, branchChoice, branchBusy, marketSyncDialog,
     syncBusy, uses, sourceCheck, checkingSource, syncingSource,
-    editMode,
     setLoadError, setSuccessBanner, setDetail, setShowForm, setFormName, setFormDesc, setFormRoot, setFormMessage, setTab,
-    setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog, setDeleteSkillDialog, setDeleteGroupDialog,
-    setConfirmClearTrash, setBranchChoice, setMarketSyncDialog, setEditMode,
-    checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill, runDeleteGroup,
+    setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog, setDeleteSkillDialog,
+    setConfirmClearTrash, setBranchChoice, setMarketSyncDialog,
+    checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, enableDisabled,
     agents, agentsLoading, agentsError, excludeSaving, loadAgents, saveExcludeDirs,
     agentsFile, openAgentsFile, closeAgentsFile,
@@ -181,17 +183,14 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         <div className={css.panel} aria-busy={batchBusy || listBusy}>
       {/* 标题行：官方一级页面的标题条（ui-schedule TaskManagerPage 的
           .pageHeading）——一段 20px/28px/500 的无图标标题；列表级动作
-          （编辑 / 新建技能）下移到视图切换那一行的右端。 */}
+          （新建技能）放在视图切换那一行的右端。 */}
       <div className={css.pageHeading}>
         <h1 className={css.title}>{tt('panel.title')}</h1>
-        {/* 目录计数与诊断提示只属于 Skill 页；标题本身保持官方那样的纯文字行盒。 */}
+        {/* 禁用计数与诊断提示只属于 Skill 页；标题本身保持官方那样的纯文字行盒。 */}
         {category === 'skills'
           ? <span className={css.headingMeta}>
-              {catalog !== null
-                ? <span className={css.headerCount}>
-                    {tt('panel.count', { count: catalog.skills.length + catalog.disabled.length })}
-                    {catalog.disabled.length > 0 ? ' · ' + tt('panel.disabledCount', { count: catalog.disabled.length }) : null}
-                  </span>
+              {catalog !== null && catalog.disabled.length > 0
+                ? <span className={css.headerCount}>{tt('panel.disabledCount', { count: catalog.disabled.length })}</span>
                 : null}
               {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
               {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
@@ -263,13 +262,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         </span>
         {/* 列表级动作贴这一行的右端（.actions 自带 margin-left:auto）。 */}
         <span className={css.actions}>
-          <button
-            type='button'
-            className={css.button + (editMode ? ' ' + css.primary : '')}
-            aria-pressed={editMode}
-            title={tt('edit.hint')}
-            onClick={() => { setEditMode((value) => !value) }}
-          >{tt(editMode ? 'edit.done' : 'edit.start')}</button>
           <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button>
         </span>
       </div>
@@ -340,6 +332,15 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
               <button type='button' className={css.segBtn + (skillView === 'flat' ? ' ' + css.segBtnActive : '')} onClick={() => { setSkillView('flat') }}>{tt('view.flat')}</button>
               <button type='button' className={css.segBtn + (skillView === 'groups' ? ' ' + css.segBtnActive : '')} onClick={() => { setSkillView('groups') }}>{tt('view.grouped')}</button>
             </span>
+            {/* 「全部折叠」紧跟「分组」：只对分组视图有意义的批量动作，贴着它
+                作用的那个视图；平铺视图没有可折叠节点，按钮不出现。 */}
+            {skillView === 'groups' && groupView.collapsibleKeys.length > 0 ? (
+              <button
+                type='button'
+                className={css.opBtn}
+                onClick={() => { hub.setAllGroupsCollapsed(groupView.allCollapsed ? null : groupView.collapsibleKeys) }}
+              >{groupView.allCollapsed ? tt('groups.expandAll') : tt('groups.collapseAll')}</button>
+            ) : null}
             <select className={css.select} value={sortKey} onChange={(event) => { setSortKey(event.target.value as SortKey) }}>
               <option value='name'>{tt('sort.name')}</option>
               <option value='added'>{tt('sort.added')}</option>
@@ -390,7 +391,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             ? <div className={css.empty}>{tt('panel.emptyAll')}</div>
             : null}
 
-          <SourcesView hub={hub} />
+          <SourcesView hub={hub} view={groupView} />
 
           {sourcesState !== null && sourcesState.trash.length > 0 ? (
             <section className={css.section}>
@@ -462,9 +463,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         deleteSkillDialog={deleteSkillDialog}
         setDeleteSkillDialog={setDeleteSkillDialog}
         runDeleteSkill={runDeleteSkill}
-        deleteGroupDialog={deleteGroupDialog}
-        setDeleteGroupDialog={setDeleteGroupDialog}
-        runDeleteGroup={runDeleteGroup}
         confirmClearTrash={confirmClearTrash}
         setConfirmClearTrash={setConfirmClearTrash}
         clearTrash={clearTrash}

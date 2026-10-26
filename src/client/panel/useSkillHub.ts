@@ -46,7 +46,6 @@ export function useSkillHub(api: SkillHubApi) {
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set())
   /** 项目级三级树里已细分（按 .dsh/.agents）的项目键。 */
   const [subdividedProjects, setSubdividedProjects] = useState<ReadonlySet<string>>(new Set())
-  const [editMode, setEditMode] = useState(false)
 
   const toggleGroupCollapse = useCallback((key: string): void => {
     setCollapsedGroups((previous) => {
@@ -168,10 +167,10 @@ export function useSkillHub(api: SkillHubApi) {
     sourceCheck: sourceFlow.sourceCheck, checkingSource: sourceFlow.checkingSource,
     syncingSource: sourceFlow.syncingSource,
     conflictDialog: groupFlow.conflictDialog, confirmDialog: sourceFlow.confirmDialog,
-    deleteSkillDialog: sourceFlow.deleteSkillDialog, deleteGroupDialog: sourceFlow.deleteGroupDialog,
+    deleteSkillDialog: sourceFlow.deleteSkillDialog,
     confirmClearTrash: sourceFlow.confirmClearTrash, updateAllDialog: marketFlow.updateAllDialog,
     listBusy,
-    collapsedGroups, subdividedProjects, editMode,
+    collapsedGroups, subdividedProjects,
     versionDialog: marketFlow.versionDialog, versionBusy: marketFlow.versionBusy,
     // AGENTS.md 页（只读清单 + 排除目录）
     agents: agentsFlow.agents, agentsLoading: agentsFlow.agentsLoading,
@@ -192,9 +191,8 @@ export function useSkillHub(api: SkillHubApi) {
     setBranchChoice: marketFlow.setBranchChoice, setMarketSyncDialog: marketFlow.setMarketSyncDialog,
     setNewSourceName: marketFlow.setNewSourceName, setConflictDialog: groupFlow.setConflictDialog,
     setConfirmDialog: sourceFlow.setConfirmDialog,
-    setDeleteSkillDialog: sourceFlow.setDeleteSkillDialog, setDeleteGroupDialog: sourceFlow.setDeleteGroupDialog,
+    setDeleteSkillDialog: sourceFlow.setDeleteSkillDialog,
     setConfirmClearTrash: sourceFlow.setConfirmClearTrash, setUpdateAllDialog: marketFlow.setUpdateAllDialog,
-    setEditMode,
     setVersionDialog: marketFlow.setVersionDialog,
     toggleGroupCollapse, toggleSubdivide, setAllGroupsCollapsed, checkUpdate: meta.checkUpdate, loadMarket: marketFlow.loadMarket,
     openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle, enableDisabled: catalogFlow.enableDisabled,
@@ -208,8 +206,7 @@ export function useSkillHub(api: SkillHubApi) {
     invocationBusy: catalogFlow.invocationBusy, setInvocation: catalogFlow.setInvocation,
     clearListFilters: catalogFlow.clearListFilters, openVersionDialog: marketFlow.openVersionDialog,
     confirmVersionDialog: marketFlow.confirmVersionDialog, requestDeleteSkill: sourceFlow.requestDeleteSkill,
-    runDeleteSkill: sourceFlow.runDeleteSkill, requestDeleteGroup: sourceFlow.requestDeleteGroup,
-    runDeleteGroup: sourceFlow.runDeleteGroup,
+    runDeleteSkill: sourceFlow.runDeleteSkill,
     addSource: marketFlow.addSource, addMarketSource: marketFlow.addMarketSource,
     removeMarketSource: marketFlow.removeMarketSource, scanRepo: marketFlow.scanRepo,
     confirmBranchChoice: marketFlow.confirmBranchChoice, toggleRepoSelected: marketFlow.toggleRepoSelected,

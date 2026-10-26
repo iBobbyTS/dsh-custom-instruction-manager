@@ -1,6 +1,6 @@
 /**
  * useSourceFlow — 来源域：来源列表/更新检查/同步确认/跟进删除/回收站恢复/
- * 清空回收站，以及单个技能/整组的删除确认流。目录与分组的刷新经聚合根
+ * 清空回收站，以及单个技能的删除确认流。目录与分组的刷新经聚合根
  * 传入的 reload 回调，不直接碰其他域的 state。
  */
 
@@ -28,7 +28,6 @@ export function useSourceFlow(
   const [syncingSource, setSyncingSource] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const [deleteSkillDialog, setDeleteSkillDialog] = useState<string | null>(null)
-  const [deleteGroupDialog, setDeleteGroupDialog] = useState<{ name: string; skillNames: string[] } | null>(null)
   const [confirmClearTrash, setConfirmClearTrash] = useState(false)
 
   /** 加载来源记录 + 回收站。 */
@@ -125,44 +124,11 @@ export function useSourceFlow(
     }, () => shared.setListBusy(false))
   }, [api, deleteSkillDialog, reloadCatalog, reloadGroups, loadSources, shared])
 
-  /** 打开整组删除确认（来源分组一键删除）。 */
-  const requestDeleteGroup = useCallback((name: string, skillNames: string[]): void => {
-    setDeleteGroupDialog({ name, skillNames })
-  }, [])
-
-  /** 执行整组删除（逐个移入系统废纸篓，跳过只读）。 */
-  const runDeleteGroup = useCallback(async (): Promise<void> => {
-    const dialog = deleteGroupDialog
-    if (dialog === null) return
-    setDeleteGroupDialog(null)
-    shared.setListBusy(true)
-    shared.clearFail()
-    const failures: string[] = []
-    let done = 0
-    for (const name of dialog.skillNames) {
-      try {
-        await api.deleteSkill(name)
-        done += 1
-      } catch (error) {
-        // 只读/不存在的跳过并记录
-        failures.push(name + ': ' + errorMessage(error))
-      }
-    }
-    await Promise.all([reloadCatalog(), reloadGroups(), loadSources()])
-    shared.setListBusy(false)
-    if (failures.length > 0) {
-      shared.fail(`删除整组 "${dialog.name}"：成功 ${done} 个，失败 ${failures.length} 个：` + failures.join('; '))
-    } else if (done > 0) {
-      shared.succeed(`已删除整组 "${dialog.name}"：${done} 个技能已移入废纸篓`)
-    }
-  }, [api, deleteGroupDialog, reloadCatalog, reloadGroups, loadSources, shared])
-
   return {
     sourcesState, sourceCheck, checkingSource, syncingSource, confirmDialog,
-    deleteSkillDialog, deleteGroupDialog, confirmClearTrash,
-    setConfirmDialog, setDeleteSkillDialog, setDeleteGroupDialog, setConfirmClearTrash,
+    deleteSkillDialog, confirmClearTrash,
+    setConfirmDialog, setDeleteSkillDialog, setConfirmClearTrash,
     loadSources, checkSources, requestSync, requestDelete, runConfirmed,
     restoreTrash, clearTrash, requestDeleteSkill, runDeleteSkill,
-    requestDeleteGroup, runDeleteGroup,
   }
 }

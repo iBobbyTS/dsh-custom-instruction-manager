@@ -1,7 +1,7 @@
 /**
  * CollectionCard — 一个上游来源集合分组：组头（来源链接 + 成员数 + 用量
- * 汇总）、检查/同步/跟删徽章、三态开关、编辑态删除分组，以及展开后的
- * 启用行与禁用行。数据与动作均由 SourcesView 传入；顺序由集合名决定。
+ * 汇总）、检查/同步/跟删徽章、三态开关，以及展开后的启用行与禁用行。
+ * 数据与动作均由 SourcesView 传入；顺序由集合名决定。
  */
 
 import type { JSX } from 'react'
@@ -30,8 +30,6 @@ export interface CollectionCardProps {
   check: SourceCheckResult | undefined
   /** 组内至少一个成员可写（三态开关可点）。 */
   hasWritable: boolean
-  /** 编辑模式（显示删除分组）。 */
-  editMode: boolean
   /** 正在检查的来源名。 */
   checkingSource: string | null
   /** 正在同步的来源名。 */
@@ -45,16 +43,15 @@ export interface CollectionCardProps {
   requestSync: SkillHubState['requestSync']
   requestDelete: SkillHubState['requestDelete']
   toggleGroup: SkillHubState['toggleGroup']
-  requestDeleteGroup: SkillHubState['requestDeleteGroup']
   enableDisabled: SkillHubState['enableDisabled']
   openDetail: SkillHubState['openDetail']
 }
 
 export function CollectionCard(props: CollectionCardProps): JSX.Element {
   const {
-    collection, skills, disabledMembers, collapsed, view, check, hasWritable, editMode,
+    collection, skills, disabledMembers, collapsed, view, check, hasWritable,
     checkingSource, syncingSource, batchBusy, rowProps,
-    toggleGroupCollapse, checkSources, requestSync, requestDelete, toggleGroup, requestDeleteGroup, enableDisabled, openDetail,
+    toggleGroupCollapse, checkSources, requestSync, requestDelete, toggleGroup, enableDisabled, openDetail,
   } = props
   const { busyNames, duplicateNames, uses, hubConfig } = rowProps
   return (
@@ -90,14 +87,6 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
             hasWritable={hasWritable}
             onToggle={() => { toggleGroup('col:' + collection.name, collection.name, view.state) }}
           />
-          {editMode ? <button
-            type='button'
-            className={css.opBtn + ' ' + css.opDanger}
-            title={tt('source.deleteGroupHint', { count: collection.skillNames.length })}
-            onClick={(event) => { event.stopPropagation(); requestDeleteGroup(collection.name, collection.skillNames) }}
-          >
-            {tt('source.deleteGroup')}
-          </button> : null}
         </span>
       </div>
       {!collapsed ? (
