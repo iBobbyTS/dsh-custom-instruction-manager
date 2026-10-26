@@ -163,8 +163,8 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
           </div>
         </div>
       ) : null}
-      <TokenTable state={tokens} />
       <pre className={css.detailContent}>{detail.content}</pre>
+      <TokenTable state={tokens} />
     </div>
   )
 }

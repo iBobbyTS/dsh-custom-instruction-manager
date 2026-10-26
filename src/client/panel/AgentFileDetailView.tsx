@@ -58,7 +58,6 @@ export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.
         {detail !== undefined ? <div className={css.detailMetaLine}>{tt('agents.size')}: {formatBytes(detail.size)}</div> : null}
         {detail !== undefined ? <div className={css.detailMetaLine}>{tt('agents.modifiedAt')}: {formatDateTime(detail.modifiedAt)}</div> : null}
       </div>
-      <TokenTable state={tokens} />
       {error !== undefined
         ? <div className={css.errorBanner}>{tt('agents.readError', { error })}</div>
         : detail !== undefined
@@ -66,6 +65,7 @@ export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.
           : loading
             ? <p className={css.empty}>{tt('agents.reading')}</p>
             : null}
+      <TokenTable state={tokens} />
     </div>
   )
 }
