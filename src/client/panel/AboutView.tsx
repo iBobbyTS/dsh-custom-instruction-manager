@@ -9,7 +9,7 @@ import { tt } from '../helpers.ts'
 import css from './panel.module.css'
 
 /** 本插件的仓库地址（package.json 的 repository/homepage）。 */
-const REPO_URL = 'https://github.com/iBobbyTS/dsh-skill-hub'
+const REPO_URL = 'https://github.com/iBobbyTS/dsh-custom-instruction-manager'
 
 export interface AboutViewProps {
   /** 插件版本；目录还没读到时为 null。 */
@@ -31,14 +31,13 @@ export function AboutView(props: AboutViewProps): JSX.Element {
   return (
     <section className={css.about} aria-labelledby='hub-about-title'>
       <h2 className={css.aboutTitle} id='hub-about-title'>{tt('about.title')}</h2>
-      <p className={css.aboutLead}>{tt('about.lead')}</p>
       <div className={css.aboutCard}>
         <div className={css.aboutRow}>
           <span className={css.aboutRowText}>
             <span className={css.aboutRowTitle}>{tt('about.plugin')}</span>
           </span>
           <span className={css.aboutControl}>
-            <span className={css.aboutValue}>dsh-skill-hub</span>
+            <span className={css.aboutValue}>{tt('about.pluginName')}</span>
             <a className={css.aboutLink} href={REPO_URL} target='_blank' rel='noreferrer'>GitHub</a>
           </span>
         </div>

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Custom Instruction Manager",
+    "description": "GUI manager for DeepSeek Harness AGENTS.md instructions and the full skill catalog: browse, edit, toggle, install, and count tokens."
+  }
+}

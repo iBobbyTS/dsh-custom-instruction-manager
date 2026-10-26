@@ -1,7 +1,8 @@
 {
   "name": "dsh-skill-hub",
   "version": "0.3.26",
-  "description": "In-GUI skill hub for DeepSeek Harness (dsh): browse the full local skill catalog from the official ctx.skills registry (every root + third-party providers), toggle skills on/off, inspect bodies, surface frontmatter diagnostics, and scaffold new skills — plus a codex-style skill market (built-in catalog, upstream update checks, one-click update-all) with tracked source sync. The full manager beyond the read-only dsh-skill-manager browser.",
+  "description": "GUI manager for DeepSeek Harness AGENTS.md instructions and the full skill catalog: edit instruction files, toggle/inspect skills, install from the market, and count tokens.",
+  "icon": "./icon.svg",
   "type": "module",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
@@ -22,7 +23,8 @@
       "default": "./lib/client.js"
     },
     "./src/*": "./src/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "dsh": {
     "bundle": {
@@ -153,6 +155,8 @@
     "lib/**/*.d.ts.map",
     "src",
     "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
     "README.md",
     "README.zh.md",
     "LICENSE",
@@ -182,10 +186,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/iBobbyTS/dsh-skill-hub.git"
+    "url": "git+https://github.com/iBobbyTS/dsh-custom-instruction-manager.git"
   },
   "bugs": {
-    "url": "https://github.com/iBobbyTS/dsh-skill-hub/issues"
+    "url": "https://github.com/iBobbyTS/dsh-custom-instruction-manager/issues"
   },
-  "homepage": "https://github.com/iBobbyTS/dsh-skill-hub"
+  "homepage": "https://github.com/iBobbyTS/dsh-custom-instruction-manager"
 }
