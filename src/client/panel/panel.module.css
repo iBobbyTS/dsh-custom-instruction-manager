@@ -488,10 +488,11 @@
 .tokenNum { text-align: right; font-family: var(--hub-mono); color: var(--hub-text); }
 .tokenFailed { color: var(--hub-danger); }
 .tokenEmpty { color: var(--hub-text-3); }
-/* 「管理模型」那一行：表格最后一行，按钮做成文字按钮，不加底色。 */
-.tokenManageRow td { padding-top: 8px; }
-.tokenManageButton { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--hub-text-2); font: inherit; font-size: 12px; line-height: 18px; cursor: pointer; }
-.tokenManageButton:hover { color: var(--hub-text); text-decoration: underline; }
+/* 「管理模型」那一行：表格最后一行，按钮复用 .opBtn 的几何与悬停态，
+   只加一圈发丝边和更小的字号，让它看起来是按钮而不是一行普通文字。 */
+.tokenManageRow td { padding-top: 10px; }
+.tokenManageButton { height: 26px; padding: 0 8px; gap: 4px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-sm, 8px); font-size: 12px; line-height: 18px; }
+.tokenManageButton:hover { border-color: var(--hub-text-3); }
 /* 展开/收起指示：展开时转半圈，跟行菜单那套 .15s 过渡保持一致。 */
 .tokenManageChevron { flex: none; color: var(--hub-text-3); transition: transform .15s ease; }
 .tokenManageChevronOpen { transform: rotate(180deg); }
@@ -503,9 +504,6 @@
 .tokenModelName { color: var(--hub-text); }
 .tokenModelMeta { color: var(--hub-text-3); }
 .tokenManageError { font-size: 11px; line-height: 16px; color: var(--hub-danger); }
-/* 展开时垫在末尾的空白：让"把第一个模型滚到中间"真的可达，
-   否则内容到底后滚动会被截断，模型只能停在靠下的位置。 */
-.tokenCenterSpacer { height: 42vh; }
 
 .invocationCard { display: flex; flex-direction: column; gap: 6px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); padding: 12px 16px; }
 .invocationHead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }

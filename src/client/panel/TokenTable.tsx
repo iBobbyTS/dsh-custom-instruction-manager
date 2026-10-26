@@ -122,7 +122,7 @@ export function TokenTable(props: TokenTableProps): JSX.Element {
             <td colSpan={2}>
               <button
                 type='button'
-                className={css.tokenManageButton}
+                className={css.opBtn + ' ' + css.tokenManageButton}
                 aria-expanded={open}
                 onClick={() => { setOpen((value) => !value) }}
               >
@@ -144,10 +144,6 @@ export function TokenTable(props: TokenTableProps): JSX.Element {
           : null}
         {open && models === null ? <div className={css.tokenModelMeta}>{tt('tokens.loadingModels')}</div> : null}
       </div>
-      {/* 表格在页面最底部时，光靠滚动条没有空间把第一个模型推到视口中间（会被
-          内容末尾卡住）。展开期间垫一段空白，收起即消失；它只影响可滚动范围，
-          不是内容。 */}
-      {open ? <div className={css.tokenCenterSpacer} aria-hidden='true' /> : null}
     </section>
   )
 }
