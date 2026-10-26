@@ -7,8 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hostTrustFence, makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { lastMarketCheck } from './routes/route-state.ts'
 import { SkillHubStore, statePath } from './store.ts'
-import { SKILL_HUB_API, SKILL_HUB_API_ROOT, TOKEN_MODELS, type AgentsResponse, type CatalogResponse, type InstructionFileResponse, type InstructionFileRef, type ConfigResponse, type ErrorResponse, type HubConfig, type TokenCountResponse } from './protocol.ts'
+import { SKILL_HUB_API, SKILL_HUB_API_ROOT, TOKEN_MODELS, type AgentsResponse, type CatalogResponse, type InstructionFileResponse, type InstructionFileRef, type ConfigResponse, type ErrorResponse, type HubConfig, type TokenCountResponse, type TokenModelsResponse, type TokenSelectResponse } from './protocol.ts'
 import { resetTokenizers } from './tokens.ts'
+import { existsSync } from 'node:fs'
 
 /** Minimal response double recording status/headers/body. */
 class FakeResponse {
@@ -1852,7 +1853,7 @@ describe('token count route', () => {
     expect(res.status).toBe(200)
     const body = res.json() as TokenCountResponse
     expect(body.ok).toBe(true)
-    expect(body.entries.map((entry) => entry.id)).toEqual(TOKEN_MODELS.map((model) => model.id))
+    expect(body.entries.map((entry) => entry.id)).toEqual(TOKEN_MODELS.filter((model) => model.preset).map((model) => model.id))
     expect(body.entries.every((entry) => entry.tokens === 2)).toBe(true)
   })
 
@@ -1874,5 +1875,73 @@ describe('token count route', () => {
     const res = new FakeResponse()
     await route().handler(fakeReq('GET', SKILL_HUB_API.tokens), res as never)
     expect(res.status).toBe(405)
+  })
+
+  function modelsRoute() {
+    const found = makeRoutes(deps).find((candidate) => candidate.path === SKILL_HUB_API.tokensModels)
+    if (found === undefined) throw new Error('token models route not registered')
+    return found
+  }
+
+  function selectRoute() {
+    const found = makeRoutes(deps).find((candidate) => candidate.path === SKILL_HUB_API.tokensSelect)
+    if (found === undefined) throw new Error('token select route not registered')
+    return found
+  }
+
+  it('lists every model with the preset set selected and nothing installed yet', async () => {
+    const res = new FakeResponse()
+    await modelsRoute().handler(fakeReq('GET', SKILL_HUB_API.tokensModels), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as TokenModelsResponse
+    expect(body.models.map((model) => model.id)).toEqual(TOKEN_MODELS.map((model) => model.id))
+    expect(body.models.filter((model) => model.selected).map((model) => model.id)).toEqual(TOKEN_MODELS.filter((model) => model.preset).map((model) => model.id))
+    expect(body.models.every((model) => !model.installed)).toBe(true)
+  })
+
+  it('selecting a model downloads its vocabulary and records the choice', async () => {
+    const res = new FakeResponse()
+    await selectRoute().handler(fakeReq('POST', SKILL_HUB_API.tokensSelect, { id: 'kimi-k3', selected: true }), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as TokenSelectResponse
+    const kimi = body.models.find((model) => model.id === 'kimi-k3')
+    expect(kimi).toMatchObject({ selected: true, installed: true })
+    // 选择落盘：另一个 deps 实例读到的还是这个集合
+    expect(await deps.store.getTokenModels()).toEqual([...TOKEN_MODELS.filter((model) => model.preset).map((model) => model.id), 'kimi-k3'])
+
+    // 词表真的在盘上
+    const file = join(deps.tokenCacheDir ?? '', TOKEN_MODELS.find((model) => model.id === 'kimi-k3')?.repo.replaceAll('/', '__') + '@' + TOKEN_MODELS.find((model) => model.id === 'kimi-k3')?.revision.slice(0, 12) + '.json')
+    expect(existsSync(file)).toBe(true)
+  })
+
+  it('the count route only counts the selected models', async () => {
+    const res = new FakeResponse()
+    await route().handler(fakeReq('POST', SKILL_HUB_API.tokens, { text: 'hello world' }), res as never)
+    expect((res.json() as TokenCountResponse).entries.map((entry) => entry.id)).toEqual(TOKEN_MODELS.filter((model) => model.preset).map((model) => model.id))
+
+    await selectRoute().handler(fakeReq('POST', SKILL_HUB_API.tokensSelect, { id: 'kimi-k3', selected: true }), new FakeResponse() as never)
+    const withKimi = new FakeResponse()
+    await route().handler(fakeReq('POST', SKILL_HUB_API.tokens, { text: 'hello world' }), withKimi as never)
+    expect((withKimi.json() as TokenCountResponse).entries.map((entry) => entry.id)).toContain('kimi-k3')
+  })
+
+  it('deselecting a model deletes its vocabulary and drops it from the counts', async () => {
+    await selectRoute().handler(fakeReq('POST', SKILL_HUB_API.tokensSelect, { id: 'kimi-k3', selected: true }), new FakeResponse() as never)
+    const res = new FakeResponse()
+    await selectRoute().handler(fakeReq('POST', SKILL_HUB_API.tokensSelect, { id: 'kimi-k3', selected: false }), res as never)
+    const kimi = (res.json() as TokenSelectResponse).models.find((model) => model.id === 'kimi-k3')
+    expect(kimi).toMatchObject({ selected: false, installed: false })
+    expect(await deps.store.getTokenModels()).toEqual(TOKEN_MODELS.filter((model) => model.preset).map((model) => model.id))
+
+    const count = new FakeResponse()
+    await route().handler(fakeReq('POST', SKILL_HUB_API.tokens, { text: 'hello' }), count as never)
+    expect((count.json() as TokenCountResponse).entries.map((entry) => entry.id)).not.toContain('kimi-k3')
+  })
+
+  it('rejects an unknown model id', async () => {
+    const res = new FakeResponse()
+    await selectRoute().handler(fakeReq('POST', SKILL_HUB_API.tokensSelect, { id: 'ghost', selected: true }), res as never)
+    expect(res.status).toBe(400)
+    expect((res.json() as ErrorResponse).error).toContain('unknown token model')
   })
 })

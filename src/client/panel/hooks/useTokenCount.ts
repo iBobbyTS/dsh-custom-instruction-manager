@@ -27,9 +27,11 @@ export type TokenCountState =
  * @param api - panel 的 API 客户端。
  * @param text - 被计数的文件原文；`undefined` 表示正文还没到（详情页先渲染
  *   标题与元数据，正文随后到），此时不发请求。
+ * @param revision - 额外的重算信号：用户在「管理模型」里改了选中集合，原文没变
+ *   但行变了，靠这个自增值再数一次。
  * @returns 当前这次计数的状态。
  */
-export function useTokenCount(api: SkillHubApi, text: string | undefined): TokenCountState {
+export function useTokenCount(api: SkillHubApi, text: string | undefined, revision = 0): TokenCountState {
   const [state, setState] = useState<TokenCountState>({ status: 'idle' })
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export function useTokenCount(api: SkillHubApi, text: string | undefined): Token
       .then((entries) => { if (!cancelled) setState({ status: 'ready', entries }) })
       .catch((error: unknown) => { if (!cancelled) setState({ status: 'failed', error: errorMessage(error) }) })
     return () => { cancelled = true }
-  }, [api, text])
+  }, [api, text, revision])
 
   return state
 }

@@ -51,6 +51,10 @@ import {
   type TokenCountEntry,
   type TokenCountRequest,
   type TokenCountResponse,
+  type TokenModelState,
+  type TokenModelsResponse,
+  type TokenSelectRequest,
+  type TokenSelectResponse,
   type ToggleBatchRequest,
   type ToggleBatchResponse,
   type ToggleRequest,
@@ -300,6 +304,23 @@ export class SkillHubApi {
     const request: TokenCountRequest = { text }
     const body = await this.post<TokenCountResponse>(SKILL_HUB_API.tokens, request, 150_000)
     return body.entries
+  }
+
+  /** 可选 token 模型（含选中与已下载状态）——「管理模型」的数据源。 */
+  async tokenModels(): Promise<TokenModelState[]> {
+    const body = await this.get<TokenModelsResponse>(SKILL_HUB_API.tokensModels)
+    return body.models
+  }
+
+  /**
+   * 勾选/取消一个模型：勾选会先下载词表（19 MB 级），取消则删掉那份文件。
+   * 超时同样给到 150s——首次下载 6 MB / 19 MB。
+   * @returns 改完之后的完整模型列表。
+   */
+  async selectTokenModel(id: string, selected: boolean): Promise<TokenModelState[]> {
+    const request: TokenSelectRequest = { id, selected }
+    const body = await this.post<TokenSelectResponse>(SKILL_HUB_API.tokensSelect, request, 150_000)
+    return body.models
   }
 
   /** 系统集合组 + origin 映射。 */

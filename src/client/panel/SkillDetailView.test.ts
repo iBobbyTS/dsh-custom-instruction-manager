@@ -22,7 +22,7 @@ const detail: SkillDetail = {
   content: '# Demo body',
 }
 
-function render(sources: SourcesResponse | null, tokens: SkillDetailViewProps['tokens'] = { status: 'idle' }): string {
+function render(sources: SourcesResponse | null, state: SkillDetailViewProps['tokenTable']['state'] = { status: 'idle' }): string {
   const props: SkillDetailViewProps = {
     detail,
     hubConfig: null,
@@ -32,7 +32,7 @@ function render(sources: SourcesResponse | null, tokens: SkillDetailViewProps['t
     checkingSource: null,
     syncingSource: null,
     invocationBusy: false,
-    tokens,
+    tokenTable: { state, models: null, busyModel: null, onSelectModel: () => {} },
     onInvocationChange: () => {},
     onBack: () => {},
     onCheck: () => {},

@@ -1,25 +1,34 @@
 /**
- * Token 统计表：模型 / Tokens。
+ * Token 统计表：模型 / Tokens，最后一行是「管理模型」。
  *
- * 行来自协议层的 TOKEN_MODELS，而不是上一次响应：计数还没回来时表格已经
- * 是完整的两行（Tokens 列显示 `-`），不会先空着再突然长出内容，也不会因为
- * 某个模型失败而少一行。数字由宿主用真 tokenizer 现算——不是字符数/字节
- * 数估算。
+ * 行的来源是宿主的选中集合（`models`），不是协议常量的全集：Kimi K3 默认不选，
+ * 勾上才会出现在表格里。服务器列表还没回来时先按协议层的默认集合画行，避免
+ * 打开详情页先空一下再跳。
  *
  * 没有状态列：没数出来就是 `-`；失败的那一行用红色，原因由 title 带出。
- * 计数中与失败在视觉上是两回事，但都不占一列版面。
+ * 「管理模型」展开后是原生 checkbox 列表（dsh 没有给插件用的多选组件），
+ * 勾选即下载、取消即删除词表——由宿主执行，这里只发起与回填。
  *
- * 纯展示：状态与数字都由 useTokenCount 给，这里不自己发请求。
+ * 纯展示：数据与动作都由 useTokenCount / useTokenModels 给。
  */
 
-import type { JSX } from 'react'
-import { TOKEN_MODELS } from '../../protocol.ts'
+import { useState, type JSX } from 'react'
+import { TOKEN_MODELS, type TokenModelState } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import css from './panel.module.css'
 import type { TokenCountState } from './hooks/useTokenCount.ts'
+import { TokenModelPicker } from './TokenModelPicker.tsx'
 
 export interface TokenTableProps {
   state: TokenCountState
+  /** 宿主返回的可选模型（含选中状态）；`null` = 还没拿到。 */
+  models: TokenModelState[] | null
+  /** 正在下载/删除的模型 id。 */
+  busyModel: string | null
+  /** 勾选/取消一个模型。 */
+  onSelectModel: (id: string, selected: boolean) => void
+  /** 「管理模型」最近一次失败的原因。 */
+  modelError?: string
 }
 
 /** 一行的 Tokens 格：数字，或没数出来时的 `-`。 */
@@ -29,7 +38,13 @@ interface Cell {
   error?: string
 }
 
-export function TokenTable({ state }: TokenTableProps): JSX.Element {
+/** 默认集合（协议层标记 preset 的模型），用于模型列表到达之前的占位行。 */
+const DEFAULT_ROWS = TOKEN_MODELS.filter((model) => model.preset).map((model) => ({ id: model.id, label: model.label }))
+
+export function TokenTable(props: TokenTableProps): JSX.Element {
+  const { state, models, busyModel, onSelectModel, modelError } = props
+  const [open, setOpen] = useState(false)
+
   const cellOf = (modelId: string): Cell => {
     if (state.status !== 'ready') {
       // idle / loading / 整个请求失败：这个模型的数字都还没有。
@@ -39,6 +54,10 @@ export function TokenTable({ state }: TokenTableProps): JSX.Element {
     if (entry?.tokens === undefined) return { text: '-', error: entry?.error }
     return { text: entry.tokens.toLocaleString() }
   }
+
+  const rows = models === null
+    ? DEFAULT_ROWS
+    : models.filter((model) => model.selected).map((model) => ({ id: model.id, label: model.label }))
 
   return (
     <section className={css.tokenBlock} aria-label={tt('tokens.title')} aria-busy={state.status === 'loading'}>
@@ -53,22 +72,46 @@ export function TokenTable({ state }: TokenTableProps): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {TOKEN_MODELS.map((model) => {
-            const cell = cellOf(model.id)
-            return (
-              <tr key={model.id}>
-                <td>{model.label}</td>
-                <td
-                  className={css.tokenNum + (cell.error !== undefined ? ' ' + css.tokenFailed : '')}
-                  title={cell.error}
-                >
-                  {cell.text}
-                </td>
+          {rows.length === 0
+            ? (
+              <tr>
+                <td colSpan={2} className={css.tokenEmpty}>{tt('tokens.none')}</td>
               </tr>
             )
-          })}
+            : rows.map((row) => {
+              const cell = cellOf(row.id)
+              return (
+                <tr key={row.id}>
+                  <td>{row.label}</td>
+                  <td
+                    className={css.tokenNum + (cell.error !== undefined ? ' ' + css.tokenFailed : '')}
+                    title={cell.error}
+                  >
+                    {cell.text}
+                  </td>
+                </tr>
+              )
+            })}
+          <tr className={css.tokenManageRow}>
+            <td colSpan={2}>
+              <button
+                type='button'
+                className={css.tokenManageButton}
+                aria-expanded={open}
+                onClick={() => { setOpen((value) => !value) }}
+              >
+                {tt('tokens.manage')}
+              </button>
+            </td>
+          </tr>
         </tbody>
       </table>
+      {/* 展开后的多选放在表格外面：塞进单元格会把整张表的列宽撑开，
+          点一下表头就跳。放在下面既贴着「管理模型」那一行，又不影响列宽。 */}
+      {open && models !== null
+        ? <TokenModelPicker models={models} busyModel={busyModel} onSelect={onSelectModel} error={modelError} />
+        : null}
+      {open && models === null ? <div className={css.tokenModelMeta}>{tt('tokens.loadingModels')}</div> : null}
     </section>
   )
 }

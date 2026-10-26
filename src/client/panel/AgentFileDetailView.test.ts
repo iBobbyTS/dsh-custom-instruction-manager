@@ -8,6 +8,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { AgentFileDetailView, type AgentFileDetailViewProps } from './AgentFileDetailView.tsx'
 
+/** 详情页只关心 token 表被传进来了，模型列表的具体形状由 TokenTable 的测试覆盖。 */
+function tokenTable(extra: Partial<AgentFileDetailViewProps['tokenTable']> = {}): AgentFileDetailViewProps['tokenTable'] {
+  return { state: { status: 'idle' }, models: null, busyModel: null, onSelectModel: () => {}, ...extra }
+}
+
 const file = {
   name: 'AGENTS.md',
   path: 'lmdo-website/docs',
@@ -19,7 +24,7 @@ function render(extra: Partial<AgentFileDetailViewProps> = {}): string {
     file,
     scope: 'lmdo-website',
     loading: false,
-    tokens: { status: 'idle' },
+    tokenTable: tokenTable(),
     onBack: () => {},
     ...extra,
   }
@@ -39,7 +44,7 @@ describe('instruction file detail', () => {
   it('carries the token table with the counts it was given', () => {
     const html = render({
       detail: { ...file, size: 7, modifiedAt: 1792900000000, content: '# docs\n' },
-      tokens: { status: 'ready', entries: [{ id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', tokens: 1234 }] },
+      tokenTable: tokenTable({ state: { status: 'ready', entries: [{ id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', tokens: 1234 }] } }),
     })
     expect(html).toContain('DeepSeek V4.1 Flash')
     expect(html).toContain('1,234')

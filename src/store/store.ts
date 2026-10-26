@@ -15,6 +15,8 @@ export class SkillHubStore {
   private trashByPath = new Map<string, TrashEntry>()
   private skillStats: SkillStatsCheckpoint | undefined = undefined
   private marketStats: MarketStatsSnapshot | undefined = undefined
+  /** 选中的 token 计数模型；undefined = 从未保存（协议层默认集合）。 */
+  private tokenModels: string[] | undefined = undefined
   private loaded = false
   /** Serializes persist runs: concurrent mutators must not let an earlier
    *  snapshot overwrite a later one (rename is atomic, ordering is not). */
@@ -41,6 +43,7 @@ export class SkillHubStore {
         this.trashByPath = state.trashByPath
         this.skillStats = state.skillStats
         this.marketStats = state.marketStats
+        this.tokenModels = state.tokenModels
         // A file from an older schema is rewritten at the current version once
         // on load, so a dropped field (v4 scenes / trash tagIds) really leaves
         // the disk instead of lingering until the next unrelated mutation.
@@ -305,6 +308,21 @@ export class SkillHubStore {
     await this.persist()
   }
 
+  /** 选中的 token 计数模型（`undefined` = 从未保存，调用方回落到默认集合）。 */
+  async getTokenModels(): Promise<string[] | undefined> {
+    await this.ensureLoaded()
+    return this.tokenModels === undefined ? undefined : [...this.tokenModels]
+  }
+
+  /** 保存选中集合（空数组合法：用户一个模型都不选）。 */
+  async setTokenModels(ids: string[]): Promise<void> {
+    await this.ensureLoaded()
+    const next = [...new Set(ids)]
+    if (this.tokenModels !== undefined && next.length === this.tokenModels.length && next.every((id, index) => id === this.tokenModels?.[index])) return
+    this.tokenModels = next
+    await this.persist()
+  }
+
   // ---------------------------------------------------------------- trash
 
   /** All trashed skills, newest first. */
@@ -399,6 +417,7 @@ export class SkillHubStore {
         ...(this.trashByPath.size > 0 ? { trash: [...this.trashByPath.values()] } : {}),
         ...(this.skillStats !== undefined ? { skillStats: this.skillStats } : {}),
         ...(this.marketStats !== undefined ? { marketStats: this.marketStats } : {}),
+        ...(this.tokenModels !== undefined ? { tokenModels: [...this.tokenModels] } : {}),
       }
       const tmp = this.file + '.tmp'
       await mkdir(dirname(this.file), { recursive: true })

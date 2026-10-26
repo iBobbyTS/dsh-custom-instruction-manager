@@ -10,9 +10,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { InstructionFileDetail, InstructionFileRef } from '../../protocol.ts'
 import { copyTextToClipboard, tt } from '../helpers.ts'
 import { formatBytes, formatDateTime } from './format.ts'
-import type { TokenCountState } from './hooks/useTokenCount.ts'
 import css from './panel.module.css'
-import { TokenTable } from './TokenTable.tsx'
+import { TokenTable, type TokenTableProps } from './TokenTable.tsx'
 
 export interface AgentFileDetailViewProps {
   /** 列表行（打开时立刻可用，正文尚未到达时用它渲染标题与路径）。 */
@@ -22,13 +21,13 @@ export interface AgentFileDetailViewProps {
   detail?: InstructionFileDetail
   loading: boolean
   error?: string
-  /** Token 统计（正文到达后由 useTokenCount 异步算）。 */
-  tokens: TokenCountState
+  /** Token 统计表（计数状态 + 可选模型，正文到达后异步算）。 */
+  tokenTable: TokenTableProps
   onBack: () => void
 }
 
 export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.Element {
-  const { file, scope, detail, loading, error, tokens, onBack } = props
+  const { file, scope, detail, loading, error, tokenTable, onBack } = props
   const [copied, setCopied] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => () => { window.clearTimeout(timer.current) }, [])
@@ -65,7 +64,7 @@ export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.
           : loading
             ? <p className={css.empty}>{tt('agents.reading')}</p>
             : null}
-      <TokenTable state={tokens} />
+      <TokenTable {...tokenTable} />
     </div>
   )
 }

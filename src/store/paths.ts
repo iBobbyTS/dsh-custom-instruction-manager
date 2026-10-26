@@ -18,6 +18,8 @@ export interface StoreFile {
   skillStats?: SkillStatsCheckpoint
   /** Market-stats snapshot (stars/downloads per repo, hourly TTL). */
   marketStats?: MarketStatsSnapshot
+  /** 选中的 token 计数模型 id（缺省 = 用协议层的默认集合；空数组 = 一个都不选）。 */
+  tokenModels?: string[]
 }
 
 /** Resolve the DSH home directory (the filesystem provider's user-dsh root base). */

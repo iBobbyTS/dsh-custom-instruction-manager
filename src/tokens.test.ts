@@ -12,8 +12,8 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { TOKEN_MODELS } from './protocol.ts'
-import { countTokens, resetTokenizers, tokenCacheDir, tokenizerUrl } from './tokens.ts'
+import { DEFAULT_TOKEN_MODEL_IDS, resolveTokenSelection, TOKEN_MODELS } from './protocol.ts'
+import { countTokens, installModel, modelStates, removeModel, resetTokenizers, tokenCacheDir, tokenizerUrl } from './tokens.ts'
 
 /** 最小可用 tokenizer.json：空白切分 + 三词词表，数出来就是词数。 */
 const FIXTURE = {
@@ -61,11 +61,12 @@ describe('token counting', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('returns one entry per protocol model, in order, with real token counts', async () => {
+  it('returns one entry per default model, in order, with real token counts', async () => {
     const fetch = fakeFetch()
     const entries = await countTokens('hello world', { dir: cacheDir, fetch: fetch.impl })
-    expect(entries.map((entry) => entry.id)).toEqual(TOKEN_MODELS.map((model) => model.id))
-    expect(entries.map((entry) => entry.label)).toEqual(TOKEN_MODELS.map((model) => model.label))
+    const defaults = TOKEN_MODELS.filter((model) => model.preset)
+    expect(entries.map((entry) => entry.id)).toEqual(defaults.map((model) => model.id))
+    expect(entries.map((entry) => entry.label)).toEqual(defaults.map((model) => model.label))
     expect(entries.every((entry) => entry.tokens === 2 && entry.error === undefined)).toBe(true)
   })
 
@@ -79,8 +80,9 @@ describe('token counting', () => {
     const fetch = fakeFetch()
     await countTokens('hello', { dir: cacheDir, fetch: fetch.impl })
     await countTokens('hello world', { dir: cacheDir, fetch: fetch.impl })
-    expect(fetch.calls).toHaveLength(TOKEN_MODELS.length)
-    expect(fetch.calls.sort()).toEqual(TOKEN_MODELS.map((model) => tokenizerUrl(model)).sort())
+    const defaults = TOKEN_MODELS.filter((model) => model.preset)
+    expect(fetch.calls).toHaveLength(defaults.length)
+    expect(fetch.calls.sort()).toEqual(defaults.map((model) => tokenizerUrl(model)).sort())
   })
 
   it('shares one download between concurrent counts of the same vocabulary', async () => {
@@ -89,7 +91,7 @@ describe('token counting', () => {
       countTokens('hello', { dir: cacheDir, fetch: fetch.impl }),
       countTokens('world', { dir: cacheDir, fetch: fetch.impl }),
     ])
-    expect(fetch.calls).toHaveLength(TOKEN_MODELS.length)
+    expect(fetch.calls).toHaveLength(TOKEN_MODELS.filter((model) => model.preset).length)
     expect(first.every((entry) => entry.tokens === 1)).toBe(true)
     expect(second.every((entry) => entry.tokens === 1)).toBe(true)
   })
@@ -102,7 +104,7 @@ describe('token counting', () => {
     expect(entries.every((entry) => entry.tokens === 2)).toBe(true)
     expect(offline.calls).toHaveLength(0)
     // 缓存落在插件数据目录的 tokenizer/ 下，文件名固定，一个模型一份。
-    expect((await readdir(cacheDir)).sort()).toEqual(TOKEN_MODELS.map((model) => model.repo.replaceAll('/', '__') + '@' + model.revision.slice(0, 12) + '.json').sort())
+    expect((await readdir(cacheDir)).sort()).toEqual(TOKEN_MODELS.filter((model) => model.preset).map((model) => model.repo.replaceAll('/', '__') + '@' + model.revision.slice(0, 12) + '.json').sort())
   })
 
   it('replaces a corrupt cache file instead of failing', async () => {
@@ -141,5 +143,70 @@ describe('token counting', () => {
 
   it('defaults the cache directory to the plugin data dir', () => {
     expect(tokenCacheDir('/tmp/example-home')).toBe(join('/tmp/example-home', 'plugin', 'data', 'custom-instruction-manager', 'tokenizer'))
+  })
+})
+
+describe('token model selection', () => {
+  let dir: string
+  let cacheDir: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-token-selection-'))
+    cacheDir = join(dir, 'tokenizer')
+    resetTokenizers()
+  })
+
+  afterEach(async () => {
+    resetTokenizers()
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('defaults to the preset models and treats a saved empty list as "none"', () => {
+    expect(resolveTokenSelection(undefined)).toEqual([...DEFAULT_TOKEN_MODEL_IDS])
+    expect(resolveTokenSelection([])).toEqual([])
+    // 未知 id（模型下线）丢掉，顺序按协议层而不是保存顺序
+    expect(resolveTokenSelection(['kimi-k3', 'ghost-model', 'glm-5.3'])).toEqual(['glm-5.3', 'kimi-k3'])
+  })
+
+  it('counts only the selected models', async () => {
+    const fetch = fakeFetch()
+    const all = await countTokens('hello world', { dir: cacheDir, fetch: fetch.impl, models: TOKEN_MODELS.map((model) => model.id) })
+    expect(all.map((entry) => entry.id)).toEqual(TOKEN_MODELS.map((model) => model.id))
+
+    resetTokenizers()
+    const onlyKimi = await countTokens('hello world', { dir: cacheDir, fetch: fetch.impl, models: ['kimi-k3'] })
+    expect(onlyKimi.map((entry) => entry.id)).toEqual(['kimi-k3'])
+    expect(onlyKimi[0].tokens).toBe(2)
+
+    const none = await countTokens('hello world', { dir: cacheDir, fetch: fetch.impl, models: [] })
+    expect(none).toEqual([])
+  })
+
+  it('marks a model installed only after its vocabulary is on disk', async () => {
+    const fetch = fakeFetch()
+    const before = modelStates([...DEFAULT_TOKEN_MODEL_IDS], cacheDir)
+    expect(before.every((model) => !model.installed)).toBe(true)
+
+    await installModel('kimi-k3', { dir: cacheDir, fetch: fetch.impl })
+    const after = modelStates([...DEFAULT_TOKEN_MODEL_IDS, 'kimi-k3'], cacheDir)
+    expect(after.find((model) => model.id === 'kimi-k3')).toMatchObject({ installed: true, selected: true })
+    expect(after.find((model) => model.id === 'glm-5.3')?.installed).toBe(false)
+  })
+
+  it('deleting a model removes its file and forces a fresh download next time', async () => {
+    const fetch = fakeFetch()
+    await installModel('kimi-k3', { dir: cacheDir, fetch: fetch.impl })
+    await removeModel('kimi-k3', { dir: cacheDir })
+    expect(modelStates(['kimi-k3'], cacheDir)[0].installed).toBe(false)
+
+    // 内存里也逐出了：再数一次必须重新下载（fetch 又被调用）
+    const again = fakeFetch()
+    await countTokens('hello', { dir: cacheDir, fetch: again.impl, models: ['kimi-k3'] })
+    expect(again.calls).toEqual([tokenizerUrl(TOKEN_MODELS.find((model) => model.id === 'kimi-k3') ?? TOKEN_MODELS[0])])
+  })
+
+  it('rejects an unknown model id', async () => {
+    await expect(installModel('nope', { dir: cacheDir, fetch: fakeFetch().impl })).rejects.toThrow('unknown token model')
+    await expect(removeModel('nope', { dir: cacheDir })).rejects.toThrow('unknown token model')
   })
 })

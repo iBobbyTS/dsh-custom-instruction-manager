@@ -21,13 +21,18 @@
  *
  * 计数结果本身**不**缓存：面板每次进详情页都重新数一遍，数字永远跟着当前
  * 文件内容走。这里缓存的只有"解析好的 tokenizer 对象"和磁盘上那份词表。
+ *
+ * 模型是可选的：协议层给出三个（DeepSeek V4.1 Flash、GLM-5.3 默认选中，
+ * Kimi K3 需手动勾选）。勾选即下载，取消勾选即删掉那份词表并把它从内存里
+ * 逐出——"管理模型"和磁盘内容是同一件事，不留下需要另外清理的中间态。
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Tokenizer } from '@huggingface/tokenizers'
 import { errorText } from './error-text.ts'
-import { TOKEN_MODELS, type TokenCountEntry, type TokenModelSpec } from './protocol/tokens.ts'
+import { DEFAULT_TOKEN_MODEL_IDS, TOKEN_MODELS, type TokenCountEntry, type TokenModelSpec, type TokenModelState } from './protocol/tokens.ts'
 import { dshHome } from './store.ts'
 import { tokenizerCacheDir } from './store/paths.ts'
 
@@ -46,6 +51,27 @@ export function tokenizerUrl(spec: TokenModelSpec): string {
   return 'https://huggingface.co/' + spec.repo + '/resolve/' + spec.revision + '/tokenizer.json'
 }
 
+/** 按 id 取模型定义；未知 id 返回 undefined（模型下线后的残留选择）。 */
+export function modelOf(id: string): TokenModelSpec | undefined {
+  return TOKEN_MODELS.find((spec) => spec.id === id)
+}
+
+/**
+ * 「管理模型」要显示的状态：协议层的全部模型 + 是否选中 + 词表是否已在本机。
+ *
+ * `installed` 看缓存文件而不是内存：面板刷新、宿主重启后内存里没有 tokenizer，
+ * 但文件还在——那也算"已下载"（下次计数直接读盘）。
+ */
+export function modelStates(selection: readonly string[], dir = tokenCacheDir()): TokenModelState[] {
+  return TOKEN_MODELS.map((spec) => ({
+    id: spec.id,
+    label: spec.label,
+    vocabMb: spec.vocabMb,
+    selected: selection.includes(spec.id),
+    installed: existsSync(cacheFile(dir, spec)),
+  }))
+}
+
 /** 计数可注入的依赖（测试用临时目录 + 假 fetch，不联网）。 */
 export interface CountTokensOptions {
   /** 词表缓存目录；默认在插件数据目录下的 `tokenizer/`。 */
@@ -54,6 +80,8 @@ export interface CountTokensOptions {
   fetch?: typeof globalThis.fetch
   /** 单次下载超时（默认 120s，19 MB 词表在慢网下也够）。 */
   timeoutMs?: number
+  /** 只数这些模型（id）；缺省 = 协议层默认集合。 */
+  models?: readonly string[]
 }
 
 /** 已加载的 tokenizer：按模型 id 常驻，失败的不留（下次请求可以重试）。 */
@@ -136,7 +164,10 @@ function loadTokenizer(spec: TokenModelSpec, options: CountTokensOptions): Promi
  * @returns 每个模型一条结果，顺序与 TOKEN_MODELS 一致。
  */
 export async function countTokens(text: string, options: CountTokensOptions = {}): Promise<TokenCountEntry[]> {
-  return Promise.all(TOKEN_MODELS.map(async (spec): Promise<TokenCountEntry> => {
+  const wanted = options.models ?? DEFAULT_TOKEN_MODEL_IDS
+  // 顺序按协议层，不按调用方传来的顺序：表格列的先后与选择顺序无关。
+  const specs = TOKEN_MODELS.filter((spec) => wanted.includes(spec.id))
+  return Promise.all(specs.map(async (spec): Promise<TokenCountEntry> => {
     try {
       const tokenizer = await loadTokenizer(spec, options)
       return { id: spec.id, label: spec.label, tokens: tokenizer.encode(text, { add_special_tokens: false }).ids.length }
@@ -144,6 +175,34 @@ export async function countTokens(text: string, options: CountTokensOptions = {}
       return { id: spec.id, label: spec.label, error: errorText(error) }
     }
   }))
+}
+
+/**
+ * 选中一个模型：把词表下载到本机（失败就抛，调用方决定要不要记下这次选择）。
+ *
+ * 下载完继续留在内存里——用户勾选它的目的就是马上要数，没必要再读一次盘。
+ */
+export async function installModel(id: string, options: CountTokensOptions = {}): Promise<void> {
+  const spec = modelOf(id)
+  if (spec === undefined) throw new Error('unknown token model: ' + id)
+  await loadTokenizer(spec, options)
+}
+
+/**
+ * 取消选中：删掉本机那份词表并把它从内存逐出。
+ *
+ * 先等在途加载落定再删文件，否则一个正在下载的 promise 会在我们删完之后把文件
+ * 又写回去（用户看到的"取消勾选"就没生效）。
+ */
+export async function removeModel(id: string, options: CountTokensOptions = {}): Promise<void> {
+  const spec = modelOf(id)
+  if (spec === undefined) throw new Error('unknown token model: ' + id)
+  const pending = loaded.get(id)
+  if (pending !== undefined) {
+    loaded.delete(id)
+    await pending.catch(() => {})
+  }
+  await rm(cacheFile(options.dir ?? tokenCacheDir(), spec), { force: true })
 }
 
 /** 丢掉内存里的 tokenizer（测试用；生产不需要）。 */

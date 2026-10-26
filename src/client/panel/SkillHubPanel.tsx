@@ -31,6 +31,7 @@ import { PanelDialogs } from './PanelDialogs.tsx'
 import { CATEGORY_ORDER, readLastView, rememberView, type Category } from './last-view.ts'
 import { useGroupView } from './hooks/useGroupView.ts'
 import { useTokenCount } from './hooks/useTokenCount.ts'
+import { useTokenModels } from './hooks/useTokenModels.ts'
 import { useSkillHub } from './useSkillHub.ts'
 import css from './panel.module.css'
 
@@ -82,10 +83,19 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
-  // Token 统计：正文一到就异步数一次（两个词表首次都要下载，期间表格是「计数中」）。
-  // 两个 hook 无条件执行，各自在正文为空时停在 idle——面板的早返回分支在它们之后。
-  const agentsTokens = useTokenCount(props.api, agentsFile?.detail?.content)
-  const skillTokens = useTokenCount(props.api, detail?.content)
+  // Token 统计：正文一到就异步数一次（词表首次都要下载，期间是「计数中」/「-」）。
+  // 三个 hook 无条件执行：useTokenModels 只在真有文件详情的分类下才发请求，
+  // 计数各自在正文为空时停在 idle——面板的早返回分支在它们之后。
+  const tokenModels = useTokenModels(props.api, category === 'skills' || category === 'agents')
+  /** 选中集合变了（行数变了）就让计数重跑一遍：原文没变，但表格的行变了。 */
+  const [tokenRevision, setTokenRevision] = useState(0)
+  const agentsTokens = useTokenCount(props.api, agentsFile?.detail?.content, tokenRevision)
+  const skillTokens = useTokenCount(props.api, detail?.content, tokenRevision)
+  const selectTokenModel = useCallback((id: string, selected: boolean): void => {
+    void tokenModels.select(id, selected).then((ok) => {
+      if (ok) setTokenRevision((value) => value + 1)
+    })
+  }, [tokenModels])
 
   // 视图切换的滚动位置：进详情一律回到顶部，返回列表恢复进入前的位置。
   // 两种视图的外壳结构相同，React 复用同一个滚动容器，必须显式改 scrollTop。
@@ -123,7 +133,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             detail={agentsFile.detail}
             loading={agentsFile.loading}
             error={agentsFile.error}
-            tokens={agentsTokens}
+            tokenTable={{ state: agentsTokens, models: tokenModels.models, busyModel: tokenModels.busy, modelError: tokenModels.error, onSelectModel: selectTokenModel }}
             onBack={closeAgentsFile}
           />
         </div>
@@ -146,7 +156,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             syncingSource={syncingSource}
             disabled={disabledRecord !== undefined}
             editable={detail.editable}
-            tokens={skillTokens}
+            tokenTable={{ state: skillTokens, models: tokenModels.models, busyModel: tokenModels.busy, modelError: tokenModels.error, onSelectModel: selectTokenModel }}
             invocationBusy={hub.invocationBusy}
             onInvocationChange={(modelInvocable, userInvocable) => { void hub.setInvocation(detail.name, modelInvocable, userInvocable) }}
             onEnable={disabledRecord !== undefined ? () => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}

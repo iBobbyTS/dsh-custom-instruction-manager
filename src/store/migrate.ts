@@ -12,6 +12,7 @@ export interface MigratedStore {
   trash?: unknown
   skillStats?: unknown
   marketStats?: unknown
+  tokenModels?: unknown
 }
 
 /**
@@ -75,6 +76,8 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
     // marketStats follows the same pattern (validated on load below).
     ...(record.skillStats !== undefined ? { skillStats: record.skillStats } : {}),
     ...(record.marketStats !== undefined ? { marketStats: record.marketStats } : {}),
+    // token 模型选择同样是纯追加字段：缺省表示"用默认集合"，不做版本迁移。
+    ...(Array.isArray(record.tokenModels) ? { tokenModels: record.tokenModels } : {}),
   }
 }
 
@@ -87,6 +90,8 @@ export interface HydratedState {
   trashByPath: Map<string, TrashEntry>
   skillStats: SkillStatsCheckpoint | undefined
   marketStats: MarketStatsSnapshot | undefined
+  /** 选中模型 id；`undefined` = 从未保存（用默认集合）。 */
+  tokenModels: string[] | undefined
 }
 
 /**
@@ -262,5 +267,11 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
     marketStats = { fetchedAt: savedMarketStats.fetchedAt, stats }
   }
 
-  return { entries, config, sourcesByRepo, marketSources, trashByPath, skillStats, marketStats }
+  // token 模型选择：只保留字符串；一个合法 id 都没有时按"保存过空集合"处理会
+  // 把默认模型也关掉，所以这里只有在字段存在时才采用（空数组是合法选择）。
+  const tokenModels = Array.isArray(migrated.tokenModels)
+    ? migrated.tokenModels.filter((id): id is string => typeof id === 'string' && id !== '')
+    : undefined
+
+  return { entries, config, sourcesByRepo, marketSources, trashByPath, skillStats, marketStats, tokenModels }
 }

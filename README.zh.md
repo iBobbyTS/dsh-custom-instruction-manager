@@ -40,7 +40,7 @@ https://github.com/iBobbyTS/dsh-skill-hub.git
 - **只列交集** — 「dsh 支持的文件名 ∩ 磁盘上真实存在」：用户级只有 `AGENTS.md`，项目目录里是 `AGENTS.md`、`CLAUDE.md` 加 `AGENTS.local.md`、`CLAUDE.local.md` 叠加层。没有候选文件的分组保留标题，显示一行灰字「无 AGENTS.md」。
 - **折叠** — 同一目录内 trim 后内容相同的候选只算一条；符号链接隐藏链接、显示原始文件（`CLAUDE.md → AGENTS.md` 与反向都处理）。去重只发生在同一目录内，跨目录内容相同也各自显示。
 - **查看正文** — 点任意一行进入详情页（与技能详情同构）：文件名是标题、项目相对路径是副标题，下面是所属分组、绝对路径、大小、修改时间，最后是文件的原始正文。正文按原文用等宽字体呈现（和 SKILL.md 一样不渲染 Markdown）。只读，只提供「复制路径」。
-- **Token 统计** — 详情页在正文下方给出一张两列小表（模型 / Tokens），宽度按内容收缩。数是 DeepSeek V4.1 Flash 与 GLM-5.3 两个**真 tokenizer** 数的文件原文，不是字符数估算；没数完的行先显示 `-`，某个词表失败就那一行标红（悬停看原因），另一个模型照常出数。进入页面时异步现算。词表不随插件发布：首次计数时按固定 revision 从 Hugging Face 下载 `tokenizer.json`，落到 `$DSH_HOME/plugin/data/custom-instruction-manager/tokenizer/` 后只读本地缓存；结果本身不缓存，每次进页面都数当前内容。
+- **Token 统计** — 详情页在正文下方给出一张两列小表（模型 / Tokens），宽度按内容收缩。数是 DeepSeek V4.1 Flash 与 GLM-5.3 两个**真 tokenizer** 数的文件原文，不是字符数估算；没数完的行先显示 `-`，某个词表失败就那一行标红（悬停看原因），另一个模型照常出数。进入页面时异步现算。表格最后一行是「管理模型」：默认勾选 DeepSeek V4.1 Flash 与 GLM-5.3，可勾上 Kimi K3——**勾选即下载**那份词表（19 MB），取消勾选即删掉它，选中集合存在插件数据目录里。词表不随插件发布：首次计数时按固定 revision 从 Hugging Face 下载 `tokenizer.json`，落到 `$DSH_HOME/plugin/data/custom-instruction-manager/tokenizer/` 后只读本地缓存；结果本身不缓存，每次进页面都数当前内容。
 - **扫描** — 项目内递归整棵树，硬剪 `.git` 与 `node_modules`，另外跳过页面内可编辑的「排除目录」（默认 `.agent-work`，只作用于本页）。目录已不存在的工作区整节跳过；嵌套工作区的子树只归子工作区，父项不重复列出。这一页不写任何文件。
 
 **侧边栏 → 其他插件 → Skill** — 2 个 tab：**来源**（技能，平铺/分组+项目树，其中「用户级」卡片按技能管理方二级分类（市场来源显示上游仓库；用户自建统一显示 User Managed））、**市场**（安装与更新）。
@@ -117,7 +117,9 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 | `/api/skill-hub/repo/import/progress?jobId=` | GET | 轮询进度 |
 | `/api/skill-hub/repo/import/cancel` | POST | 取消任务 |
 | `/api/skill-hub/sources` 等 | GET/POST | 来源 列表/检查/同步/删除/恢复/清空回收站 |
-| `/api/skill-hub/tokens` | POST | `{text}` → 各模型 token 数（首次调用下载词表，之后读本地缓存） |
+| `/api/skill-hub/tokens` | POST | `{text}` → 选中模型的 token 数（首次调用下载词表，之后读本地缓存） |
+| `/api/skill-hub/tokens/models` | GET | 可选模型 + 选中/已下载状态 |
+| `/api/skill-hub/tokens/select` | POST | `{id, selected}` 勾选（下载词表）/取消（删除词表） |
 | `/api/skill-hub/update` | GET | 插件最新发布 |
 | 未知的 `/api/skill-hub/*` | GET/POST | `404 {error}` 且写明路径 —— 拼错路径不该被读成鉴权失败（宿主 SPA fallback 对自己不拥有的 `/api/*` 一律回 401） |
 

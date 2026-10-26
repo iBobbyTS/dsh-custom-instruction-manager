@@ -18,10 +18,9 @@ import { copyTextToClipboard, isDisplayNameDistinct, managedByText, tt } from '.
 import { managedByOf } from '../grouping.ts'
 import css from './panel.module.css'
 import { formatDateTime, shortSha } from './format.ts'
-import type { TokenCountState } from './hooks/useTokenCount.ts'
 import { InvocationDots } from './InvocationDots.tsx'
 import { SourceStatusBadge } from './SourceStatusBadge.tsx'
-import { TokenTable } from './TokenTable.tsx'
+import { TokenTable, type TokenTableProps } from './TokenTable.tsx'
 
 export interface SkillDetailViewProps {
   detail: SkillDetail
@@ -43,8 +42,8 @@ export interface SkillDetailViewProps {
   editable?: boolean
   /** 写入进行中（checkbox 禁用，避免连点写两次）。 */
   invocationBusy: boolean
-  /** Token 统计（SKILL.md 正文到达后由 useTokenCount 异步算）。 */
-  tokens: TokenCountState
+  /** Token 统计表（计数状态 + 可选模型，SKILL.md 正文到达后异步算）。 */
+  tokenTable: TokenTableProps
   /** 写入调用方式（两个布尔是期望的「可调」状态，不是 frontmatter 的键值）。 */
   onInvocationChange: (modelInvocable: boolean, userInvocable: boolean) => void
   /** Re-enable a hub-disabled skill. */
@@ -59,7 +58,7 @@ export interface SkillDetailViewProps {
 }
 
 export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
-  const { detail, hubConfig, uses, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, tokens, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
+  const { detail, hubConfig, uses, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, tokenTable, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
   const detailSource = sourcesState?.sources.find((source) => source.skills.includes(detail.name))
   const detailCheck = detailSource !== undefined ? sourceCheck[detailSource.repo] : undefined
   /** 管理方：上游仓库优先；否则按技能根目录/注册表 provider 归类。 */
@@ -164,7 +163,7 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
         </div>
       ) : null}
       <pre className={css.detailContent}>{detail.content}</pre>
-      <TokenTable state={tokens} />
+      <TokenTable {...tokenTable} />
     </div>
   )
 }

@@ -1,39 +1,52 @@
 /**
- * Token 统计表：两列（模型 / Tokens），没数出来时 Tokens 列是 `-`；
- * 行数由协议常量决定——计数还没回来时表格也已经是完整的两行。
+ * Token 统计表：两列（模型 / Tokens）+ 末尾「管理模型」行，没数出来时 Tokens
+ * 是 `-`；行数与标签来自宿主的选中集合，不是协议全集。
  */
 
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { TOKEN_MODELS } from '../../protocol.ts'
+import { TOKEN_MODELS, type TokenModelState } from '../../protocol.ts'
 import type { TokenCountState } from './hooks/useTokenCount.ts'
+import { TokenModelPicker } from './TokenModelPicker.tsx'
 import { TokenTable } from './TokenTable.tsx'
 
-function render(state: TokenCountState): string {
-  return renderToStaticMarkup(createElement(TokenTable, { state }))
+function model(id: string, overrides: Partial<TokenModelState> = {}): TokenModelState {
+  const spec = TOKEN_MODELS.find((entry) => entry.id === id)
+  if (spec === undefined) throw new Error('unknown model in test: ' + id)
+  return { id: spec.id, label: spec.label, vocabMb: spec.vocabMb, selected: true, installed: true, ...overrides }
 }
 
-/** 表格里的所有单元格文本（表头 + 数据），用来数 `-` 与数字。 */
+function render(state: TokenCountState, models: TokenModelState[] | null = null): string {
+  return renderToStaticMarkup(createElement(TokenTable, {
+    state,
+    models,
+    busyModel: null,
+    onSelectModel: () => {},
+  }))
+}
+
+/** 表格里的所有单元格文本（表头 + 数据），用来数 `-`。 */
 function cells(html: string): string[] {
   return [...html.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((match) => match[1])
 }
 
 describe('token table', () => {
-  it('renders one row per protocol model with a two-column header', () => {
+  it('renders the preset rows and a manage row before any count has run', () => {
     const html = render({ status: 'idle' })
-    for (const model of TOKEN_MODELS) expect(html).toContain(model.label)
+    const presets = TOKEN_MODELS.filter((entry) => entry.preset)
+    for (const preset of presets) expect(html).toContain(preset.label)
+    expect(html).toContain('管理模型')
     expect(html).toContain('模型')
     expect(html).toContain('Tokens')
+    expect(html).not.toContain('Kimi K3')
     expect(html).not.toContain('状态')
-    expect(html).not.toContain('仅文件原文')
-    expect(html).not.toContain('当前文件内容')
   })
 
   it('shows a dash in the tokens column until the count is in', () => {
     for (const state of [{ status: 'idle' } as const, { status: 'loading' } as const]) {
       const html = render(state)
-      expect(cells(html).filter((cell) => cell === '-')).toHaveLength(TOKEN_MODELS.length)
+      expect(cells(html).filter((cell) => cell === '-')).toHaveLength(TOKEN_MODELS.filter((entry) => entry.preset).length)
     }
     expect(render({ status: 'loading' })).toContain('aria-busy="true"')
   })
@@ -42,8 +55,8 @@ describe('token table', () => {
     const html = render({
       status: 'ready',
       entries: [
-        { id: TOKEN_MODELS[0].id, label: TOKEN_MODELS[0].label, tokens: 1234567 },
-        { id: TOKEN_MODELS[1].id, label: TOKEN_MODELS[1].label, tokens: 1180 },
+        { id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', tokens: 1234567 },
+        { id: 'glm-5.3', label: 'GLM-5.3', tokens: 1180 },
       ],
     })
     expect(html).toContain('1,234,567')
@@ -52,12 +65,28 @@ describe('token table', () => {
     expect(html).toContain('aria-busy="false"')
   })
 
+  it('renders exactly the selected models the host reports', () => {
+    const models = [model('deepseek-v4.1-flash'), model('glm-5.3', { selected: false }), model('kimi-k3')]
+    const html = render({ status: 'ready', entries: [{ id: 'kimi-k3', label: 'Kimi K3', tokens: 42 }] }, models)
+    expect(html).toContain('DeepSeek V4.1 Flash')
+    expect(html).toContain('Kimi K3')
+    expect(html).not.toContain('GLM-5.3')
+    expect(html).toContain('42')
+  })
+
+  it('says so when no model is selected', () => {
+    const models = TOKEN_MODELS.map((entry) => model(entry.id, { selected: false, installed: false }))
+    const html = render({ status: 'ready', entries: [] }, models)
+    expect(html).toContain('未选择模型')
+    expect(html).toContain('管理模型')
+  })
+
   it('marks the failing model only, keeping the other number', () => {
     const html = render({
       status: 'ready',
       entries: [
-        { id: TOKEN_MODELS[0].id, label: TOKEN_MODELS[0].label, tokens: 42 },
-        { id: TOKEN_MODELS[1].id, label: TOKEN_MODELS[1].label, error: '词表下载失败：HTTP 503' },
+        { id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', tokens: 42 },
+        { id: 'glm-5.3', label: 'GLM-5.3', error: '词表下载失败：HTTP 503' },
       ],
     })
     expect(html).toContain('42')
@@ -67,7 +96,45 @@ describe('token table', () => {
 
   it('dashes both rows with the reason when the whole request failed', () => {
     const html = render({ status: 'failed', error: 'unauthorized: browser session required' })
-    expect(cells(html).filter((cell) => cell === '-')).toHaveLength(TOKEN_MODELS.length)
-    expect(html.match(/title="unauthorized: browser session required"/g)).toHaveLength(TOKEN_MODELS.length)
+    expect(cells(html).filter((cell) => cell === '-')).toHaveLength(TOKEN_MODELS.filter((entry) => entry.preset).length)
+    expect(html.match(/title="unauthorized: browser session required"/g)).toHaveLength(TOKEN_MODELS.filter((entry) => entry.preset).length)
+  })
+})
+
+describe('model picker', () => {
+  function renderPicker(props: Partial<Parameters<typeof TokenModelPicker>[0]> = {}): string {
+    return renderToStaticMarkup(createElement(TokenModelPicker, {
+      models: [model('deepseek-v4.1-flash'), model('glm-5.3'), model('kimi-k3', { selected: false, installed: false })],
+      busyModel: null,
+      onSelect: () => {},
+      ...props,
+    }))
+  }
+
+  it('lists every available model with its downloaded state and size', () => {
+    const html = renderPicker()
+    expect(html).toContain('DeepSeek V4.1 Flash')
+    expect(html).toContain('GLM-5.3')
+    expect(html).toContain('Kimi K3')
+    expect(html.match(/已下载/g)).toHaveLength(2)
+    expect(html).toContain('19 MB · 未下载')
+  })
+
+  it('reflects the selection on the checkboxes', () => {
+    const html = renderPicker()
+    const checked = [...html.matchAll(/<input[^>]*checked=""[^>]*>/g)]
+    expect(checked).toHaveLength(2)
+  })
+
+  it('shows the in-flight action for the busy model and disables the rest', () => {
+    const downloading = renderPicker({ busyModel: 'kimi-k3' })
+    expect(downloading).toContain('下载中')
+    expect(downloading.match(/disabled=""/g)).toHaveLength(3)
+    const removing = renderPicker({ busyModel: 'glm-5.3' })
+    expect(removing).toContain('删除中')
+  })
+
+  it('surfaces a failed selection', () => {
+    expect(renderPicker({ error: '词表下载失败：HTTP 503' })).toContain('词表下载失败：HTTP 503')
   })
 })

@@ -18,6 +18,8 @@ export const SKILL_HUB_API = {
   agents: '/api/skill-hub/agents',
   agentsFile: '/api/skill-hub/agents/file',
   tokens: '/api/skill-hub/tokens',
+  tokensModels: '/api/skill-hub/tokens/models',
+  tokensSelect: '/api/skill-hub/tokens/select',
   skill: '/api/skill-hub/skill',
   skillDelete: '/api/skill-hub/skill/delete',
   skillReveal: '/api/skill-hub/skill/reveal',

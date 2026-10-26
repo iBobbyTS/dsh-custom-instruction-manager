@@ -22,6 +22,16 @@ describe('SkillHubStore', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
+  it('persists the token model selection, including an empty one', async () => {
+    // 从未保存 = undefined：调用方据此回落到协议层默认集合
+    expect(await store.getTokenModels()).toBeUndefined()
+    await store.setTokenModels(['glm-5.3', 'kimi-k3'])
+    expect(await new SkillHubStore(file).getTokenModels()).toEqual(['glm-5.3', 'kimi-k3'])
+    // 空数组是合法选择（三个都不选），读回来不能被当成"没保存过"
+    await store.setTokenModels([])
+    expect(await new SkillHubStore(file).getTokenModels()).toEqual([])
+  })
+
   it('starts empty when no state file exists', async () => {
     expect(await store.listDisabled()).toEqual([])
     expect(await store.listTrash()).toEqual([])

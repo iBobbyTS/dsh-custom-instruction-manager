@@ -28,6 +28,10 @@ export interface TokenModelSpec {
   repo: string
   /** 固定的词表 revision（40 位 commit sha）。 */
   revision: string
+  /** 默认选中：首次使用就计入表格，用户可以在「管理模型」里取消。 */
+  preset: boolean
+  /** 词表文件大小（MB），只在「管理模型」里做下载前的提示。 */
+  vocabMb: number
 }
 
 /**
@@ -44,14 +48,45 @@ export const TOKEN_MODELS: readonly TokenModelSpec[] = [
     label: 'DeepSeek V4.1 Flash',
     repo: 'deepseek-ai/DeepSeek-V4.1-Flash',
     revision: '314113f8a7dadb388215396ba5fbee2c610a04d6',
+    preset: true,
+    vocabMb: 6,
   },
   {
     id: 'glm-5.3',
     label: 'GLM-5.3',
     repo: 'zai-org/GLM-5.3',
     revision: 'ba32f8c19c8738e2c57c71798c601d477a7bf844',
+    preset: true,
+    vocabMb: 19,
+  },
+  {
+    id: 'kimi-k3',
+    label: 'Kimi K3',
+    repo: 'Xenova/Kimi-K3-tokenizer',
+    revision: '4537b5bc42f0bd74b4409517ca647e8d723f4d0f',
+    preset: false,
+    vocabMb: 19,
   },
 ]
+
+/** 首次使用时的选中集合（协议层定义，host 与面板看到的是同一份）。 */
+export const DEFAULT_TOKEN_MODEL_IDS: readonly string[] = TOKEN_MODELS.filter((model) => model.preset).map((model) => model.id)
+
+/**
+ * 把保存的选中集合规整成可用集合。
+ *
+ * 没有保存过（`undefined`）= 默认集合；保存过就**以保存的为准**，包括空数组
+ * （用户把三个都取消就是这个状态，不能回落到默认）。未知 id 丢掉（模型下线
+ * 的残留），顺序始终按 TOKEN_MODELS，避免面板列顺序随点击顺序漂移。
+ *
+ * @param saved - 持久化的 id 列表；`undefined` 表示从未保存。
+ * @returns 规整后的 id 列表。
+ */
+export function resolveTokenSelection(saved: readonly string[] | undefined): string[] {
+  if (saved === undefined) return [...DEFAULT_TOKEN_MODEL_IDS]
+  const wanted = new Set(saved)
+  return TOKEN_MODELS.filter((model) => wanted.has(model.id)).map((model) => model.id)
+}
 
 /**
  * 一次计数受理的正文上限（8 MB，字节）。
@@ -87,4 +122,40 @@ export interface TokenCountEntry {
 export interface TokenCountResponse {
   ok: true
   entries: TokenCountEntry[]
+}
+
+/** 一个可选模型在「管理模型」里的状态。 */
+export interface TokenModelState {
+  id: string
+  label: string
+  /** 词表大小（MB），下载前给用户一个预期。 */
+  vocabMb: number
+  /** 当前选中（计不计入表格）。 */
+  selected: boolean
+  /** 词表是否已在本机（选中后才会下载）。 */
+  installed: boolean
+}
+
+/** GET /api/skill-hub/tokens/models —— 可选模型 + 各自的选中/下载状态。 */
+export interface TokenModelsResponse {
+  ok: true
+  models: TokenModelState[]
+}
+
+/**
+ * POST /api/skill-hub/tokens/select —— 改选中集合。
+ *
+ * 选中即下载（词表落到本机缓存），取消选中即删除那份词表：用户勾选模型是
+ * 一个明确的"我要用它"动作，反选则收回它占的空间，两件事一起完成，不留需要
+ * 另外清理的中间态。
+ */
+export interface TokenSelectRequest {
+  id: string
+  selected: boolean
+}
+
+/** 与 TokenModelsResponse 同形（改完直接把新状态回给面板）。 */
+export interface TokenSelectResponse {
+  ok: true
+  models: TokenModelState[]
 }
