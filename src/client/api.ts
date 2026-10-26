@@ -28,6 +28,9 @@ import {
   type MarketSourceVersionsResponse,
   type MarketStatsResponse,
   type MarketSyncResponse,
+  type McpResponse,
+  type McpToggleRequest,
+  type McpToggleResponse,
   type RepoDiscoverResponse,
   type RepoImportCancelResponse,
   type RepoImportProgressResponse,
@@ -334,6 +337,16 @@ export class SkillHubApi {
    */
   saveSkillContent(payload: SkillContentRequest): Promise<SkillContentResponse> {
     return this.post<SkillContentResponse>(SKILL_HUB_API.skillContent, payload)
+  }
+
+  /** MCP 分类页：当前进程里配置的 MCP 服务器、它们的工具与可写性。 */
+  mcp(): Promise<McpResponse> {
+    return this.get<McpResponse>(SKILL_HUB_API.mcp)
+  }
+
+  /** 启用/禁用一台 MCP 服务器；响应里带回刷新后的列表（省一次往返）。 */
+  toggleMcp(entryId: string, enabled: boolean): Promise<McpToggleResponse> {
+    return this.post<McpToggleResponse>(SKILL_HUB_API.mcpToggle, { entryId, enabled } satisfies McpToggleRequest)
   }
 
   /**

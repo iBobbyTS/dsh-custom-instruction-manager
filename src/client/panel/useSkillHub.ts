@@ -16,6 +16,7 @@ import { useGroupFlow } from './hooks/useGroupFlow.ts'
 import { useSourceFlow } from './hooks/useSourceFlow.ts'
 import { useMarketFlow } from './hooks/useMarketFlow.ts'
 import { useAgentsFlow } from './hooks/useAgentsFlow.ts'
+import { useMcpFlow } from './hooks/useMcpFlow.ts'
 import { markAutoChecked, POLL_MS, shouldAutoCheck, SLOW_POLL_MS, type FlowNotices } from './hooks/shared.ts'
 
 /** The hook's result: the panel's complete state + action surface. */
@@ -95,6 +96,10 @@ export function useSkillHub(api: SkillHubApi, initialTab: SkillTab = 'sources') 
   // ----------------------------------------------------------------- agents
   // AGENTS.md 页是独立的只读域：不参与目录/来源的轮询，进入分类时按需扫描。
   const agentsFlow = useAgentsFlow(api)
+
+  // -------------------------------------------------------------------- mcp
+  // MCP 页同样是按需读取的独立域：进入分类才拉一次，开关的结果自带刷新。
+  const mcpFlow = useMcpFlow(api)
 
   // ------------------------------------------------------------------ market
   const marketFlow = useMarketFlow(
@@ -179,6 +184,8 @@ export function useSkillHub(api: SkillHubApi, initialTab: SkillTab = 'sources') 
     loadAgents: agentsFlow.loadAgents, saveExcludeDirs: agentsFlow.saveExcludeDirs,
     agentsFile: agentsFlow.agentsFile, openAgentsFile: agentsFlow.openAgentsFile, closeAgentsFile: agentsFlow.closeAgentsFile,
     patchAgentsFile: agentsFlow.patchAgentsFile,
+    // MCP 页（服务器列表 / 工具 / 开关）
+    mcp: mcpFlow,
     // derived
     actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
     normalized: catalogFlow.normalized, origins, sourceOptions,

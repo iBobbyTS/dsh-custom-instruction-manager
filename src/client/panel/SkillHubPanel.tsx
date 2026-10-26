@@ -27,6 +27,7 @@ import { AgentFileDetailView } from './AgentFileDetailView.tsx'
 import { SkillDetailView } from './SkillDetailView.tsx'
 import { SourcesView } from './SourcesView.tsx'
 import { MarketView } from './MarketView.tsx'
+import { McpView } from './McpView.tsx'
 import { PanelDialogs } from './PanelDialogs.tsx'
 import { EditConflictDialog } from './dialogs.tsx'
 import { CATEGORY_ORDER, readLastView, rememberView, type Category } from './last-view.ts'
@@ -171,6 +172,11 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   useEffect(() => {
     if (category === 'agents') void loadAgents()
   }, [category, loadAgents])
+
+  // MCP 分类：进入时拉一次。开关的响应自带刷新后的列表，所以这里不轮询。
+  useEffect(() => {
+    if (category === 'mcp') void hub.mcp.load()
+  }, [category, hub.mcp.load])
 
   // 上次停在市场：进入面板时补拉一次市场列表（用户点 tab 切换那条路径由按钮自己加载）。
   useEffect(() => {
@@ -332,6 +338,20 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           onSaveExcludeDirs={(dirs) => { void saveExcludeDirs(dirs) }}
           onOpenFile={(file, scope) => { void openAgentsFile(file, scope) }}
         />
+      ) : category === 'mcp' ? (
+        /* MCP 页：Loader 里的服务器行 + 展开的工具清单 + 开关。 */
+        <McpView
+          data={hub.mcp.data}
+          loading={hub.mcp.loading}
+          error={hub.mcp.error}
+          busyEntry={hub.mcp.busyEntry}
+          notice={hub.mcp.notice}
+          expanded={hub.mcp.expanded}
+          onRefresh={() => { void hub.mcp.load() }}
+          onToggle={(entryId, enabled) => { void hub.mcp.toggle(entryId, enabled) }}
+          onToggleExpanded={hub.mcp.toggleExpanded}
+          onDismissNotice={hub.mcp.dismissNotice}
+        />
       ) : category === 'about' ? (
         /* 「关于」页：版本与检查更新收在这里，标题行只留页面标题与列表级动作。 */
         <AboutView
@@ -343,7 +363,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           onCheck={() => { void checkUpdate() }}
         />
       ) : category !== 'skills' ? (
-        /* 尚未接入数据的分类：说明这里将来装什么，而不是假装列表为空。 */
+        /* 尚未接入数据的分类（只剩 Hook）：说明这里将来装什么，而不是假装列表为空。 */
         <div className={css.placeholder}>
           <h2 className={css.placeholderTitle}>{tt(CATEGORY_LABEL[category])}</h2>
           <p className={css.placeholderBody}>{tt('category.pending', { name: tt(CATEGORY_LABEL[category]) })}</p>

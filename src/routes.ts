@@ -24,6 +24,7 @@ import { catalogRoutes } from './routes/catalog.ts'
 import { configRoutes } from './routes/config.ts'
 import { editRoutes } from './routes/edit.ts'
 import { marketRoutes } from './routes/market.ts'
+import { mcpRoutes } from './routes/mcp.ts'
 import { repoImportRoutes } from './routes/repo-import.ts'
 import { groupRoutes } from './routes/groups.ts'
 import { sourceRoutes } from './routes/sources.ts'
@@ -81,6 +82,7 @@ export function makeRoutes(deps: SkillHubRouteDeps): WebRoute[] {
   // → JSON 体 → 统一错误映射），新路由不会漏掉围栏。
   const specs = [
     ...catalogRoutes(deps),
+    ...mcpRoutes(deps),
     ...editRoutes(deps),
     ...agentsRoutes(deps),
     ...configRoutes(deps),

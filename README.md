@@ -44,6 +44,14 @@ The panel remembers the page you left — the top-level category (AGENTS.md / Sk
 - **Scan** — the whole project tree recursively, hard-pruning `.git` and `node_modules`, plus the page-local “excluded directories” list (`.agent-work` by default; it only affects this page). Workspaces whose directory is gone are skipped entirely; a nested workspace's subtree belongs only to the nested group, never to its parent. The scan itself never writes; only saving a body does.
 - **Index cache + stepped rescan** — the host keeps the last completed index: opening the page lays it out in one go (no cache → skip straight to the first scan), then rescans scope by scope — step 0 is the user level, one step per workspace — replacing the same position in the list as each step lands, so the page never flashes empty and converges to the fresh inventory; the result becomes the next cache. That index is also persisted to `$DSH_HOME/plugin/data/custom-instruction-manager/agents-index.json` and read back when the plugin loads (so on every dsh start), which means the first visit after a restart has content before the scan runs; if the home, the shared agents root or the excluded list changed, the stored key no longer matches and the file is treated as no cache. While scanning, “Rescan” turns into a disabled “Scanning (x%)”, where x = completed steps / total steps.
 
+**Sidebar → Other Plugins → MCP** — the MCP servers configured in this dsh Loader. In dsh an MCP server is not an entry in a config file but **one `@deepseek-ai/dsh-mcp-client` plugin row each**, so this page reads the running rows (whether they come from a bundle layer, the profile patch or the home patch):
+
+- **One row per server** — name, transport (stdio / Streamable HTTP), status and current tool count. Status is only Loaded / Starting / Failed / Disabled: dsh exposes no MCP session state, so the page never claims “connected”.
+- **Config summary** — expand for the command/args/working directory or the URL, plus environment variables and headers; values are masked as `••••••` until “Show values”. The call timeout, abort-on-startup-failure flag and the patch row id ride along.
+- **Tools** — expand to list the tools the server currently registers (public name `mcp__<server>__<tool>`, description, parameter names). Tools that belong to no server listed here (a server inside an agent preset, or a truncated/rewritten name) are listed separately as unattributed.
+- **Toggle** — the per-row switch goes through dsh's plugin manager: it only writes the enablement flag into the profile patch and never edits the server config. The result is reported honestly (applied / restart required / overridden / failed). Rows without an `id` in the patch (e.g. insert rows written by other products) and dsh-managed plugins are read-only, with the reason on the row.
+- **Degraded mode** — without a plugin manager in this deployment the servers are still listed from the Loader; only the switches are disabled, with an explanation.
+
 **Sidebar → Other Plugins → Skill** — 2 tabs: **Sources** (skills, flat/grouped + project tree, with the personal card split by managed-by (market imports show their upstream repo; user-owned skills show User Managed)), **Market** (install + update).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding. Project workspaces are ordered exactly like the DSH sidebar (`workspace.json` → `global.workspaceIds`).
@@ -104,6 +112,8 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 | --- | --- | --- |
 | `/api/skill-hub/catalog?cwd=` | GET | skills + disabled + diagnostics + duplicates |
 | `/api/skill-hub/skill?name=&cwd=` | GET | skill body (works for disabled too) |
+| `/api/skill-hub/mcp` | GET | MCP servers (Loader rows + config + tools + writability) |
+| `/api/skill-hub/mcp/toggle` | POST | `{entryId, enabled}` through dsh's plugin manager, returns the refreshed list |
 | `/api/skill-hub/skill/delete` | POST | move to the system trash `~/.Trash` (timestamped on clash) |
 | `/api/skill-hub/skill/reveal` | POST | reveal the skill file in Finder (`open -R`) |
 | `/api/skill-hub/toggle` | POST | `{name, enabled}` |

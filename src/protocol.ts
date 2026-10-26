@@ -109,3 +109,17 @@ export type {
   SourceTrashClearResponse,
 } from './protocol/sources.ts'
 export { isProjectSource } from './protocol/sources.ts'
+export type {
+  McpPhase,
+  McpReadOnlyReason,
+  McpStatus,
+  McpTransport,
+  McpToolInfo,
+  McpStdioConfig,
+  McpHttpConfig,
+  McpServerInfo,
+  McpResponse,
+  McpToggleRequest,
+  McpToggleResponse,
+  McpApplication,
+} from './protocol/mcp.ts'

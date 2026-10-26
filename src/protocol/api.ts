@@ -22,6 +22,8 @@ export const MAX_EDIT_BODY_BYTES = 8 * 1024 * 1024
  */
 export const SKILL_HUB_API = {
   catalog: '/api/skill-hub/catalog',
+  mcp: '/api/skill-hub/mcp',
+  mcpToggle: '/api/skill-hub/mcp/toggle',
   agents: '/api/skill-hub/agents',
   agentsScan: '/api/skill-hub/agents/scan',
   agentsFile: '/api/skill-hub/agents/file',

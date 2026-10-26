@@ -51,6 +51,11 @@ export interface SkillHubRouteDeps {
   /** Persist a config patch and re-sync plugin surfaces; resolves with the fresh config. */
   updateConfig?: (patch: Partial<HubConfig>) => Promise<HubConfig>
   /**
+   * MCP 域访问面（列服务器 / 开关）。生产实现读 dsh 的 pluginManager / loader /
+   * tools 服务（见 ../mcp-runtime.ts）；测试注入假实现。缺失时 MCP 路由回 503。
+   */
+  mcp?: import('../mcp.ts').McpAccess
+  /**
    * System trash directory override (tests point it at a temp dir). Absent uses
    * the platform trash: macOS ~/.Trash, Linux ~/.local/share/Trash/files.
    */

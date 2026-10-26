@@ -551,3 +551,32 @@
 .editError { font-size: 12px; line-height: 18px; color: var(--hub-danger); }
 /* 保存成功提示：中性墨色（上游覆盖提醒也在同一行，不是纯成功语）。 */
 .editNotice { font-size: 12px; line-height: 18px; color: var(--hub-text-2); }
+
+/* MCP 页：一行一台服务器。标题行是横向的「名称 + 徽标 + 开关」，展开后在
+   行内铺配置摘要与工具清单，所以整行是纵向容器；副行是等宽的命令/地址，
+   与 AGENTS.md 页的路径行同一视觉层级。 */
+.mcpBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mcpSummary { font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
+.mcpRow { display: flex; flex-direction: column; gap: 3px; padding: 8px; border-radius: var(--dsw-radius-md, 12px); transition: background .12s ease; }
+.mcpRow:hover { background: var(--hub-hover); }
+.mcpHead { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mcpName { font-size: 14px; line-height: 22px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcpRowDisabled .mcpName { color: var(--hub-text-3); }
+.mcpToolCount { flex: none; font-size: 12px; line-height: 18px; color: var(--hub-text-3); }
+.mcpTarget { padding-left: 22px; font-family: var(--hub-mono); font-size: 11.5px; line-height: 16px; color: var(--hub-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcpReason { padding-left: 22px; color: var(--hub-text-3); font-size: 12px; line-height: 18px; }
+.mcpDetail { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px 22px; padding: 10px 12px; border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-md, 12px); background: var(--hub-layer); }
+.mcpMetaLine { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; line-height: 18px; }
+.mcpMetaLabel { flex: none; width: 92px; color: var(--hub-text-3); }
+.mcpMetaValue { min-width: 0; color: var(--hub-text-2); word-break: break-all; }
+.mcpMono { font-family: var(--hub-mono); font-size: 11.5px; line-height: 16px; }
+.mcpSecrets { display: flex; flex-direction: column; gap: 2px; }
+.mcpSecretToggle { margin-right: 8px; padding: 0 6px; height: 18px; border: 0; border-radius: 999px; background: var(--hub-surface); color: var(--hub-text-2); font-size: 11px; line-height: 17px; cursor: pointer; }
+.mcpSecretToggle:hover { background: var(--hub-hover); color: var(--hub-text); }
+.mcpTools { display: flex; flex-direction: column; gap: 6px; }
+.mcpTool { display: flex; flex-direction: column; gap: 1px; }
+.mcpToolName { font-family: var(--hub-mono); font-size: 11.5px; line-height: 16px; color: var(--hub-text); }
+.mcpToolDesc { color: var(--hub-text-2); font-size: 12px; line-height: 17px; }
+.mcpToolParams { color: var(--hub-text-3); font-size: 11.5px; line-height: 16px; }
+.mcpToolEmpty { color: var(--hub-text-4); font-size: 12px; line-height: 18px; }
+.mcpOrphans { display: flex; flex-direction: column; gap: 4px; }
