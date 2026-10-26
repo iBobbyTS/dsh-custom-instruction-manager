@@ -33,8 +33,7 @@ function render(sources: SourcesResponse | null, state: SkillDetailViewProps['to
     syncingSource: null,
     invocationBusy: false,
     tokenTable: { state, models: null, busyModel: null, onSelectModel: () => {} },
-    edit: { active: false, draft: '', busy: false, onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
-    onEditStart: () => {},
+    edit: { editable: false, draft: '', busy: false, dirty: false, onDraft: () => {}, onSave: () => {}, onDiscard: () => {} },
     onInvocationChange: () => {},
     onBack: () => {},
     onCheck: () => {},
@@ -45,16 +44,31 @@ function render(sources: SourcesResponse | null, state: SkillDetailViewProps['to
   return renderToStaticMarkup(createElement(SkillDetailView, props))
 }
 
-/** 一个可写技能（用户根/项目根的文件）——只有它能出现「编辑」。 */
+/** 一个可写技能（用户根/项目根的文件）——正文框在它上面才可编辑。 */
 const WRITABLE = { editable: true } as const
 
-/** 编辑态：文本域 + 保存/取消，只读的 <pre> 不再渲染。 */
-function renderEditing(extra: Partial<SkillDetailViewProps> = {}): string {
+/** 可写文件的可编辑正文框：草稿与磁盘内容一致时按钮是灰的。 */
+function renderEditable(edit: Partial<SkillDetailViewProps['edit']> = {}): string {
   return render(null, undefined, {
     ...WRITABLE,
-    edit: { active: true, draft: '# Draft body', busy: false, onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
-    ...extra,
+    edit: {
+      editable: true,
+      draft: '# Demo body',
+      busy: false,
+      dirty: false,
+      onDraft: () => {},
+      onSave: () => {},
+      onDiscard: () => {},
+      ...edit,
+    },
   })
+}
+
+/** 取一个精确匹配文字的按钮标签（断言 disabled 状态用）。 */
+function buttonTag(html: string, label: string): string {
+  const match = new RegExp('<button[^>]*>' + label + '</button>').exec(html)
+  if (match === null) throw new Error('button not found: ' + label)
+  return match[0]
 }
 
 const tracked: SourcesResponse = {
@@ -96,35 +110,42 @@ describe('SkillDetailView upstream block', () => {
 })
 
 describe('SkillDetailView body editing', () => {
-  it('offers 编辑 only when the skill file is writable', () => {
-    expect(render(null, undefined, WRITABLE)).toContain('>编辑<')
-    // editable 缺省 = 内置/插件 provider（或旧宿主）：没有任何写入口。
-    expect(render(null)).not.toContain('>编辑<')
-    expect(render(null, undefined, { editable: false })).not.toContain('>编辑<')
+  it('makes the body editable in place only when the skill file is writable', () => {
+    const writable = renderEditable()
+    expect(writable).toContain('<textarea')
+    // 没有单独的「编辑」按钮：正文框本身就是可写的。
+    expect(writable).not.toContain('>编辑<')
+    // editable 缺省 = 内置/插件 provider（或旧宿主）：只读 <pre>，没有保存/放弃。
+    const readonly = render(null)
+    expect(readonly).not.toContain('<textarea')
+    expect(readonly).toContain('<pre')
+    expect(readonly).not.toContain('放弃所有编辑')
   })
 
-  it('swaps the read-only body for a textarea holding the draft', () => {
-    const html = renderEditing()
-    expect(html).toContain('<textarea')
-    expect(html).toContain('# Draft body')
-    expect(html).not.toContain('# Demo body')
-    expect(html).toContain('保存')
-    expect(html).toContain('取消')
-    expect(html).toContain('⌘S 保存')
-    // 编辑态里编辑入口让位给保存/取消。
-    expect(html).not.toContain('>编辑<')
+  it('keeps the same textarea style and disables save/discard until something changes', () => {
+    const clean = renderEditable()
+    expect(clean).toContain('保存')
+    expect(clean).toContain('放弃所有编辑')
+    expect(buttonTag(clean, '保存')).toContain('disabled')
+    expect(buttonTag(clean, '放弃所有编辑')).toContain('disabled')
+
+    const dirty = renderEditable({ draft: '# Changed body', dirty: true })
+    expect(dirty).toContain('# Changed body')
+    expect(dirty).not.toContain('# Demo body')
+    expect(buttonTag(dirty, '保存')).not.toContain('disabled')
+    expect(buttonTag(dirty, '放弃所有编辑')).not.toContain('disabled')
+    expect(dirty).toContain('⌘S 保存')
   })
 
-  it('disables the buttons and says 保存中 while a save is in flight', () => {
-    const html = renderEditing({ edit: { active: true, draft: '# Draft body', busy: true, onDraft: () => {}, onSave: () => {}, onCancel: () => {} } })
+  it('says 保存中 and keeps both buttons disabled while a save is in flight', () => {
+    const html = renderEditable({ busy: true, draft: '# Changed body', dirty: true })
     expect(html).toContain('保存中')
-    expect(html).toContain('disabled')
+    expect(buttonTag(html, '保存中…')).toContain('disabled')
+    expect(buttonTag(html, '放弃所有编辑')).toContain('disabled')
   })
 
   it('shows the save failure and the post-save notice', () => {
-    const failed = renderEditing({
-      edit: { active: true, draft: '# Draft body', busy: false, error: 'file is read-only: /tmp/demo/SKILL.md', onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
-    })
+    const failed = renderEditable({ error: 'file is read-only: /tmp/demo/SKILL.md', draft: '# Changed body', dirty: true })
     expect(failed).toContain('file is read-only')
     expect(failed).toContain('role="alert"')
     const saved = render(null, undefined, { ...WRITABLE, notice: '已保存。此技能跟随 acme/skills，同步会用上游版本覆盖本地修改。' })

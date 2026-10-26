@@ -119,7 +119,40 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   // 换了一个详情页（另一个技能 / 另一份指令文件）就清掉上一页的保存提示。
   useEffect(() => { setEditNotice(null) }, [detail?.name, agentsFile?.ref.absolute])
 
-  /** 保存冲突的三选框（只有编辑态里才可能有）。 */
+  // 详情正文到达（或刷新）时把草稿对齐到当前文件：同一个文件不清草稿。
+  useEffect(() => {
+    if (detail !== null) {
+      edit.begin({
+        kind: 'skill',
+        key: detail.name,
+        ...(workspace !== '' ? { cwd: workspace } : {}),
+        ...(detail.path !== undefined ? { path: detail.path } : {}),
+        ...(detail.updatedAt !== undefined ? { modifiedAt: detail.updatedAt } : {}),
+        ...(detail.size !== undefined ? { size: detail.size } : {}),
+      }, detail.content)
+      return
+    }
+    const fileDetail = agentsFile?.detail
+    if (agentsFile !== null && fileDetail !== undefined) {
+      edit.begin({
+        kind: 'agents',
+        key: agentsFile.ref.absolute,
+        path: agentsFile.ref.absolute,
+        modifiedAt: fileDetail.modifiedAt,
+        size: fileDetail.size,
+      }, fileDetail.content)
+    }
+  }, [detail, agentsFile, workspace, edit.begin])
+
+  /** 离开详情页：有未保存改动先确认，同意后丢掉草稿。 */
+  const leaveDetail = useCallback((close: () => void): void => {
+    if (!edit.confirmDiscard()) return
+    edit.clear()
+    setEditNotice(null)
+    close()
+  }, [edit])
+
+  /** 保存冲突的三选框（保存时磁盘被别处改过才会出现）。 */
   const editConflict = edit.session?.conflict !== undefined
     ? <EditConflictDialog onChoose={edit.resolveConflict} />
     : null
@@ -163,25 +196,17 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             error={agentsFile.error}
             tokenTable={{ state: agentsTokens, models: tokenModels.models, busyModel: tokenModels.busy, modelError: tokenModels.error, onSelectModel: selectTokenModel }}
             edit={{
-              active: edit.session?.target.kind === 'agents',
-              draft: edit.session?.draft ?? '',
+              editable: true,
+              draft: edit.session?.draft ?? fileDetail?.content ?? '',
               busy: edit.session?.busy ?? false,
+              dirty: edit.dirty,
               error: edit.session?.error,
               onDraft: edit.setDraft,
               onSave: edit.save,
-              onCancel: () => { if (edit.cancel()) setEditNotice(null) },
-            }}
-            onEditStart={() => {
-              setEditNotice(null)
-              edit.start({
-                kind: 'agents',
-                key: agentsFile.ref.absolute,
-                path: agentsFile.ref.absolute,
-                ...(fileDetail !== undefined ? { modifiedAt: fileDetail.modifiedAt, size: fileDetail.size } : {}),
-              }, fileDetail?.content ?? '')
+              onDiscard: edit.discard,
             }}
             notice={editNotice ?? undefined}
-            onBack={() => { if (edit.cancel()) closeAgentsFile() }}
+            onBack={() => { leaveDetail(closeAgentsFile) }}
           />
         </div>
         {editConflict}
@@ -206,30 +231,20 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             editable={detail.editable}
             tokenTable={{ state: skillTokens, models: tokenModels.models, busyModel: tokenModels.busy, modelError: tokenModels.error, onSelectModel: selectTokenModel }}
             edit={{
-              active: edit.session?.target.kind === 'skill',
-              draft: edit.session?.draft ?? '',
+              editable: detail.editable === true,
+              draft: edit.session?.draft ?? detail.content,
               busy: edit.session?.busy ?? false,
+              dirty: edit.dirty,
               error: edit.session?.error,
               onDraft: edit.setDraft,
               onSave: edit.save,
-              onCancel: () => { if (edit.cancel()) setEditNotice(null) },
-            }}
-            onEditStart={() => {
-              setEditNotice(null)
-              edit.start({
-                kind: 'skill',
-                key: detail.name,
-                ...(workspace !== '' ? { cwd: workspace } : {}),
-                ...(detail.path !== undefined ? { path: detail.path } : {}),
-                ...(detail.updatedAt !== undefined ? { modifiedAt: detail.updatedAt } : {}),
-                ...(detail.size !== undefined ? { size: detail.size } : {}),
-              }, detail.content)
+              onDiscard: edit.discard,
             }}
             notice={editNotice ?? undefined}
             invocationBusy={hub.invocationBusy}
             onInvocationChange={(modelInvocable, userInvocable) => { void hub.setInvocation(detail.name, modelInvocable, userInvocable) }}
-            onEnable={disabledRecord !== undefined ? () => { if (!edit.cancel()) return; void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}
-            onBack={() => { if (edit.cancel()) setDetail(null) }}
+            onEnable={disabledRecord !== undefined ? () => { leaveDetail(() => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) }) } : undefined}
+            onBack={() => { leaveDetail(() => { setDetail(null) }) }}
             onCheck={(repo) => { void checkSources(repo) }}
             onSync={requestSync}
             onFollowDelete={requestDelete}

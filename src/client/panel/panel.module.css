@@ -541,9 +541,11 @@
 /* 指令文件详情页：文件名下面是项目相对路径（等宽），与技能详情的元信息同一列。 */
 .detailSub { font-family: var(--hub-mono); font-size: 13px; line-height: 20px; color: var(--hub-text-3); word-break: break-all; }
 
-/* 正文编辑：只读态复用 .detailContent，编辑态是同一套盒子里的等宽文本域。 */
+/* 正文区：可写时是「和只读时同一个盒子」的等宽文本域——同样的边框、圆角、
+   内边距与 62vh 封顶，高度跟随内容（JS 量 scrollHeight），没有编辑专用高度、
+   没有拖拽手柄。不可写时仍是 .detailContent 的 <pre>。 */
 .editBlock { display: flex; flex-direction: column; gap: 10px; }
-.editArea { box-sizing: border-box; width: 100%; min-height: 320px; max-height: 62vh; resize: vertical; font-family: var(--hub-mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: var(--hub-layer); border: .5px solid var(--hub-border); border-radius: var(--dsw-radius-lg, 16px); padding: 14px 16px; color: var(--hub-text); outline: none; transition: border-color .15s ease; }
+.editArea { display: block; box-sizing: border-box; width: 100%; max-height: 62vh; overflow: auto; resize: none; font-family: var(--hub-mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: var(--hub-layer); border: .5px solid var(--hub-border); border-radius: var(--dsw-radius-lg, 16px); padding: 14px 16px; color: var(--hub-text); outline: none; transition: border-color .15s ease; }
 .editArea:focus { border-color: var(--hub-accent); }
 .editBar { display: flex; gap: 8px; align-items: center; }
 .editHint { font-size: 12px; line-height: 18px; color: var(--hub-text-3); }

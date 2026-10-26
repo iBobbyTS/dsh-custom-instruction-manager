@@ -25,17 +25,15 @@ export interface AgentFileDetailViewProps {
   error?: string
   /** Token 统计表（计数状态 + 可选模型，正文到达后异步算）。 */
   tokenTable: TokenTableProps
-  /** 正文编辑态（状态由面板持有；active=false 时显示只读 <pre>）。 */
+  /** 正文区：可写文件直接可改，不可写时 EditBody 退回只读 <pre>。 */
   edit: EditModeProps
-  /** 进入编辑（正文到达后才显示按钮）。 */
-  onEditStart: () => void
   /** 保存成功后的一行提示。 */
   notice?: string
   onBack: () => void
 }
 
 export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.Element {
-  const { file, scope, detail, loading, error, tokenTable, edit, onEditStart, notice, onBack } = props
+  const { file, scope, detail, loading, error, tokenTable, edit, notice, onBack } = props
   const [copied, setCopied] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => () => { window.clearTimeout(timer.current) }, [])
@@ -55,7 +53,6 @@ export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.
         <button type='button' className={css.back} onClick={onBack}>{tt('detail.back')}</button>
         <span className={css.detailName}>{file.name}</span>
         <span className={css.actions} style={{ marginLeft: 'auto', gap: 6 }}>
-          {detail !== undefined && !edit.active ? <button type='button' className={css.opBtn} onClick={onEditStart}>{tt('detail.edit')}</button> : null}
           <button type='button' className={css.opBtn} onClick={copyPath}>{copied ? tt('detail.copied') : tt('detail.copyPath')}</button>
         </span>
       </div>

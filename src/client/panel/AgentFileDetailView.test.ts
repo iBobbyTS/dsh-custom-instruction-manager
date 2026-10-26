@@ -25,8 +25,7 @@ function render(extra: Partial<AgentFileDetailViewProps> = {}): string {
     scope: 'lmdo-website',
     loading: false,
     tokenTable: tokenTable(),
-    edit: { active: false, draft: '', busy: false, onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
-    onEditStart: () => {},
+    edit: { editable: false, draft: '', busy: false, dirty: false, onDraft: () => {}, onSave: () => {}, onDiscard: () => {} },
     onBack: () => {},
     ...extra,
   }
@@ -74,23 +73,27 @@ describe('instruction file detail', () => {
     expect(html).toContain('not an instruction file on this page')
   })
 
-  it('offers 编辑 only once the body has arrived', () => {
-    const loaded = render({ detail: { ...file, size: 7, modifiedAt: 1792900000000, content: '# docs\n' } })
-    expect(loaded).toContain('>编辑<')
-    expect(render({ loading: true })).not.toContain('>编辑<')
-    expect(render({ error: 'gone' })).not.toContain('>编辑<')
+  it('makes the body editable in place once it has arrived, with no edit button', () => {
+    const loaded = render({
+      detail: { ...file, size: 7, modifiedAt: 1792900000000, content: '# docs\n' },
+      edit: { editable: true, draft: '# docs\n', busy: false, dirty: false, onDraft: () => {}, onSave: () => {}, onDiscard: () => {} },
+    })
+    expect(loaded).toContain('<textarea')
+    expect(loaded).not.toContain('>编辑<')
+    expect(loaded).toContain('放弃所有编辑')
+    expect(render({ loading: true })).not.toContain('<textarea')
+    expect(render({ error: 'gone' })).not.toContain('<textarea')
   })
 
-  it('edits the whole file in a textarea (instruction files have no frontmatter)', () => {
+  it('edits the whole file verbatim (instruction files have no frontmatter)', () => {
     const html = render({
       detail: { ...file, size: 7, modifiedAt: 1792900000000, content: '# docs\n' },
-      edit: { active: true, draft: '# docs\n\n- new rule\n', busy: false, onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
+      edit: { editable: true, draft: '# docs\n\n- new rule\n', busy: false, dirty: true, onDraft: () => {}, onSave: () => {}, onDiscard: () => {} },
     })
     expect(html).toContain('<textarea')
     expect(html).toContain('- new rule')
     expect(html).toContain('保存')
-    expect(html).toContain('取消')
-    expect(html).not.toContain('>编辑<')
+    expect(html).toContain('放弃所有编辑')
   })
 
   it('shows the post-save notice', () => {

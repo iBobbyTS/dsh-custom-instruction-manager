@@ -45,10 +45,8 @@ export interface SkillDetailViewProps {
   invocationBusy: boolean
   /** Token 统计表（计数状态 + 可选模型，SKILL.md 正文到达后异步算）。 */
   tokenTable: TokenTableProps
-  /** 正文编辑态（状态由面板持有；active=false 时显示只读 <pre>）。 */
+  /** 正文区：可写文件直接可改，不可写时 EditBody 退回只读 <pre>。 */
   edit: EditModeProps
-  /** 进入编辑（只有可写文件才显示按钮）。 */
-  onEditStart: () => void
   /** 保存成功后的一行提示（例如「跟随上游，同步会覆盖」）。 */
   notice?: string
   /** 写入调用方式（两个布尔是期望的「可调」状态，不是 frontmatter 的键值）。 */
@@ -65,7 +63,7 @@ export interface SkillDetailViewProps {
 }
 
 export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
-  const { detail, hubConfig, uses, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, tokenTable, edit, onEditStart, notice, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
+  const { detail, hubConfig, uses, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, tokenTable, edit, notice, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
   const detailSource = sourcesState?.sources.find((source) => source.skills.includes(detail.name))
   const detailCheck = detailSource !== undefined ? sourceCheck[detailSource.repo] : undefined
   /** 管理方：上游仓库优先；否则按技能根目录/注册表 provider 归类。 */
@@ -94,7 +92,6 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
           <InvocationDots invocation={detail.invocation} hubConfig={hubConfig} />
         </span>
         <span className={css.actions} style={{ marginLeft: 'auto', gap: 6 }}>
-          {editable === true && !edit.active ? <button type='button' className={css.opBtn} onClick={onEditStart}>{tt('detail.edit')}</button> : null}
           {disabled === true && onEnable !== undefined ? <button type='button' className={css.opBtn} role='switch' aria-checked={false} aria-label={tt('row.enable')} onClick={onEnable}>{tt('row.enable')}</button> : null}
           <button type='button' className={css.opBtn} onClick={() => { copyText('$' + detail.name, 'mention') }}>{copied === 'mention' ? tt('detail.copied') : tt('detail.copyMention')}</button>
           {detail.path !== undefined ? <button type='button' className={css.opBtn} onClick={() => { const path = detail.path; if (path !== undefined) copyText(path, 'path') }}>{copied === 'path' ? tt('detail.copied') : tt('detail.copyPath')}</button> : null}
@@ -110,7 +107,7 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
           <input
             type='checkbox'
             checked={detail.invocation.modelInvocable}
-            disabled={!editable || invocationBusy || edit.active}
+            disabled={!editable || invocationBusy}
             onChange={(event) => { onInvocationChange(event.target.checked, detail.invocation.userInvocable) }}
           />
           <span className={css.invocationLabel}>
@@ -122,7 +119,7 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
           <input
             type='checkbox'
             checked={detail.invocation.userInvocable}
-            disabled={!editable || invocationBusy || edit.active}
+            disabled={!editable || invocationBusy}
             onChange={(event) => { onInvocationChange(detail.invocation.modelInvocable, event.target.checked) }}
           />
           <span className={css.invocationLabel}>
