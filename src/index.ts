@@ -25,6 +25,7 @@ import { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, resolveHubConfig, type
 import { SkillHubProvider } from './provider.ts'
 import { hostTrustFence, makeRoutes } from './routes.ts'
 import { createSkillStatsReader, asPersistenceSeam, type SessionPersistenceLike, type SessionQueryLike, type SkillStatsReader } from './stats.ts'
+import { migrateLegacyData } from './data-migrate.ts'
 import { SkillHubStore } from './store.ts'
 import { reconcileDisabledSkills, pruneStaleDisabledSkills } from './reconcile.ts'
 import { cleanupLeftoverImportDirs, setGithubToken } from './repo.ts'
@@ -175,6 +176,11 @@ export function apply(ctx: Context, config?: Config): void {
   /** The Settings service, when this deployment mounts it. Absent ⇒ no user layer to read or write. */
   const settingsOf = (): SettingsForms | undefined => ctx.get('settings') as SettingsForms | undefined
 
+  // 0.3.x 的数据散在 $DSH_HOME 根下（dsh-skill-hub.json 与 skill-hub/tokenizers），
+  // 现在统一收进 $DSH_HOME/plugin/data/custom-instruction-manager。同步搬完再建
+  // store：记录文件是懒加载的，异步搬会留出「先读到空状态」的窗口。日志在
+  // logInfo/logWarn 定义之后补打（apply 全程同步，中间没有别的代码能读 store）。
+  const migration = migrateLegacyData()
   const store = new SkillHubStore()
   let disposeRoutes: (() => void) | undefined
   let disposeSection: (() => void) | undefined
@@ -255,6 +261,13 @@ export function apply(ctx: Context, config?: Config): void {
     if (!mounted()) return
     if (error === undefined) ctx.logger.warn(message)
     else ctx.logger.warn(message, error)
+  }
+
+  if (migration.state === 'moved' || migration.tokenizers === 'moved') {
+    logInfo(`[dsh-skill-hub] moved legacy data into ${migration.dir} (state: ${migration.state}, tokenizers: ${migration.tokenizers})`)
+  }
+  if (migration.error !== undefined) {
+    logWarn('[dsh-skill-hub] legacy data migration failed; the old files stay where they are', migration.error)
   }
 
   const sync = (): void => {

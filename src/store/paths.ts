@@ -30,9 +30,37 @@ export function agentsHome(): string {
   return process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents')
 }
 
-/** Resolve the sidecar state path (injectable in tests). */
+/**
+ * 插件自有数据的目录名（`$DSH_HOME/plugin/data/<slug>`）。
+ *
+ * 用仓库新名字而不是包名：这台机器上这个目录是用户按仓库名建的，卸载插件
+ * 后 dsh 不会清它——数据和插件包解耦，重装（哪怕换包名）能接着读。
+ */
+export const PLUGIN_DATA_SLUG = 'custom-instruction-manager'
+
+/** 插件数据根目录：记录文件与词表缓存都在这下面。 */
+export function pluginDataDir(home = dshHome()): string {
+  return join(home, 'plugin', 'data', PLUGIN_DATA_SLUG)
+}
+
+/** 记录文件路径（技能开关、来源、市场源、回收站、统计快照）。 */
 export function statePath(home = dshHome()): string {
+  return join(pluginDataDir(home), 'state.json')
+}
+
+/** 旧记录文件位置（0.3.x）：`$DSH_HOME/dsh-skill-hub.json`。启动时迁走。 */
+export function legacyStatePath(home = dshHome()): string {
   return join(home, 'dsh-skill-hub.json')
+}
+
+/** 词表缓存目录（每个模型一份 tokenizer.json）。 */
+export function tokenizerCacheDir(home = dshHome()): string {
+  return join(pluginDataDir(home), 'tokenizer')
+}
+
+/** 旧词表缓存位置（0.3.26）：`$DSH_HOME/skill-hub/tokenizers`。启动时迁走。 */
+export function legacyTokenizerDir(home = dshHome()): string {
+  return join(home, 'skill-hub', 'tokenizers')
 }
 
 /** Current sidecar schema version. Bump on breaking shape changes and add a migration below. */

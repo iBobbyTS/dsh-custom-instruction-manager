@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -12,6 +13,8 @@ describe('SkillHubStore', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-store-'))
     file = statePath(dir)
+    // 记录文件现在在插件数据目录下（statePath 是嵌套路径），直接 writeFile 前先建目录。
+    await mkdir(dirname(file), { recursive: true })
     store = new SkillHubStore(file)
   })
 

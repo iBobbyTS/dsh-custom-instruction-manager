@@ -13,8 +13,9 @@
  * 文件做过交叉核对）。
  *
  * 词表怎么来：不随插件发布，也不打进构建产物。第一次计数时按协议层固定
- * 的 revision 从 Hugging Face 下载 tokenizer.json，落到
- * `$DSH_HOME/skill-hub/tokenizers/` 下的缓存文件，之后只读本地文件。缓存
+ * 的 revision 从 Hugging Face 下载 tokenizer.json，落到插件数据目录
+ * `$DSH_HOME/plugin/data/custom-instruction-manager/tokenizer/` 下，之后只读
+ * 本地文件。缓存
  * 只有"有/没有"两种状态——不做过期、不做过期清理、不做手动管理，体积也
  * 就是两份词表。
  *
@@ -28,10 +29,11 @@ import { Tokenizer } from '@huggingface/tokenizers'
 import { errorText } from './error-text.ts'
 import { TOKEN_MODELS, type TokenCountEntry, type TokenModelSpec } from './protocol/tokens.ts'
 import { dshHome } from './store.ts'
+import { tokenizerCacheDir } from './store/paths.ts'
 
-/** 词表缓存目录（`$DSH_HOME/skill-hub/tokenizers`）。 */
+/** 词表缓存目录（`$DSH_HOME/plugin/data/custom-instruction-manager/tokenizer`）。 */
 export function tokenCacheDir(home = dshHome()): string {
-  return join(home, 'skill-hub', 'tokenizers')
+  return tokenizerCacheDir(home)
 }
 
 /** 缓存文件名：仓库名 + 固定 revision 前 12 位，换 revision 就是另一个文件。 */
@@ -46,7 +48,7 @@ export function tokenizerUrl(spec: TokenModelSpec): string {
 
 /** 计数可注入的依赖（测试用临时目录 + 假 fetch，不联网）。 */
 export interface CountTokensOptions {
-  /** 词表缓存目录；默认 `$DSH_HOME/skill-hub/tokenizers`。 */
+  /** 词表缓存目录；默认在插件数据目录下的 `tokenizer/`。 */
   dir?: string
   /** 下载实现；默认全局 fetch。 */
   fetch?: typeof globalThis.fetch

@@ -62,7 +62,7 @@ export interface SkillHubRouteDeps {
   reveal?: (path: string) => Promise<void>
   /**
    * Tokenizer vocabulary cache directory override (tests point it at a temp
-   * dir). Absent uses `$DSH_HOME/skill-hub/tokenizers`.
+   * dir). Absent uses `$DSH_HOME/plugin/data/custom-instruction-manager/tokenizer`.
    */
   tokenCacheDir?: string
   /**

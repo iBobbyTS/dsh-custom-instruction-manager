@@ -101,7 +101,7 @@ describe('token counting', () => {
     const entries = await countTokens('hello world', { dir: cacheDir, fetch: offline.impl })
     expect(entries.every((entry) => entry.tokens === 2)).toBe(true)
     expect(offline.calls).toHaveLength(0)
-    // 缓存落在 $DSH_HOME/skill-hub/tokenizers 下的固定文件名里，一个模型一份。
+    // 缓存落在插件数据目录的 tokenizer/ 下，文件名固定，一个模型一份。
     expect((await readdir(cacheDir)).sort()).toEqual(TOKEN_MODELS.map((model) => model.repo.replaceAll('/', '__') + '@' + model.revision.slice(0, 12) + '.json').sort())
   })
 
@@ -139,7 +139,7 @@ describe('token counting', () => {
     expect(second[0].tokens).toBe(1)
   })
 
-  it('defaults the cache directory to $DSH_HOME/skill-hub/tokenizers', () => {
-    expect(tokenCacheDir('/tmp/example-home')).toBe(join('/tmp/example-home', 'skill-hub', 'tokenizers'))
+  it('defaults the cache directory to the plugin data dir', () => {
+    expect(tokenCacheDir('/tmp/example-home')).toBe(join('/tmp/example-home', 'plugin', 'data', 'custom-instruction-manager', 'tokenizer'))
   })
 })
