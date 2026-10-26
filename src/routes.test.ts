@@ -9,6 +9,7 @@ import { lastMarketCheck } from './routes/route-state.ts'
 import { SkillHubStore, statePath } from './store.ts'
 import { SKILL_HUB_API, SKILL_HUB_API_ROOT, TOKEN_MODELS, type AgentsCacheResponse, type AgentsScanFailure, type AgentsScanStep, type CatalogResponse, type InstructionFileResponse, type InstructionFileRef, type InstructionGroup, type ConfigResponse, type ErrorResponse, type HubConfig, type TokenCountResponse, type TokenModelsResponse, type TokenSelectResponse } from './protocol.ts'
 import { resetTokenizers } from './tokens.ts'
+import { agentsIndexPath, hydrateAgentsRoster, resetAgentsRosterCache } from './agents-index.ts'
 import { existsSync } from 'node:fs'
 
 /** Minimal response double recording status/headers/body. */
@@ -954,6 +955,30 @@ describe('skill-hub routes', () => {
     const refreshed = new FakeResponse()
     await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), refreshed as never)
     expect((refreshed.json() as AgentsCacheResponse).groups[1]?.files).toHaveLength(2)
+  })
+
+  it('persists the index under the plugin data directory and hydrates it on load (a restart keeps the cache)', async () => {
+    const proj = join(dir, 'restart-proj')
+    await mkdir(proj, { recursive: true })
+    await writeFile(join(proj, 'AGENTS.md'), '# restart\n', 'utf8')
+    await mkdir(join(home, 'storages'), { recursive: true })
+    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
+      global: { workspaceIds: ['a'] },
+      tables: { workspaces: { a: { path: proj, title: 'restart-proj' } } },
+    }), 'utf8')
+
+    const steps = await scanAll()
+    // 索引落在插件数据目录下，和 state.json 同一个位置。
+    await access(agentsIndexPath(home))
+
+    // 模拟宿主重启：内存清空，插件加载时把磁盘那份读回内存。
+    resetAgentsRosterCache()
+    await hydrateAgentsRoster(deps)
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agents).handler(fakeReq('GET', SKILL_HUB_API.agents), res as never)
+    const body = res.json() as AgentsCacheResponse
+    expect(body.cached).toBe(true)
+    expect(groupsBrief(body.groups)).toEqual(groupsBrief(steps.map((chunk) => chunk.group)))
   })
 
   it('refuses a step that does not belong to the running scan, and asks for a restart', async () => {

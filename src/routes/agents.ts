@@ -6,9 +6,10 @@
  * 当前配置扫磁盘。
  *
  * 索引分两层：
- *   - **缓存**（`rosters`）：上一次完整扫描的结果，按（家目录 + 排除目录）分键。
- *     面板打开页面先读它（GET /agents），一次遍历都不用跑；点开一行、保存正文
- *     也用它做成员资格校验，所以「进入分类 → 点开一行」不再是两次全树遍历。
+ *   - **缓存**（见 ../agents-index.ts）：上一次完整扫描的结果，内存一份 + 磁盘
+ *     一份（插件加载时读回），按（家目录 + 共享根 + 排除目录）分键。面板打开
+ *     页面先读它（GET /agents），一次遍历都不用跑；点开一行、保存正文也用它做
+ *     成员资格校验，所以「进入分类 → 点开一行」不再是两次全树遍历。
  *   - **进行中的扫描**（`staged`）：GET /agents/scan 分步推进。第 0 步建一份
  *     计划并回用户级分组，之后每个工作区一步；最后一步把整份结果提升为缓存。
  *     面板每步把它并进列表，所以扫描期间看到的是「缓存打底 + 扫到的实时替换」。
@@ -18,7 +19,6 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { agentsHome, dshHome } from '../store.ts'
 import {
   MAX_EDIT_BODY_BYTES,
   resolveExcludeDirs,
@@ -31,6 +31,7 @@ import {
   type InstructionGroup,
   type InstructionRoster,
 } from '../protocol.ts'
+import { agentsKeyString, cachedAgentsRoster, saveAgentsRoster } from '../agents-index.ts'
 import {
   InstructionFileError,
   planInstructionScan,
@@ -43,16 +44,6 @@ import {
 } from '../instructions.ts'
 import { configOf, readNumber, readString, writeError, writeFileFailure, writeJson, writeRouteError, type RouteSpec, type SkillHubRouteDeps } from './helpers.ts'
 
-/** 缓存的索引按（家目录 + 排除目录）分键：配置或部署变化立即落到另一份。 */
-interface CachedRoster {
-  /** 这一份是什么时候扫完的（epoch ms）。 */
-  at: number
-  roster: InstructionRoster
-}
-
-/** 已完成扫描的缓存（host 进程内，直到被下一轮完整扫描覆盖）。 */
-const rosters = new Map<string, CachedRoster>()
-
 /** 一轮进行中的分步扫描。 */
 interface StagedScan {
   scanId: string
@@ -61,16 +52,11 @@ interface StagedScan {
   groups: InstructionGroup[]
 }
 
-/** 进行中的扫描，按同一个键分键：同时开着两轮时后一轮顶掉前一轮。 */
+/**
+ * 进行中的扫描，按同一个键分键（键与索引缓存一致：家目录 + 共享根 + 排除
+ * 目录）；同时开着两轮时后一轮顶掉前一轮。
+ */
 const staged = new Map<string, StagedScan>()
-
-function scanKey(deps: SkillHubRouteDeps): string {
-  return JSON.stringify({
-    home: deps.home ?? dshHome(),
-    agentsHome: deps.agentsHome ?? agentsHome(),
-    excludeDirs: resolveExcludeDirs(configOf(deps).excludeDirs),
-  })
-}
 
 /** 当前配置下的排除目录清单（无缓存时也能先把排除目录的条目画出来）。 */
 function currentExcludeDirs(deps: SkillHubRouteDeps): string[] {
@@ -84,24 +70,24 @@ function currentExcludeDirs(deps: SkillHubRouteDeps): string[] {
  * 保证正文读取与保存永远有据可依。
  */
 async function rosterFor(deps: SkillHubRouteDeps): Promise<InstructionRoster> {
-  const key = scanKey(deps)
-  const cached = rosters.get(key)?.roster
-  const live = staged.get(key)
+  const cached = cachedAgentsRoster(deps)?.roster
+  const live = staged.get(agentsKeyString(deps))
   if (cached !== undefined && live !== undefined) {
     return { excludeDirs: cached.excludeDirs, groups: [...cached.groups, ...live.groups] }
   }
   if (cached !== undefined) return cached
   if (live !== undefined) return { excludeDirs: live.plan.excludeDirs, groups: live.groups }
+  // 既没有缓存也没有进行中的扫描（插件刚起来、面板直接点了一个旧路径）：
+  // 兜底整扫一次，并把结果留成缓存。
   const roster = await scanInstructionGroups(deps)
-  rosters.set(key, { at: Date.now(), roster })
+  await saveAgentsRoster(deps, roster)
   return roster
 }
 
-/** 一轮扫完：整份结果成为新的缓存，进行中的那份退场。 */
-function promote(deps: SkillHubRouteDeps, scan: StagedScan): void {
-  const key = scanKey(deps)
-  rosters.set(key, { at: Date.now(), roster: { groups: scan.groups, excludeDirs: scan.plan.excludeDirs } })
-  staged.delete(key)
+/** 一轮扫完：整份结果成为新的缓存（内存 + 磁盘），进行中的那份退场。 */
+async function promote(deps: SkillHubRouteDeps, scan: StagedScan): Promise<void> {
+  await saveAgentsRoster(deps, { groups: scan.groups, excludeDirs: scan.plan.excludeDirs })
+  staged.delete(agentsKeyString(deps))
 }
 
 /** 一步的响应体（`groups[step]` 就是本步的分组）。 */
@@ -136,7 +122,7 @@ export function agentsRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
       path: SKILL_HUB_API.agents,
       methods: ['GET'],
       handler: async ({ res }) => {
-        const hit = rosters.get(scanKey(deps))
+        const hit = cachedAgentsRoster(deps)
         const body: AgentsCacheResponse = hit === undefined
           ? { ok: true, cached: false, scannedAt: 0, groups: [], excludeDirs: currentExcludeDirs(deps) }
           : { ok: true, cached: true, scannedAt: hit.at, groups: hit.roster.groups, excludeDirs: hit.roster.excludeDirs }
@@ -151,13 +137,13 @@ export function agentsRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
       handler: async ({ res, url }) => {
         const step = stepOf(url)
         if (step === undefined) { writeError(res, 400, 'step must be a non-negative integer'); return }
-        const key = scanKey(deps)
+        const key = agentsKeyString(deps)
         try {
           if (step === 0) {
             const plan = await planInstructionScan(deps)
             const scan: StagedScan = { scanId: 'scan_' + randomUUID().slice(0, 8), plan, groups: [plan.user] }
             staged.set(key, scan)
-            if (scan.groups.length >= 1 + plan.projects.length) promote(deps, scan)
+            if (scan.groups.length >= 1 + plan.projects.length) await promote(deps, scan)
             writeJson(res, 200, stepPayload(scan, 0))
             return
           }
@@ -172,7 +158,7 @@ export function agentsRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           if (step >= total) { writeError(res, 400, 'step out of range'); return }
           scan.groups.push(await scanProjectGroup(scan.plan, scan.plan.projects[step - 1]))
           const payload = stepPayload(scan, step)
-          if (payload.more === false) promote(deps, scan)
+          if (payload.more === false) await promote(deps, scan)
           writeJson(res, 200, payload)
         } catch (error) {
           writeRouteError(res, error)

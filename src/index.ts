@@ -22,8 +22,9 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-settings'
 import { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, resolveHubConfig, type HubConfig } from './protocol.ts'
+import { hydrateAgentsRoster } from './agents-index.ts'
 import { SkillHubProvider } from './provider.ts'
-import { hostTrustFence, makeRoutes } from './routes.ts'
+import { hostTrustFence, makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { createSkillStatsReader, asPersistenceSeam, type SessionPersistenceLike, type SessionQueryLike, type SkillStatsReader } from './stats.ts'
 import { migrateLegacyData } from './data-migrate.ts'
 import { SkillHubStore } from './store.ts'
@@ -312,7 +313,7 @@ export function apply(ctx: Context, config?: Config): void {
     }
     disposeRoutes = ctx.effect(
       () => {
-        const disposers = makeRoutes({
+        const deps: SkillHubRouteDeps = {
           skills: ctx.skills,
           store,
           // The host's own `/api` trust fence (loopback ∪ bind address ∪
@@ -330,7 +331,12 @@ export function apply(ctx: Context, config?: Config): void {
           config: current,
           saved,
           updateConfig,
-        }).map((route) => ctx.webServer.register(route))
+        }
+        // 插件加载（含每次打开 dsh）先把上一份 AGENTS.md 索引读进内存：面板
+        // 打开页面可以立即铺出来，随后的分步重扫再刷新它。读盘失败就是没有
+        // 缓存，页面照常从第一轮扫描开始。
+        void hydrateAgentsRoster(deps)
+        const disposers = makeRoutes(deps).map((route) => ctx.webServer.register(route))
         return () => {
           for (const dispose of disposers) dispose()
         }
