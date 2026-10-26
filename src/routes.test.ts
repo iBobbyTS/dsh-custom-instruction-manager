@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { IncomingMessage } from 'node:http'
@@ -944,6 +944,162 @@ describe('skill-hub routes', () => {
     const outside = new FakeResponse()
     await routeFor(SKILL_HUB_API.agentsFile).handler(fakeReq('GET', SKILL_HUB_API.agentsFile + '?path=' + encodeURIComponent(join(dir, 'AGENTS.md'))), outside as never)
     expect(outside.status).toBe(404)
+  })
+
+  // ------------------------------------------------------------ body editing
+
+  /** 写一个用户根技能，并把注册表指向它（详情/保存都按这条路径解析）。 */
+  async function seedSkill(name: string, text: string): Promise<string> {
+    const file = join(home, 'skills', name, 'SKILL.md')
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, text, 'utf8')
+    deps.skills.get = async (lookedUp: string) => lookedUp === name
+      ? definition({ name, path: file, source: 'user-dsh' })
+      : undefined
+    return file
+  }
+
+  /** 一次保存的请求体：带当前文件的 mtime/size 指纹。 */
+  async function saveBody(name: string, content: string, file: string): Promise<Record<string, unknown>> {
+    const info = await stat(file)
+    return { name, content, expectedMtime: info.mtimeMs, expectedSize: info.size }
+  }
+
+  it('writes the skill body back and leaves the frontmatter untouched', async () => {
+    const text = '---\nname: demo\ndescription: Demo\n---\n\n# Old body\n'
+    const file = await seedSkill('demo', text)
+    let invalidated = 0
+    deps.invalidate = () => { invalidated += 1 }
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillContent).handler(
+      fakeReq('POST', SKILL_HUB_API.skillContent, await saveBody('demo', '# New body\n\n- item\n', file)),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    const body = res.json() as { ok: true; content: string; path: string; size: number }
+    expect(body.content).toBe('# New body\n\n- item')
+    expect(body.path).toBe(file)
+    expect(await readFile(file, 'utf8')).toBe('---\nname: demo\ndescription: Demo\n---\n\n# New body\n\n- item\n')
+    expect(body.size).toBe(Buffer.byteLength('---\nname: demo\ndescription: Demo\n---\n\n# New body\n\n- item\n', 'utf8'))
+    // 注册表缓存必须失效，否则下一次 /skill 还会给旧正文。
+    expect(invalidated).toBe(1)
+  })
+
+  it('refuses a stale save with 409 + the latest disk state, and writes nothing', async () => {
+    const file = await seedSkill('demo', '---\nname: demo\ndescription: Demo\n---\n\n# Old\n')
+    const stale = await saveBody('demo', '# Mine\n', file)
+    // 编辑期间别处改了这个文件（agent / 编辑器）。
+    await writeFile(file, '---\nname: demo\ndescription: Demo\n---\n\n# Changed elsewhere\n', 'utf8')
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillContent).handler(fakeReq('POST', SKILL_HUB_API.skillContent, stale), res as never)
+    expect(res.status).toBe(409)
+    const body = res.json() as { error: string; code: string; latest: { content: string; size: number; modifiedAt: number } }
+    expect(body.code).toBe('stale')
+    expect(body.latest.content).toBe('# Changed elsewhere')
+    expect(typeof body.latest.modifiedAt).toBe('number')
+    // 磁盘上仍是别处写入的版本。
+    expect(await readFile(file, 'utf8')).toBe('---\nname: demo\ndescription: Demo\n---\n\n# Changed elsewhere\n')
+  })
+
+  it('refuses to edit a provider skill and an unwritable path', async () => {
+    deps.skills.get = async (name: string) => name === 'bundled'
+      ? definition({ name, source: 'bundled', provider: 'bundled', path: undefined })
+      : undefined
+    const provider = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillContent).handler(fakeReq('POST', SKILL_HUB_API.skillContent, { name: 'bundled', content: 'x' }), provider as never)
+    expect(provider.status).toBe(409)
+    expect((provider.json() as ErrorResponse).error).toContain('has no file to edit')
+
+    // 外部路径（用户根之外、也不在 <ws>/.dsh|.agents/skills 下）不可写。
+    const outsideFile = join(dir, 'elsewhere', 'SKILL.md')
+    await mkdir(dirname(outsideFile), { recursive: true })
+    await writeFile(outsideFile, '---\nname: demo\ndescription: Demo\n---\n\nbody\n', 'utf8')
+    deps.skills.get = async (name: string) => name === 'demo'
+      ? definition({ name, path: outsideFile, source: 'user-dsh' })
+      : undefined
+    const outside = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillContent).handler(fakeReq('POST', SKILL_HUB_API.skillContent, { name: 'demo', content: 'x' }), outside as never)
+    expect(outside.status).toBe(409)
+    expect((outside.json() as ErrorResponse).error).toContain('only skill files under a user or project root')
+
+    const unknown = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillContent).handler(fakeReq('POST', SKILL_HUB_API.skillContent, { name: 'nope', content: 'x' }), unknown as never)
+    expect(unknown.status).toBe(404)
+  })
+
+  it('edits a project-root skill through the cwd lookup', async () => {
+    const ws = join(dir, 'ws')
+    const file = join(ws, '.agents', 'skills', 'release', 'SKILL.md')
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, '---\nname: release\ndescription: Release\n---\n\nold\n', 'utf8')
+    deps.skills.get = async (name: string, options?: { cwd?: string }) => name === 'release' && options?.cwd === ws
+      ? definition({ name, path: file, source: 'project-agents' })
+      : undefined
+
+    const info = await stat(file)
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillContent).handler(
+      fakeReq('POST', SKILL_HUB_API.skillContent, { name: 'release', cwd: ws, content: 'new', expectedMtime: info.mtimeMs, expectedSize: info.size }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(await readFile(file, 'utf8')).toBe('---\nname: release\ndescription: Release\n---\n\nnew\n')
+  })
+
+  it('writes an instruction file back through agents/file/save', async () => {
+    const proj = join(dir, 'edit-proj')
+    await mkdir(proj, { recursive: true })
+    const file = join(proj, 'AGENTS.md')
+    await writeFile(file, '# proj\n', 'utf8')
+    await mkdir(join(home, 'storages'), { recursive: true })
+    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
+      global: { workspaceIds: ['a'] },
+      tables: { workspaces: { a: { path: proj, title: 'edit-proj' } } },
+    }), 'utf8')
+
+    const info = await stat(file)
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsFileSave).handler(
+      fakeReq('POST', SKILL_HUB_API.agentsFileSave, { path: file, content: '# proj\n\n- rule\n', expectedMtime: info.mtimeMs, expectedSize: info.size }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    const body = res.json() as { ok: true; path: string; size: number; modifiedAt: number }
+    // 清单里的路径是 realpath（macOS 的 /var → /private/var），按尾部断言。
+    expect(body.path.endsWith('/edit-proj/AGENTS.md')).toBe(true)
+    expect(body.size).toBe(Buffer.byteLength('# proj\n\n- rule\n', 'utf8'))
+    expect(await readFile(file, 'utf8')).toBe('# proj\n\n- rule\n')
+
+    // 冲突：别处改过之后再用旧指纹保存。
+    await writeFile(file, '# changed\n', 'utf8')
+    const stale = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsFileSave).handler(
+      fakeReq('POST', SKILL_HUB_API.agentsFileSave, { path: file, content: '# mine\n', expectedMtime: info.mtimeMs, expectedSize: info.size }),
+      stale as never,
+    )
+    expect(stale.status).toBe(409)
+    const conflict = stale.json() as { code: string; latest: { content: string } }
+    expect(conflict.code).toBe('stale')
+    expect(conflict.latest.content).toBe('# changed\n')
+    expect(await readFile(file, 'utf8')).toBe('# changed\n')
+  })
+
+  it('refuses to save an instruction file that is not on the page', async () => {
+    const outside = join(dir, 'not-listed.md')
+    await writeFile(outside, 'x', 'utf8')
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsFileSave).handler(
+      fakeReq('POST', SKILL_HUB_API.agentsFileSave, { path: outside, content: 'y' }),
+      res as never,
+    )
+    expect(res.status).toBe(404)
+    expect(await readFile(outside, 'utf8')).toBe('x')
+
+    const missingContent = new FakeResponse()
+    await routeFor(SKILL_HUB_API.agentsFileSave).handler(fakeReq('POST', SKILL_HUB_API.agentsFileSave, { path: outside }), missingContent as never)
+    expect(missingContent.status).toBe(400)
   })
 
   it('persists the AGENTS.md exclude list through the config route and rejects paths', async () => {

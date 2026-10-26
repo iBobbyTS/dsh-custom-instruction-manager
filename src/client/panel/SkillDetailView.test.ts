@@ -22,7 +22,7 @@ const detail: SkillDetail = {
   content: '# Demo body',
 }
 
-function render(sources: SourcesResponse | null, state: SkillDetailViewProps['tokenTable']['state'] = { status: 'idle' }): string {
+function render(sources: SourcesResponse | null, state: SkillDetailViewProps['tokenTable']['state'] = { status: 'idle' }, extra: Partial<SkillDetailViewProps> = {}): string {
   const props: SkillDetailViewProps = {
     detail,
     hubConfig: null,
@@ -33,13 +33,28 @@ function render(sources: SourcesResponse | null, state: SkillDetailViewProps['to
     syncingSource: null,
     invocationBusy: false,
     tokenTable: { state, models: null, busyModel: null, onSelectModel: () => {} },
+    edit: { active: false, draft: '', busy: false, onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
+    onEditStart: () => {},
     onInvocationChange: () => {},
     onBack: () => {},
     onCheck: () => {},
     onSync: () => {},
     onFollowDelete: () => {},
+    ...extra,
   }
   return renderToStaticMarkup(createElement(SkillDetailView, props))
+}
+
+/** 一个可写技能（用户根/项目根的文件）——只有它能出现「编辑」。 */
+const WRITABLE = { editable: true } as const
+
+/** 编辑态：文本域 + 保存/取消，只读的 <pre> 不再渲染。 */
+function renderEditing(extra: Partial<SkillDetailViewProps> = {}): string {
+  return render(null, undefined, {
+    ...WRITABLE,
+    edit: { active: true, draft: '# Draft body', busy: false, onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
+    ...extra,
+  })
 }
 
 const tracked: SourcesResponse = {
@@ -77,5 +92,42 @@ describe('SkillDetailView upstream block', () => {
     expect(html).not.toContain('个人技能')
     expect(html).not.toContain('检查更新')
     expect(html).toContain('# Demo body')
+  })
+})
+
+describe('SkillDetailView body editing', () => {
+  it('offers 编辑 only when the skill file is writable', () => {
+    expect(render(null, undefined, WRITABLE)).toContain('>编辑<')
+    // editable 缺省 = 内置/插件 provider（或旧宿主）：没有任何写入口。
+    expect(render(null)).not.toContain('>编辑<')
+    expect(render(null, undefined, { editable: false })).not.toContain('>编辑<')
+  })
+
+  it('swaps the read-only body for a textarea holding the draft', () => {
+    const html = renderEditing()
+    expect(html).toContain('<textarea')
+    expect(html).toContain('# Draft body')
+    expect(html).not.toContain('# Demo body')
+    expect(html).toContain('保存')
+    expect(html).toContain('取消')
+    expect(html).toContain('⌘S 保存')
+    // 编辑态里编辑入口让位给保存/取消。
+    expect(html).not.toContain('>编辑<')
+  })
+
+  it('disables the buttons and says 保存中 while a save is in flight', () => {
+    const html = renderEditing({ edit: { active: true, draft: '# Draft body', busy: true, onDraft: () => {}, onSave: () => {}, onCancel: () => {} } })
+    expect(html).toContain('保存中')
+    expect(html).toContain('disabled')
+  })
+
+  it('shows the save failure and the post-save notice', () => {
+    const failed = renderEditing({
+      edit: { active: true, draft: '# Draft body', busy: false, error: 'file is read-only: /tmp/demo/SKILL.md', onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
+    })
+    expect(failed).toContain('file is read-only')
+    expect(failed).toContain('role="alert"')
+    const saved = render(null, undefined, { ...WRITABLE, notice: '已保存。此技能跟随 acme/skills，同步会用上游版本覆盖本地修改。' })
+    expect(saved).toContain('acme/skills')
   })
 })

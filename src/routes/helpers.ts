@@ -19,9 +19,11 @@ export {
   pathExists,
   queryParam,
   readJsonBody,
+  readNumber,
   readString,
   readStrings,
   writeError,
+  writeFileFailure,
   writeJson,
   writeRouteError,
 } from './http.ts'

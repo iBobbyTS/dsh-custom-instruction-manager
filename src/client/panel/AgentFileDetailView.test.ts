@@ -25,6 +25,8 @@ function render(extra: Partial<AgentFileDetailViewProps> = {}): string {
     scope: 'lmdo-website',
     loading: false,
     tokenTable: tokenTable(),
+    edit: { active: false, draft: '', busy: false, onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
+    onEditStart: () => {},
     onBack: () => {},
     ...extra,
   }
@@ -70,5 +72,32 @@ describe('instruction file detail', () => {
     const html = render({ error: 'not an instruction file on this page' })
     expect(html).toContain('读取失败')
     expect(html).toContain('not an instruction file on this page')
+  })
+
+  it('offers 编辑 only once the body has arrived', () => {
+    const loaded = render({ detail: { ...file, size: 7, modifiedAt: 1792900000000, content: '# docs\n' } })
+    expect(loaded).toContain('>编辑<')
+    expect(render({ loading: true })).not.toContain('>编辑<')
+    expect(render({ error: 'gone' })).not.toContain('>编辑<')
+  })
+
+  it('edits the whole file in a textarea (instruction files have no frontmatter)', () => {
+    const html = render({
+      detail: { ...file, size: 7, modifiedAt: 1792900000000, content: '# docs\n' },
+      edit: { active: true, draft: '# docs\n\n- new rule\n', busy: false, onDraft: () => {}, onSave: () => {}, onCancel: () => {} },
+    })
+    expect(html).toContain('<textarea')
+    expect(html).toContain('- new rule')
+    expect(html).toContain('保存')
+    expect(html).toContain('取消')
+    expect(html).not.toContain('>编辑<')
+  })
+
+  it('shows the post-save notice', () => {
+    const html = render({
+      detail: { ...file, size: 7, modifiedAt: 1792900000000, content: '# docs\n' },
+      notice: '已保存到磁盘',
+    })
+    expect(html).toContain('已保存到磁盘')
   })
 })

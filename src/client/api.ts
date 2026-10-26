@@ -15,6 +15,8 @@ import {
   type DiagnosticFixResponse,
   type GroupsResponse,
   type InstructionFileResponse,
+  type InstructionFileSaveRequest,
+  type InstructionFileSaveResponse,
   type MarketCheckResponse,
   type MarketSourceAddResponse,
   type MarketSourceRefRequest,
@@ -31,6 +33,8 @@ import {
   type RepoImportResponse,
   type SkillDetail,
   type SkillDetailResponse,
+  type SkillContentRequest,
+  type SkillContentResponse,
   type SkillInvocationRequest,
   type SkillInvocationResponse,
   type SkillDeleteRequest,
@@ -64,7 +68,13 @@ import {
 
 /** Error carrying the route's JSON error message. */
 export class SkillHubApiError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** 机器可读的错误分类（例如保存冲突的 `stale`）。 */
+    readonly code?: string,
+    /** 原始响应体：冲突时带 `latest`，供「复制并重新加载」使用。 */
+    readonly body?: unknown,
+  ) {
     super(message)
     this.name = 'SkillHubApiError'
   }
@@ -79,10 +89,10 @@ async function readJson<T>(response: Response): Promise<T> {
     throw new SkillHubApiError('HTTP ' + response.status + ': invalid JSON response')
   }
   if (!response.ok) {
-    const message = typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string'
-      ? (body as { error: string }).error
-      : 'HTTP ' + response.status
-    throw new SkillHubApiError(message)
+    const record = typeof body === 'object' && body !== null ? body as { error?: unknown; code?: unknown } : {}
+    const message = typeof record.error === 'string' ? record.error : 'HTTP ' + response.status
+    const code = typeof record.code === 'string' ? record.code : undefined
+    throw new SkillHubApiError(message, code, body)
   }
   return body as T
 }
@@ -289,6 +299,24 @@ export class SkillHubApi {
   async agentsFile(path: string): Promise<InstructionFileDetail> {
     const body = await this.get<InstructionFileResponse>(SKILL_HUB_API.agentsFile, '?path=' + encodeURIComponent(path))
     return body.file
+  }
+
+  /**
+   * 写回一份指令文件的整份原文。
+   *
+   * 请求带载入时的 mtime/size：磁盘在编辑期间被别处改过时，host 回 409，
+   * 这里抛 code='stale' 的 SkillHubApiError（body.latest 是最新内容）。
+   */
+  saveAgentsFile(payload: InstructionFileSaveRequest): Promise<InstructionFileSaveResponse> {
+    return this.post<InstructionFileSaveResponse>(SKILL_HUB_API.agentsFileSave, payload)
+  }
+
+  /**
+   * 写回技能正文（frontmatter 由 host 原样保留）。
+   * 冲突语义与 {@link saveAgentsFile} 相同：code='stale' + body.latest。
+   */
+  saveSkillContent(payload: SkillContentRequest): Promise<SkillContentResponse> {
+    return this.post<SkillContentResponse>(SKILL_HUB_API.skillContent, payload)
   }
 
   /**

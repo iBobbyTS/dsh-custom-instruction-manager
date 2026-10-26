@@ -173,11 +173,12 @@ export function useSkillHub(api: SkillHubApi, initialTab: SkillTab = 'sources') 
     listBusy,
     collapsedGroups, subdividedProjects,
     versionDialog: marketFlow.versionDialog, versionBusy: marketFlow.versionBusy,
-    // AGENTS.md 页（只读清单 + 排除目录）
+    // AGENTS.md 页（指令文件清单 + 排除目录 + 正文编辑回填）
     agents: agentsFlow.agents, agentsLoading: agentsFlow.agentsLoading,
     agentsError: agentsFlow.agentsError, excludeSaving: agentsFlow.excludeSaving,
     loadAgents: agentsFlow.loadAgents, saveExcludeDirs: agentsFlow.saveExcludeDirs,
     agentsFile: agentsFlow.agentsFile, openAgentsFile: agentsFlow.openAgentsFile, closeAgentsFile: agentsFlow.closeAgentsFile,
+    patchAgentsFile: agentsFlow.patchAgentsFile,
     // derived
     actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
     normalized: catalogFlow.normalized, origins, sourceOptions,

@@ -150,3 +150,26 @@ export async function pathExists(path: string): Promise<boolean> {
     return false
   }
 }
+
+/** 读取请求体里的数字字段（缺失或类型不符返回 undefined）。 */
+export function readNumber(body: Record<string, unknown>, key: string): number | undefined {
+  const value = body[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+/**
+ * 落盘失败的可读回应：文件没了 / 只读 / 目录不可写都是**用户可见的业务
+ * 拒绝**（409），不是 500 崩溃。返回 true 表示已经写过响应。
+ */
+export function writeFileFailure(res: ServerResponse, error: unknown, path: string): boolean {
+  const code = (error as NodeJS.ErrnoException).code
+  if (code === 'ENOENT') {
+    writeError(res, 409, 'file is missing on disk: ' + path)
+    return true
+  }
+  if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') {
+    writeError(res, 409, 'file is read-only: ' + path)
+    return true
+  }
+  return false
+}

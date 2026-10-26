@@ -22,7 +22,8 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { resolveExcludeDirs, type AgentsResponse, type InstructionFileDetail, type InstructionFileRef, type InstructionGroup } from './protocol.ts'
+import { resolveExcludeDirs, type AgentsResponse, type EditSnapshot, type InstructionFileDetail, type InstructionFileRef, type InstructionGroup } from './protocol.ts'
+import { readFileSnapshot, writeTextAtomic } from './skillfs/write.ts'
 import { agentsHome, dshHome } from './store.ts'
 import { workspaceEntries } from './routes/catalog-data.ts'
 import { configOf, type SkillHubRouteDeps } from './routes/deps.ts'
@@ -269,13 +270,35 @@ export class InstructionFileError extends Error {
 }
 
 /**
+ * The roster row behind one absolute path, or undefined when the path is not
+ * one of this page's rows. Both readings (the GET detail and the save) go
+ * through it, so the write entry accepts exactly the files the list shows.
+ *
+ * 清单里存的是 realpath（macOS 的 /var → /private/var 会让字面路径对不上），
+ * 所以两边都过一遍 realpath，同时接受调用方原样回传的行值。
+ */
+export async function instructionRefOf(
+  deps: SkillHubRouteDeps,
+  absolutePath: string,
+  scan?: AgentsResponse,
+): Promise<InstructionFileRef | undefined> {
+  const literal = resolve(absolutePath)
+  const canonical = await realpath(absolutePath).catch(() => literal)
+  const roster = scan ?? await scanInstructionGroups(deps)
+  return roster.groups
+    .flatMap((group) => group.files)
+    .find((row) => {
+      const own = resolve(row.absolute)
+      return own === canonical || own === literal
+    })
+}
+
+/**
  * Read one instruction file that the current scan reports.
  *
- * The lookup goes through a fresh scan on purpose: it validates that the path
- * is actually one of this page's rows (no arbitrary file reads through the
- * route) and reuses the same canonical/realpath rules the list shows — 0.6 s
- * for a typical tree, and the list it compares against is exactly what the
- * user clicked.
+ * The lookup is validated against the page's own rows (no arbitrary file reads
+ * through the route) and reuses the same canonical/realpath rules the list
+ * shows — the list it compares against is exactly what the user clicked.
  * @param deps - route dependencies (homes + config).
  * @param absolutePath - the row's `absolute`, as sent by the panel.
  * @param scan - an already-computed scan to validate against; omitted runs one
@@ -289,17 +312,7 @@ export async function readInstructionFile(
   absolutePath: string,
   scan?: AgentsResponse,
 ): Promise<InstructionFileDetail> {
-  // 清单里存的是 realpath（macOS 的 /var → /private/var 会让字面路径对不上），
-  // 所以两边都过一遍 realpath，同时接受调用方原样回传的行值。
-  const literal = resolve(absolutePath)
-  const canonical = await realpath(absolutePath).catch(() => literal)
-  const roster = scan ?? await scanInstructionGroups(deps)
-  const ref = roster.groups
-    .flatMap((group) => group.files)
-    .find((row) => {
-      const own = resolve(row.absolute)
-      return own === canonical || own === literal
-    })
+  const ref = await instructionRefOf(deps, absolutePath, scan)
   if (ref === undefined) throw new InstructionFileError('not an instruction file on this page: ' + absolutePath, 404)
   const info = await stat(ref.absolute).catch(() => undefined)
   if (info === undefined || !info.isFile()) throw new InstructionFileError('cannot read file: ' + absolutePath, 404)
@@ -307,4 +320,53 @@ export async function readInstructionFile(
   const content = await readFile(ref.absolute, 'utf8').catch(() => undefined)
   if (content === undefined) throw new InstructionFileError('cannot read file: ' + absolutePath, 404)
   return { ...ref, size: info.size, modifiedAt: info.mtimeMs, content }
+}
+
+/**
+ * 冲突：磁盘上的文件在编辑期间被改过（agent、别的编辑器、同步）。`latest`
+ * 是刚读到的状态，路由把它原样回给客户端，让「复制并重新加载 / 继续编辑 /
+ * 仍然覆盖」三选有据可依。
+ */
+export class StaleContentError extends Error {
+  constructor(message: string, readonly latest: EditSnapshot) {
+    super(message)
+    this.name = 'StaleContentError'
+  }
+}
+
+/**
+ * 写回一份指令文件的整份原文。
+ * @param deps - route dependencies.
+ * @param absolutePath - the row's `absolute`, as sent by the panel.
+ * @param content - 新的整份正文（不做 trim，原样落盘）。
+ * @param expected - 载入时的 mtime/size；缺省表示不做冲突检查。
+ * @param scan - the cached roster (same one the detail read used).
+ * @returns 写回后的文件大小与 mtime。
+ * @throws {InstructionFileError} 404 不在清单里 / 文件已消失；413 正文过大。
+ * @throws {StaleContentError} 409 期间被外部改过（带最新内容）。
+ */
+export async function saveInstructionFile(
+  deps: SkillHubRouteDeps,
+  absolutePath: string,
+  content: string,
+  expected?: { modifiedAt?: number; size?: number },
+  scan?: AgentsResponse,
+): Promise<{ path: string; size: number; modifiedAt: number }> {
+  const ref = await instructionRefOf(deps, absolutePath, scan)
+  if (ref === undefined) throw new InstructionFileError('not an instruction file on this page: ' + absolutePath, 404)
+  const snapshot = await readFileSnapshot(ref.absolute)
+  if (snapshot === undefined) throw new InstructionFileError('cannot read file: ' + absolutePath, 404)
+  if (Buffer.byteLength(content, 'utf8') > MAX_DETAIL_BYTES) {
+    throw new InstructionFileError('instruction file is too large to save (limit ' + MAX_DETAIL_BYTES + ' bytes)', 413)
+  }
+  if (expected?.modifiedAt !== undefined && expected.size !== undefined
+    && (expected.modifiedAt !== snapshot.modifiedAt || expected.size !== snapshot.size)) {
+    throw new StaleContentError('file changed on disk since it was loaded', {
+      content: snapshot.text,
+      modifiedAt: snapshot.modifiedAt,
+      size: snapshot.size,
+    })
+  }
+  const written = await writeTextAtomic(ref.absolute, content, snapshot.mode)
+  return { path: ref.absolute, ...written }
 }

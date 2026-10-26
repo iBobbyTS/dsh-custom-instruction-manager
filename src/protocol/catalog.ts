@@ -109,6 +109,8 @@ export interface SkillDetail {
   addedAt?: number
   /** SKILL.md last-modified time (epoch ms); absent when the file is unreadable. */
   updatedAt?: number
+  /** SKILL.md 字节大小；编辑保存的冲突指纹之一（不可读时缺省）。 */
+  size?: number
   /** Markdown instruction body. */
   content: string
   /**
@@ -187,6 +189,57 @@ export interface SkillDeleteResponse {
   name: string
   /** 移入系统废纸篓后的路径（目录或文件；重名时带时间戳后缀）。 */
   path: string
+}
+
+/**
+ * 编辑保存后的文件状态。客户端拿它更新页面，不必为了新内容再读一次磁盘。
+ * 技能给的是 frontmatter 之后的正文（与详情页显示的一致），指令文件给整份原文。
+ */
+export interface EditSnapshot {
+  content: string
+  /** 文件 mtime（epoch ms）。 */
+  modifiedAt: number
+  /** 文件字节大小。 */
+  size: number
+}
+
+/**
+ * 409 冲突体：编辑期间磁盘上的文件被别处改过（agent、别的编辑器、同步）。
+ * `latest` 是最新状态，客户端用它实现「复制并重新加载」与「仍然覆盖」。
+ */
+export interface EditConflictResponse {
+  error: string
+  code: 'stale'
+  latest: EditSnapshot
+}
+
+/**
+ * POST /api/skill-hub/skill/content — 写回技能正文。
+ *
+ * frontmatter 原样保留（客户端看不到它，也不该重写它）：host 只替换
+ * frontmatter 之后的那一段，name/description/调用键都不动。
+ */
+export interface SkillContentRequest {
+  name: string
+  /** 项目技能所属工作区（用户级技能可省略）。 */
+  cwd?: string
+  /** 新的正文（编辑器里的原文，不需要自带尾部换行）。 */
+  content: string
+  /** 载入详情时的 mtime/size；与磁盘不一致 = 期间被改过，409 并回最新内容。 */
+  expectedMtime?: number
+  expectedSize?: number
+}
+
+export interface SkillContentResponse {
+  ok: true
+  name: string
+  /** 被写入的发现文件（目录包的 SKILL.md 或扁平 .md；禁用态为 .disabled）。 */
+  path: string
+  /** 实际落盘的正文（行尾已 trim、换行已按原文件统一）；页面据此刷新。 */
+  content: string
+  /** 写回后的文件大小与 mtime。 */
+  modifiedAt: number
+  size: number
 }
 
 /** POST /api/skill-hub/toggle */

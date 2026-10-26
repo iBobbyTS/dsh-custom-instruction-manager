@@ -8,7 +8,7 @@
  * 新代码可按需直引 `from './protocol/<domain>.ts'`。
  */
 
-export { SKILL_HUB_API, SKILL_HUB_API_ROOT } from './protocol/api.ts'
+export { MAX_EDIT_BODY_BYTES, SKILL_HUB_API, SKILL_HUB_API_ROOT } from './protocol/api.ts'
 export type {
   WritableRoot,
   HubInvocation,
@@ -26,6 +26,10 @@ export type {
   SkillRevealResponse,
   SkillInvocationRequest,
   SkillInvocationResponse,
+  EditSnapshot,
+  EditConflictResponse,
+  SkillContentRequest,
+  SkillContentResponse,
   ToggleRequest,
   ToggleResponse,
   ToggleBatchRequest,
@@ -36,7 +40,16 @@ export type {
 export type { SkillStat, StatsResponse, SkillStatsCheckpoint } from './protocol/stats.ts'
 export type { ErrorResponse, HubConfig, HubSettingsValue, RedactedHubConfig, ConfigResponse, ConfigRequest } from './protocol/config.ts'
 export { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, GITHUB_TOKEN_RE, resolveExcludeDirs, resolveHubConfig, redactGithubToken } from './protocol/config.ts'
-export type { InstructionFileRef, InstructionGroup, AgentsResponse, InstructionFileDetail, InstructionFileResponse } from './protocol/instructions.ts'
+export type {
+  InstructionFileRef,
+  InstructionGroup,
+  AgentsResponse,
+  InstructionFileDetail,
+  InstructionFileResponse,
+  InstructionFileSaveRequest,
+  InstructionFileSaveResponse,
+  InstructionFileSaveFailure,
+} from './protocol/instructions.ts'
 export { DEFAULT_TOKEN_MODEL_IDS, TOKEN_COUNT_MAX_BYTES, TOKEN_MODELS, resolveTokenSelection } from './protocol/tokens.ts'
 export type {
   TokenModelSpec,

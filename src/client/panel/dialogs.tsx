@@ -9,6 +9,7 @@ import { useEffect, useState, type JSX, type ReactNode } from 'react'
 import type { CollectionGroup } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import { groupNamesOf } from '../grouping.ts'
+import type { EditChoice } from './hooks/useEditFlow.ts'
 import css from './panel.module.css'
 
 /** A group-close conflict waiting for the user's decision. */
@@ -69,6 +70,28 @@ function DialogShell(props: { onClose: () => void; children: ReactNode }): JSX.E
         {props.children}
       </div>
     </div>
+  )
+}
+
+/**
+ * 保存冲突：磁盘上的文件在编辑期间被改过。三个选择都由面板执行——
+ * 「复制并重新加载」把草稿放进剪贴板再换最新版本，「继续编辑」什么都不做，
+ * 「仍然覆盖」不带指纹再存一次。Esc / 点遮罩等同「继续编辑」（不写盘）。
+ */
+export function EditConflictDialog(props: {
+  onChoose: (choice: EditChoice) => void
+}): JSX.Element {
+  const { onChoose } = props
+  return (
+    <DialogShell onClose={() => { onChoose('continue') }}>
+      <h3 className={css.dialogTitle}>{tt('detail.editConflictTitle')}</h3>
+      <p className={css.dialogText}>{tt('detail.editConflictText')}</p>
+      <div className={css.dialogActions}>
+        <button type='button' className={css.button} onClick={() => { onChoose('continue') }}>{tt('detail.editConflictContinue')}</button>
+        <button type='button' className={css.button + ' ' + css.danger} onClick={() => { onChoose('overwrite') }}>{tt('detail.editConflictOverwrite')}</button>
+        <button type='button' className={css.button + ' ' + css.primary} onClick={() => { onChoose('copy-reload') }}>{tt('detail.editConflictCopyReload')}</button>
+      </div>
+    </DialogShell>
   )
 }
 

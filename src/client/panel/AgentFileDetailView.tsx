@@ -2,13 +2,15 @@
  * 指令文件详情页：和技能详情同构——返回列表、大标题是文件名、下面是元数据
  * （所属分组 / 绝对路径 / 大小 / 修改时间），最后是文件的原始正文。
  *
- * 只读：没有编辑、没有保存。正文按原文用 `<pre>` 呈现（技能详情也是原样
- * 呈现 SKILL.md，不渲染 Markdown），等宽字体保留 AGENTS.md 里的缩进与列表。
+ * 正文默认只读（原样 `<pre>`，不渲染 Markdown，等宽字体保留缩进与列表）；
+ * head 的「编辑」把正文区换成文本域（整份原文可改），保存直接写回磁盘。
+ * 编辑状态由面板持有，这里只收 props。
  */
 
 import { useEffect, useRef, useState } from 'react'
 import type { InstructionFileDetail, InstructionFileRef } from '../../protocol.ts'
 import { copyTextToClipboard, tt } from '../helpers.ts'
+import { EditBody, type EditModeProps } from './EditBody.tsx'
 import { formatBytes, formatDateTime } from './format.ts'
 import css from './panel.module.css'
 import { TokenTable, type TokenTableProps } from './TokenTable.tsx'
@@ -23,11 +25,17 @@ export interface AgentFileDetailViewProps {
   error?: string
   /** Token 统计表（计数状态 + 可选模型，正文到达后异步算）。 */
   tokenTable: TokenTableProps
+  /** 正文编辑态（状态由面板持有；active=false 时显示只读 <pre>）。 */
+  edit: EditModeProps
+  /** 进入编辑（正文到达后才显示按钮）。 */
+  onEditStart: () => void
+  /** 保存成功后的一行提示。 */
+  notice?: string
   onBack: () => void
 }
 
 export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.Element {
-  const { file, scope, detail, loading, error, tokenTable, onBack } = props
+  const { file, scope, detail, loading, error, tokenTable, edit, onEditStart, notice, onBack } = props
   const [copied, setCopied] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => () => { window.clearTimeout(timer.current) }, [])
@@ -47,10 +55,12 @@ export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.
         <button type='button' className={css.back} onClick={onBack}>{tt('detail.back')}</button>
         <span className={css.detailName}>{file.name}</span>
         <span className={css.actions} style={{ marginLeft: 'auto', gap: 6 }}>
+          {detail !== undefined && !edit.active ? <button type='button' className={css.opBtn} onClick={onEditStart}>{tt('detail.edit')}</button> : null}
           <button type='button' className={css.opBtn} onClick={copyPath}>{copied ? tt('detail.copied') : tt('detail.copyPath')}</button>
         </span>
       </div>
       <div className={css.detailSub}>{file.path}</div>
+      {notice !== undefined ? <div className={css.editNotice} role='status'>{notice}</div> : null}
       <div className={css.detailMeta}>
         <div className={css.detailMetaLine}>{tt('agents.scope')}: {scope}</div>
         <div className={css.detailMetaLine}>{tt('detail.path')}: {file.absolute}</div>
@@ -60,7 +70,7 @@ export function AgentFileDetailView(props: AgentFileDetailViewProps): React.JSX.
       {error !== undefined
         ? <div className={css.errorBanner}>{tt('agents.readError', { error })}</div>
         : detail !== undefined
-          ? <pre className={css.detailContent}>{detail.content}</pre>
+          ? <EditBody content={detail.content} edit={edit} label={tt('detail.editAgentFile')} />
           : loading
             ? <p className={css.empty}>{tt('agents.reading')}</p>
             : null}

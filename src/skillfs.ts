@@ -26,11 +26,14 @@ import type { TrashEntry, WritableRoot } from './protocol.ts'
 
 const execFileAsync = promisify(execFile)
 
-// Barrel: the frontmatter parser, the writable-root path helpers and the
-// discovery scanner live under ./skillfs/ and are re-exported here unchanged.
+// Barrel: the frontmatter parser, the writable-root path helpers, the
+// discovery scanner and the body/file write primitives live under ./skillfs/
+// and are re-exported here unchanged.
+export * from './skillfs/body.ts'
 export * from './skillfs/frontmatter.ts'
 export * from './skillfs/paths.ts'
 export * from './skillfs/scan.ts'
+export * from './skillfs/write.ts'
 
 /**
  * Scaffold a directory-bundle skill: <root>/<name>/SKILL.md with a frontmatter

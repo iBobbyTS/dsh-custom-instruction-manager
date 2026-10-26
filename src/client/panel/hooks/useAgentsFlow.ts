@@ -70,9 +70,16 @@ export function useAgentsFlow(api: SkillHubApi) {
 
   const closeAgentsFile = useCallback((): void => { setAgentsFile(null) }, [])
 
+  /** 保存成功后回填正文与磁盘指纹（文件刚写过，不必再读一次）。 */
+  const patchAgentsFile = useCallback((next: { content: string; size: number; modifiedAt: number }): void => {
+    setAgentsFile((previous) => previous === null || previous.detail === undefined
+      ? previous
+      : { ...previous, detail: { ...previous.detail, content: next.content, size: next.size, modifiedAt: next.modifiedAt } })
+  }, [])
+
   return {
     agents, agentsLoading, agentsError, excludeSaving,
     loadAgents, saveExcludeDirs,
-    agentsFile, openAgentsFile, closeAgentsFile,
+    agentsFile, openAgentsFile, closeAgentsFile, patchAgentsFile,
   }
 }

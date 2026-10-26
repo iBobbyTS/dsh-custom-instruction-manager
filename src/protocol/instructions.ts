@@ -2,10 +2,12 @@
  * AGENTS.md 页的线上形状：dsh 支持的指令文件名与磁盘上真实存在者的交集，
  * 按「用户级 + 每个工作区」分组；点开一行再读该文件的正文。
  *
- * 只在两个地方产生：host 的 GET /api/skill-hub/agents（清单）与
- * GET /api/skill-hub/agents/file（正文）。没有任何写入口——这一页不新建、
- * 不编辑、不删除文件。
+ * 三个入口：GET /api/skill-hub/agents（清单）、GET /api/skill-hub/agents/file
+ * （正文）与 POST /api/skill-hub/agents/file/save（写回整份原文）。写入口只
+ * 受理清单里真实存在的文件——不新建、不删除。
  */
+
+import type { EditConflictResponse } from './catalog.ts'
 
 /** 一行：大标题是磁盘上的真实文件名，副标题是从项目文件夹父目录算起的路径。 */
 export interface InstructionFileRef {
@@ -56,3 +58,30 @@ export interface InstructionFileResponse {
   ok: true
   file: InstructionFileDetail
 }
+
+/**
+ * POST /api/skill-hub/agents/file/save — 写回一份指令文件的整份原文。
+ *
+ * 受理范围是清单里已经在列的文件（用户级 `~/.dsh|~/.agents/AGENTS.md` 与
+ * 任一已注册工作区里的指令文件）；不在清单里的路径一律 404，不新建文件。
+ */
+export interface InstructionFileSaveRequest {
+  /** 清单行的 `absolute`，原样回传。 */
+  path: string
+  /** 新的整份正文。 */
+  content: string
+  /** 载入时的 mtime/size；与磁盘不一致 = 期间被改过，409 并回最新内容。 */
+  expectedMtime?: number
+  expectedSize?: number
+}
+
+export interface InstructionFileSaveResponse {
+  ok: true
+  path: string
+  /** 写回后的文件大小与 mtime（客户端据此继续编辑，不必重读）。 */
+  size: number
+  modifiedAt: number
+}
+
+/** 保存失败时的响应体：正常错误只有 `error`，冲突多一个 `code: 'stale'`。 */
+export type InstructionFileSaveFailure = EditConflictResponse | { error: string }

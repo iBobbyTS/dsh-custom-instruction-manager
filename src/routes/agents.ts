@@ -12,9 +12,16 @@
  */
 
 import { agentsHome, dshHome } from '../store.ts'
-import { resolveExcludeDirs, SKILL_HUB_API, type AgentsResponse } from '../protocol.ts'
-import { InstructionFileError, readInstructionFile, scanInstructionGroups } from '../instructions.ts'
-import { configOf, writeError, writeJson, writeRouteError, type RouteSpec, type SkillHubRouteDeps } from './helpers.ts'
+import {
+  MAX_EDIT_BODY_BYTES,
+  resolveExcludeDirs,
+  SKILL_HUB_API,
+  type AgentsResponse,
+  type EditConflictResponse,
+  type InstructionFileSaveResponse,
+} from '../protocol.ts'
+import { InstructionFileError, readInstructionFile, saveInstructionFile, scanInstructionGroups, StaleContentError } from '../instructions.ts'
+import { configOf, readNumber, readString, writeError, writeFileFailure, writeJson, writeRouteError, type RouteSpec, type SkillHubRouteDeps } from './helpers.ts'
 
 /** 清单缓存的有效期：够覆盖「进入分类 → 点开一行」，又不至于让外部改动看不见。 */
 const SCAN_CACHE_TTL_MS = 10_000
@@ -79,6 +86,39 @@ export function agentsRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           writeJson(res, 200, { ok: true, file: await readInstructionFile(deps, requested, scan) })
         } catch (error) {
           if (error instanceof InstructionFileError) { writeError(res, error.status, error.message); return }
+          writeRouteError(res, error)
+        }
+      },
+    },
+    // ------------------------------------------------------ agents/file/save
+    // 写回一份指令文件的整份原文。受理范围 = 清单里已经在列的文件（成员
+    // 资格与正文读取共用同一份 roster），所以这个入口不新建文件、不改名；
+    // 期间被外部改过则 409 + 最新内容，客户端弹三选。
+    {
+      path: SKILL_HUB_API.agentsFileSave,
+      methods: ['POST'],
+      jsonBody: true,
+      bodyLimit: MAX_EDIT_BODY_BYTES,
+      handler: async ({ res, body }) => {
+        const requested = readString(body, 'path').trim()
+        if (requested === '') { writeError(res, 400, 'path is required'); return }
+        if (typeof body.content !== 'string') { writeError(res, 400, 'content must be a string'); return }
+        const expectedMtime = readNumber(body, 'expectedMtime')
+        const expectedSize = readNumber(body, 'expectedSize')
+        const expected = expectedMtime !== undefined && expectedSize !== undefined
+          ? { modifiedAt: expectedMtime, size: expectedSize }
+          : undefined
+        try {
+          const scan = await scanFor(deps, false)
+          const saved = await saveInstructionFile(deps, requested, body.content, expected, scan)
+          writeJson(res, 200, { ok: true, ...saved } satisfies InstructionFileSaveResponse)
+        } catch (error) {
+          if (error instanceof InstructionFileError) { writeError(res, error.status, error.message); return }
+          if (error instanceof StaleContentError) {
+            writeJson(res, 409, { error: error.message, code: 'stale', latest: error.latest } satisfies EditConflictResponse)
+            return
+          }
+          if (writeFileFailure(res, error, requested)) return
           writeRouteError(res, error)
         }
       },

@@ -42,25 +42,27 @@ import {
 } from './helpers.ts'
 
 /**
- * 文件创建/修改时间 → 详情行的 addedAt/updatedAt（读取失败时省略字段，
- * 详情页不显示这两行）。禁用态与启用态详情共用。
+ * 文件创建/修改时间与大小 → 详情行的 addedAt/updatedAt/size（读取失败时省略
+ * 字段，详情页不显示那两行）。禁用态与启用态详情共用；size 是编辑保存时
+ * 判断「磁盘是否被改过」的指纹之一。
  */
-async function applyFileTimes(row: { addedAt?: number; updatedAt?: number }, path: string): Promise<void> {
+async function applyFileTimes(row: { addedAt?: number; updatedAt?: number; size?: number }, path: string): Promise<void> {
   try {
     const times = await stat(path)
     row.addedAt = times.birthtimeMs
     row.updatedAt = times.mtimeMs
+    row.size = times.size
   } catch {
     // 文件不可读时省略时间字段。
   }
 }
 
 /**
- * 详情/写调用方式共用的解析顺序：显式 cwd 只看该工作区；否则按已知工作区
- * 逐个查找（与目录默认视图一致），最后回退用户级根，保证默认视图里可见的
- * 项目技能也能打开详情、也能被同一个技能命中。
+ * 详情/写调用方式/写正文共用的解析顺序：显式 cwd 只看该工作区；否则按已知
+ * 工作区逐个查找（与目录默认视图一致），最后回退用户级根，保证默认视图里
+ * 可见的项目技能也能打开详情、也能被同一个技能命中。
  */
-async function findSkill(deps: SkillHubRouteDeps, name: string, cwd: string): Promise<SkillDefinition | undefined> {
+export async function findSkill(deps: SkillHubRouteDeps, name: string, cwd: string): Promise<SkillDefinition | undefined> {
   if (cwd !== '') return deps.skills.get(name, { cwd })
   for (const ws of await workspaceEntries(homeOf(deps))) {
     const skill = await deps.skills.get(name, { cwd: ws.path })

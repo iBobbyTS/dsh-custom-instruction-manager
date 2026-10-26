@@ -7,6 +7,13 @@
 export const SKILL_HUB_API_ROOT = '/api/skill-hub'
 
 /**
+ * 编辑保存路由的请求体上限。正文本身可能远超默认的 64 KB（指令文件允许
+ * 显示到 1 MB，JSON 转义后还会再涨一点），所以保存路由单独抬到 8 MB：
+ * 超限按 400 拒绝，绝不截断后落盘。
+ */
+export const MAX_EDIT_BODY_BYTES = 8 * 1024 * 1024
+
+/**
  * Browser-facing base paths of the skill-hub API family.
  *
  * Naming rule: a path's segments mirror its scope. Market sources own the
@@ -17,6 +24,8 @@ export const SKILL_HUB_API = {
   catalog: '/api/skill-hub/catalog',
   agents: '/api/skill-hub/agents',
   agentsFile: '/api/skill-hub/agents/file',
+  agentsFileSave: '/api/skill-hub/agents/file/save',
+  skillContent: '/api/skill-hub/skill/content',
   tokens: '/api/skill-hub/tokens',
   tokensModels: '/api/skill-hub/tokens/models',
   tokensSelect: '/api/skill-hub/tokens/select',

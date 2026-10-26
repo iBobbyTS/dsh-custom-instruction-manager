@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearTrash, createSkill, disableSkill, editableSkillFile, enableSkill, fixDiagnosticFile, isBundledPath, parseFrontmatter, restoreSkill, rootOfPath, scanDiagnostics, setInvocationInText, setInvocationPolicy, systemTrashDir, trashSkill, trashSkillToSystem } from './skillfs.ts'
+import { clearTrash, createSkill, disableSkill, editableSkillFile, enableSkill, fixDiagnosticFile, isBundledPath, parseFrontmatter, readFileSnapshot, replaceSkillBody, restoreSkill, rootOfPath, scanDiagnostics, setInvocationInText, setInvocationPolicy, splitSkillFile, systemTrashDir, trashSkill, trashSkillToSystem, writeTextAtomic } from './skillfs.ts'
 
 describe('parseFrontmatter', () => {
   it('parses a healthy frontmatter', () => {
@@ -494,5 +494,75 @@ describe('rootOfPath', () => {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('skill body write-back', () => {
+  const skillFile = '---\nname: demo-skill\ndescription: Does demo things\nuser-invocable: true\n---\n\n# Old body\n\nOld line.\n'
+
+  it('splits the file at the end of the frontmatter block', () => {
+    const parts = splitSkillFile(skillFile)
+    expect(parts?.head).toBe('---\nname: demo-skill\ndescription: Does demo things\nuser-invocable: true\n---')
+    expect(parts?.rest).toBe('\n\n# Old body\n\nOld line.\n')
+    expect(splitSkillFile('# no frontmatter')).toBeUndefined()
+  })
+
+  it('replaces only the body and keeps the frontmatter byte for byte', () => {
+    const next = replaceSkillBody(skillFile, '# New body\n\n- item')
+    if ('error' in next) throw new Error(next.error)
+    expect(next.text).toBe('---\nname: demo-skill\ndescription: Does demo things\nuser-invocable: true\n---\n\n# New body\n\n- item\n')
+    expect(next.body).toBe('# New body\n\n- item')
+    // frontmatter 仍在，且解析结果与原来完全一致。
+    const parsed = parseFrontmatter(next.text)
+    expect('error' in parsed).toBe(false)
+    if (!('error' in parsed)) {
+      expect(parsed.value.name).toBe('demo-skill')
+      expect(parsed.value.invocation).toEqual({ modelInvocable: true, userInvocable: true })
+      expect(parsed.value.content).toBe('# New body\n\n- item')
+    }
+  })
+
+  it('keeps CRLF files on CRLF', () => {
+    const crlf = '---\r\nname: demo-skill\r\ndescription: Demo\r\n---\r\n\r\nOld\r\n'
+    const next = replaceSkillBody(crlf, 'line one\nline two\n')
+    if ('error' in next) throw new Error(next.error)
+    expect(next.text).toBe('---\r\nname: demo-skill\r\ndescription: Demo\r\n---\r\n\r\nline one\r\nline two\r\n')
+  })
+
+  it('writes an empty body as frontmatter only', () => {
+    const next = replaceSkillBody(skillFile, '   \n\n')
+    if ('error' in next) throw new Error(next.error)
+    expect(next.text.endsWith('---\n')).toBe(true)
+    expect(next.body).toBe('')
+    const parsed = parseFrontmatter(next.text)
+    if (!('error' in parsed)) expect(parsed.value.content).toBe('')
+  })
+
+  it('refuses a file without frontmatter instead of rewriting the whole file', () => {
+    expect(replaceSkillBody('# just markdown', 'x')).toEqual({ error: 'skill file has no YAML frontmatter to preserve' })
+  })
+
+  it('reads a snapshot and writes it back atomically, keeping the file mode', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-write-'))
+    try {
+      const file = join(dir, 'SKILL.md')
+      await writeFile(file, skillFile, 'utf8')
+      const before = await readFileSnapshot(file)
+      expect(before?.text).toBe(skillFile)
+      expect(before?.size).toBe(Buffer.byteLength(skillFile, 'utf8'))
+      expect(typeof before?.modifiedAt).toBe('number')
+      if (before === undefined) throw new Error('missing snapshot')
+      const written = await writeTextAtomic(file, 'next', before.mode)
+      expect(await readFile(file, 'utf8')).toBe('next')
+      expect(written.size).toBe(4)
+      // 写回后目录里只剩目标文件：临时文件已经 rename 掉。
+      expect(await readdir(dir)).toEqual(['SKILL.md'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a missing file instead of a snapshot', async () => {
+    expect(await readFileSnapshot(join(tmpdir(), 'dsh-skill-hub-nope', 'SKILL.md'))).toBeUndefined()
   })
 })

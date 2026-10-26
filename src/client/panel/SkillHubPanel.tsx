@@ -28,7 +28,9 @@ import { SkillDetailView } from './SkillDetailView.tsx'
 import { SourcesView } from './SourcesView.tsx'
 import { MarketView } from './MarketView.tsx'
 import { PanelDialogs } from './PanelDialogs.tsx'
+import { EditConflictDialog } from './dialogs.tsx'
 import { CATEGORY_ORDER, readLastView, rememberView, type Category } from './last-view.ts'
+import { useEditFlow } from './hooks/useEditFlow.ts'
 import { useGroupView } from './hooks/useGroupView.ts'
 import { useTokenCount } from './hooks/useTokenCount.ts'
 import { useTokenModels } from './hooks/useTokenModels.ts'
@@ -79,7 +81,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, enableDisabled,
     agents, agentsLoading, agentsError, excludeSaving, loadAgents, saveExcludeDirs,
-    agentsFile, openAgentsFile, closeAgentsFile,
+    agentsFile, openAgentsFile, closeAgentsFile, patchAgentsFile,
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
@@ -96,6 +98,31 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
       if (ok) setTokenRevision((value) => value + 1)
     })
   }, [tokenModels])
+
+  // 正文编辑：保存成功后回填详情/指令文件与正文指纹，再让 token 表按新正文
+  // 重数一遍；跟随上游的技能多给一句「同步会覆盖」的提醒。
+  const [editNotice, setEditNotice] = useState<string | null>(null)
+  const edit = useEditFlow(props.api, (event) => {
+    setTokenRevision((value) => value + 1)
+    if (event.kind === 'skill') {
+      const repo = sourcesState?.origins[event.name]
+      setDetail((previous) => previous === null
+        ? previous
+        : { ...previous, content: event.snapshot.content, updatedAt: event.snapshot.modifiedAt, size: event.snapshot.size })
+      setEditNotice(repo !== undefined ? tt('detail.editUpstream', { repo }) : tt('detail.editSaved'))
+    } else {
+      patchAgentsFile(event.snapshot)
+      setEditNotice(tt('detail.editSaved'))
+    }
+  })
+
+  // 换了一个详情页（另一个技能 / 另一份指令文件）就清掉上一页的保存提示。
+  useEffect(() => { setEditNotice(null) }, [detail?.name, agentsFile?.ref.absolute])
+
+  /** 保存冲突的三选框（只有编辑态里才可能有）。 */
+  const editConflict = edit.session?.conflict !== undefined
+    ? <EditConflictDialog onChoose={edit.resolveConflict} />
+    : null
 
   // 视图切换的滚动位置：进详情一律回到顶部，返回列表恢复进入前的位置。
   // 两种视图的外壳结构相同，React 复用同一个滚动容器，必须显式改 scrollTop。
@@ -124,6 +151,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
 
   // 指令文件详情：和技能详情同一套外壳（返回列表、整页视图、滚动到顶部）。
   if (agentsFile !== null) {
+    const fileDetail = agentsFile.detail
     return (
       <div className={css.pageShell} ref={refShell}>
         <div className={css.scrollArea} data-hub-scroll="" ref={scrollRef}>
@@ -134,9 +162,29 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             loading={agentsFile.loading}
             error={agentsFile.error}
             tokenTable={{ state: agentsTokens, models: tokenModels.models, busyModel: tokenModels.busy, modelError: tokenModels.error, onSelectModel: selectTokenModel }}
-            onBack={closeAgentsFile}
+            edit={{
+              active: edit.session?.target.kind === 'agents',
+              draft: edit.session?.draft ?? '',
+              busy: edit.session?.busy ?? false,
+              error: edit.session?.error,
+              onDraft: edit.setDraft,
+              onSave: edit.save,
+              onCancel: () => { if (edit.cancel()) setEditNotice(null) },
+            }}
+            onEditStart={() => {
+              setEditNotice(null)
+              edit.start({
+                kind: 'agents',
+                key: agentsFile.ref.absolute,
+                path: agentsFile.ref.absolute,
+                ...(fileDetail !== undefined ? { modifiedAt: fileDetail.modifiedAt, size: fileDetail.size } : {}),
+              }, fileDetail?.content ?? '')
+            }}
+            notice={editNotice ?? undefined}
+            onBack={() => { if (edit.cancel()) closeAgentsFile() }}
           />
         </div>
+        {editConflict}
       </div>
     )
   }
@@ -157,16 +205,38 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             disabled={disabledRecord !== undefined}
             editable={detail.editable}
             tokenTable={{ state: skillTokens, models: tokenModels.models, busyModel: tokenModels.busy, modelError: tokenModels.error, onSelectModel: selectTokenModel }}
+            edit={{
+              active: edit.session?.target.kind === 'skill',
+              draft: edit.session?.draft ?? '',
+              busy: edit.session?.busy ?? false,
+              error: edit.session?.error,
+              onDraft: edit.setDraft,
+              onSave: edit.save,
+              onCancel: () => { if (edit.cancel()) setEditNotice(null) },
+            }}
+            onEditStart={() => {
+              setEditNotice(null)
+              edit.start({
+                kind: 'skill',
+                key: detail.name,
+                ...(workspace !== '' ? { cwd: workspace } : {}),
+                ...(detail.path !== undefined ? { path: detail.path } : {}),
+                ...(detail.updatedAt !== undefined ? { modifiedAt: detail.updatedAt } : {}),
+                ...(detail.size !== undefined ? { size: detail.size } : {}),
+              }, detail.content)
+            }}
+            notice={editNotice ?? undefined}
             invocationBusy={hub.invocationBusy}
             onInvocationChange={(modelInvocable, userInvocable) => { void hub.setInvocation(detail.name, modelInvocable, userInvocable) }}
-            onEnable={disabledRecord !== undefined ? () => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}
-            onBack={() => { setDetail(null) }}
+            onEnable={disabledRecord !== undefined ? () => { if (!edit.cancel()) return; void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}
+            onBack={() => { if (edit.cancel()) setDetail(null) }}
             onCheck={(repo) => { void checkSources(repo) }}
             onSync={requestSync}
             onFollowDelete={requestDelete}
           />
         </div>
         <PanelWidthControls container={shell} />
+        {editConflict}
       </div>
     )
   }
