@@ -58,6 +58,10 @@ describe('projectMcpServers', () => {
       phase: 'active',
       status: 'running',
       patchId: 'mcp-codegraph',
+      managed: false,
+      editable: false,
+      removable: false,
+      editBlockedReason: 'unaddressable',
       toolCallTimeoutMs: 300_000,
       failOnStartupError: true,
       stdio: { command: '/Users/me/.local/bin/codegraph', args: ['serve', '--mcp'], cwd: '/Users/me', env: { PATH: '/opt/homebrew/bin' } },
@@ -70,6 +74,21 @@ describe('projectMcpServers', () => {
     expect(bare.stdio).toEqual({ command: 'npx', args: [], cwd: '', env: {} })
     expect(bare.toolCallTimeoutMs).toBe(60_000)
     expect(bare.failOnStartupError).toBe(false)
+  })
+
+  it('marks managed rows editable/removable and explains blocked edits', () => {
+    const { servers } = projectMcpServers(
+      [fact(), fact({ entryId: 'm-other', patchId: 'm-other', config: { serverName: 'other', command: 'y' } })],
+      [],
+      {
+        managedIds: ['mcp-codegraph'],
+        editableIds: ['mcp-codegraph'],
+        editBlocked: { 'm-other': 'no-editor' },
+      },
+    )
+    expect(servers[0]).toMatchObject({ managed: true, editable: true, removable: true })
+    expect(servers[0]?.editBlockedReason).toBeUndefined()
+    expect(servers[1]).toMatchObject({ managed: false, editable: false, removable: false, editBlockedReason: 'no-editor' })
   })
 
   it('projects streamable-http rows', () => {
@@ -137,6 +156,9 @@ describe('projectMcpServers', () => {
       cwd: JS_EXPR_PLACEHOLDER,
       env: { TOKEN: JS_EXPR_PLACEHOLDER, PATH: '/bin' },
     })
+    // 表达式行不能从表单改：面板拿不到真实值，回写会把表达式变成字面量。
+    expect(servers[0]?.editable).toBe(false)
+    expect(servers[0]?.editBlockedReason).toBe('invalid-config')
   })
 
   it('infers the transport from the config shape when transport itself is an expression', () => {

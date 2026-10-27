@@ -21,6 +21,7 @@ import type {} from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-settings'
 import { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, resolveHubConfig, type HubConfig } from './protocol.ts'
 import { hydrateAgentsRoster } from './agents-index.ts'
+import { createMcpConfig } from './mcp-config.ts'
 import { createMcpAccess } from './mcp-runtime.ts'
 import { SkillHubProvider } from './provider.ts'
 import { hostTrustFence, makeRoutes, type SkillHubRouteDeps } from './routes.ts'
@@ -302,6 +303,8 @@ export function apply(ctx: Context, config?: Config): void {
           // MCP 域：只读 dsh 的 pluginManager / loader / tools 服务，缺服务时页面
           // 降级（不阻塞本插件其余部分）。每次请求现读，服务晚挂载也能自愈。
           mcp: createMcpAccess((name) => (ctx as unknown as { get(key: string): unknown }).get(name)),
+          // 写入口：受管块自己重写，其余行转发 dsh 的 config-editor。
+          mcpConfig: createMcpConfig((name) => (ctx as unknown as { get(key: string): unknown }).get(name)),
           stats,
           config: current,
           saved,

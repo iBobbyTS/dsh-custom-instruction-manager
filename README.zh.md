@@ -50,7 +50,9 @@ https://github.com/iBobbyTS/dsh-skill-hub.git
 - **配置摘要** — 展开看命令/参数/工作目录或 URL，以及环境变量与请求头；值默认是 `••••••`，点「显示值」才展开。另有调用超时、失败即中止与补丁行 id。
 - **工具清单** — 展开列出该服务器当前注册的工具（公开名 `mcp__<服务器>__<工具>`、描述、参数名）。归属不到本页服务器的工具（来自 agent preset 里的服务器，或名字被截断/改写过）单列在「未归属的工具」。
 - **开关** — 行右侧开关走 dsh 的插件管理接口（只动 profile 补丁里的启用位，不改服务器配置），结果如实回显「已生效 / 需要重启 / 被更高优先级覆盖 / 失败」。补丁里没有 `id` 的行（例如外部产品写入的 insert 行）与 dsh 自管的插件只能看、不能开关，行上会说明原因。
-- **降级** — 当前部署没有插件管理服务时，页面照常列出（走 Loader），只把开关禁用并给出说明。
+- **新增 / 编辑 / 删除** — 「新增服务器」打开表单：stdio（命令、每行一个参数、工作目录、每行 `KEY=VALUE` 的环境变量）或 Streamable HTTP（URL、每行 `KEY: VALUE` 的请求头），外加调用超时、启动失败即中止、服务说明上限。页面上建的行用 `mcp-hub-*` 作 id，集中写在 profile 补丁里一个带标记的受管块（`# @managed-by: custom-instruction-manager (mcp)`）中；保存只重写这一块，块外内容（别的产品写的行、`!!js` 表达式，以及 dsh 配置编辑服务 append 到标记之间的行）逐字节保留；删除也只从块里移除。
+- **不属于本页的行** — 已存在的行通过 dsh 自己的 config-editor（`configEditor.edit`）编辑：它校验整份补丁、原子写入并交给 Loader 应用；这类行不能在这里删除，因为声明不在本页（删除会提示它声明在哪）。配置里含 `!!js` 表达式的行只读：表单拿不到表达式的值，保存会把表达式写成字面量。`serverName` 重复会在保存前拒绝（dsh 在激活时会拒绝第二个同名实例）。
+- **降级** — 当前部署没有插件管理服务时，页面照常列出（走 Loader），只把开关禁用并给出说明。没有 dsh 的配置编辑服务时，只有受管块里的行还能改。
 
 **侧边栏 → 其他插件 → Skill** — 2 个 tab：**来源**（技能，平铺/分组+项目树，其中「用户级」卡片按技能管理方二级分类（市场来源显示上游仓库；用户自建统一显示 User Managed））、**市场**（安装与更新）。
 
@@ -113,6 +115,8 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 | `/api/skill-hub/skill?name=&cwd=` | GET | 技能正文 |
 | `/api/skill-hub/mcp` | GET | MCP 服务器（Loader 行 + 配置 + 工具 + 可写性） |
 | `/api/skill-hub/mcp/toggle` | POST | `{entryId, enabled}` 经 dsh 插件管理接口启停，回传刷新后的列表 |
+| `/api/skill-hub/mcp/save` | POST | `{entryId?, server}` — 无 id 为新建、有 id 为编辑；400 带字段级 `fields` |
+| `/api/skill-hub/mcp/remove` | POST | `{entryId}` — 从受管块里删除一行 |
 | `/api/skill-hub/skill/delete` | POST | 移入系统废纸篓 `~/.Trash`（重名追加时间戳） |
 | `/api/skill-hub/skill/reveal` | POST | 在 Finder 中显示技能文件（`open -R`） |
 | `/api/skill-hub/create` | POST | `{name, description?, root?}` |

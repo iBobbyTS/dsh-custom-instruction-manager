@@ -5,9 +5,13 @@
  * 真实的失败形态（服务缺席、调用抛错、未知 application）。
  */
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { createMcpAccess } from './mcp-runtime.ts'
 import { MCP_CLIENT_MODULE } from './mcp.ts'
+import { MANAGED_START, writeManagedBlock } from './mcp-patch.ts'
 
 /** 一行 listPlugins 结果。 */
 function row(overrides: Record<string, unknown> = {}) {
@@ -100,6 +104,55 @@ describe('createMcpAccess.list', () => {
     expect(facts.facts[0]?.config).toBeUndefined()
     expect(facts.warnings.join('\n')).toContain('loader service is absent: MCP row configs are unavailable')
     expect(facts.warnings.join('\n')).toContain('tools service is absent: tool lists are unavailable')
+  })
+
+  it('marks managed rows and config-editor rows as editable', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-mcp-runtime-'))
+    try {
+      const path = join(dir, 'cordis.patch.yml')
+      await writeFile(path, writeManagedBlock('', [{ id: 'mcp-hub-a', config: { serverName: 'a', transport: 'stdio', command: 'x' } }]), 'utf8')
+      const access = createMcpAccess(ctxOf({
+        pluginManager: {
+          listPlugins: async () => [
+            row({ entryId: 'mcp-hub-a', patchId: 'mcp-hub-a' }),
+            row({ entryId: 'mcp-foreign', patchId: 'mcp-foreign' }),
+          ],
+          setPluginEnabled: vi.fn(),
+        },
+        loader: loaderOf([
+          { id: 'mcp-hub-a', config: { serverName: 'a', transport: 'stdio', command: 'x' } },
+          { id: 'mcp-foreign', config: { serverName: 'f', transport: 'stdio', command: 'y' } },
+        ]),
+        profileContext: { patchPath: path },
+        configEditor: { entries: () => [{ id: 'mcp-foreign', options: { id: 'mcp-foreign', name: MCP_CLIENT_MODULE } }] },
+        tools: { schemas: () => [] },
+      }))
+      const facts = await access.list()
+      expect(facts.managedIds).toEqual(['mcp-hub-a'])
+      expect([...(facts.editableIds ?? [])].sort()).toEqual(['mcp-foreign', 'mcp-hub-a'])
+      expect(facts.editBlocked).toEqual({})
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a broken managed block instead of failing the page', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-mcp-runtime-'))
+    try {
+      const path = join(dir, 'cordis.patch.yml')
+      await writeFile(path, MANAGED_START + '\n- insert: [\n', 'utf8')
+      const access = createMcpAccess(ctxOf({
+        pluginManager: { listPlugins: async () => [row()], setPluginEnabled: vi.fn() },
+        loader: loaderOf([{ id: 'mcp-codegraph', config: { serverName: 'codegraph', command: 'x' } }]),
+        tools: { schemas: () => [] },
+        profileContext: { patchPath: path },
+      }))
+      const facts = await access.list()
+      expect(facts.managedIds).toEqual([])
+      expect(facts.warnings.some((line) => line.includes('MCP managed block'))).toBe(true)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 
   it('keeps listing when the tool registry throws', async () => {

@@ -343,6 +343,14 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           onRefresh={() => { void hub.mcp.load() }}
           onToggle={(entryId, enabled) => { void hub.mcp.toggle(entryId, enabled) }}
           onToggleExpanded={hub.mcp.toggleExpanded}
+          editor={hub.mcp.editor}
+          editorBusy={hub.mcp.editorBusy}
+          editorErrors={hub.mcp.editorErrors}
+          editorError={hub.mcp.editorError}
+          onOpenEditor={hub.mcp.openEditor}
+          onCloseEditor={hub.mcp.closeEditor}
+          onSaveServer={(input, entryId) => { void hub.mcp.saveServer(input, entryId) }}
+          onRemoveServer={(entryId) => { void hub.mcp.removeServer(entryId) }}
           onDismissNotice={hub.mcp.dismissNotice}
         />
       ) : category === 'about' ? (

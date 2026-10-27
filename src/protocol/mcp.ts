@@ -61,6 +61,15 @@ export interface McpHttpConfig {
   headers: Record<string, string>
 }
 
+/**
+ * 面板为什么不能编辑这一行的配置：
+ *   - `unaddressable`：补丁里没有唯一 id，dsh 的配置编辑服务定位不到；
+ *   - `no-editor`：本部署没有 dsh 的配置编辑服务（config-editor 未装载）；
+ *   - `invalid-config`：这一行在本插件的受管块里被手工改成了无法安全重写的形状
+ *     （例如写进了 `!!js` 表达式）。
+ */
+export type McpEditBlockedReason = 'unaddressable' | 'no-editor' | 'invalid-config'
+
 /** 一个 MCP 服务器在面板里的完整形状。 */
 export interface McpServerInfo {
   /** Loader 条目 id（开关接口认它）。 */
@@ -73,10 +82,20 @@ export interface McpServerInfo {
   /** 能经插件管理接口定位时给出的补丁行 id；缺失即不可开关。 */
   patchId?: string
   readOnlyReason?: McpReadOnlyReason
+  /** 这一行在本插件的受管块里：可以改、可以删。 */
+  managed: boolean
+  /** 面板能改这一行的配置（受管行或能被 dsh 配置编辑服务定位的行）。 */
+  editable: boolean
+  /** 能从面板删除这一行（只有受管行可以）。 */
+  removable: boolean
+  /** editable=false 的原因。 */
+  editBlockedReason?: McpEditBlockedReason
   stdio?: McpStdioConfig
   http?: McpHttpConfig
   toolCallTimeoutMs: number
   failOnStartupError: boolean
+  /** 归属给模型的服务说明上限（字节）；未配置时缺省。 */
+  maxInstructionBytes?: number
   /** 当前归属到这个名字空间的工具。 */
   tools: McpToolInfo[]
 }
@@ -103,6 +122,71 @@ export interface McpToggleRequest {
 
 /** dsh 插件管理返回的应用结果（ChangeResult.application）。 */
 export type McpApplication = 'applied' | 'restart-required' | 'overridden' | 'failed' | 'cancelled'
+
+/** 面板提交的一台服务器配置；字段按传输取舍（stdio 用 command/args/env/cwd）。 */
+export interface McpServerInput {
+  /** `[A-Za-z0-9_-]{1,32}`；决定工具名的命名空间。 */
+  serverName: string
+  transport: McpTransport
+  /** stdio：可执行文件。 */
+  command?: string
+  /** stdio：参数（不经 shell 展开）。 */
+  args?: string[]
+  /** stdio：工作目录。 */
+  cwd?: string
+  /** stdio：追加在清洗过的环境变量之上。 */
+  env?: Record<string, string>
+  /** streamable-http：MCP 端点。 */
+  url?: string
+  /** streamable-http：附加请求头。 */
+  headers?: Record<string, string>
+  /** 单次工具调用/资源请求的超时（毫秒）；null 表示清掉、用 dsh 默认值。 */
+  toolCallTimeoutMs?: number | null
+  /** 首次连接或工具同步失败时是否让插件激活失败。 */
+  failOnStartupError?: boolean
+  /** 归属给模型的服务说明的最大字节数；null 表示清掉。 */
+  maxInstructionBytes?: number | null
+}
+
+/** 字段级校验失败的原因（文案在浏览器半翻译）。 */
+export type McpFieldErrorCode = 'required' | 'invalid' | 'duplicate' | 'range'
+
+/** 一个字段的校验失败。 */
+export interface McpFieldError {
+  /** 字段路径：`serverName`、`toolCallTimeoutMs`、`env.PATH`。 */
+  field: string
+  code: McpFieldErrorCode
+}
+
+/** POST /api/skill-hub/mcp/save 的请求体；entryId 缺省表示新建。 */
+export interface McpSaveRequest {
+  entryId?: string
+  server: McpServerInput
+}
+
+/** 保存/删除成功后的应用结果 + 刷新后的列表。 */
+export interface McpSaveResponse {
+  ok: true
+  application: McpApplication
+  /** 新建时由 host 生成，编辑/删除时回显请求里的 id。 */
+  entryId: string
+  /** application='restart-required' 时的原因。 */
+  restartReason?: string
+  mcp: McpResponse
+}
+
+/** POST /api/skill-hub/mcp/remove 的请求体。 */
+export interface McpRemoveRequest {
+  entryId: string
+}
+
+/** POST /api/skill-hub/mcp/remove 的响应。 */
+export interface McpRemoveResponse {
+  ok: true
+  application: McpApplication
+  restartReason?: string
+  mcp: McpResponse
+}
 
 /** POST /api/skill-hub/mcp/toggle 的响应：结果 + 刷新后的列表。 */
 export interface McpToggleResponse {

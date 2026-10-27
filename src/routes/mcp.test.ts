@@ -10,7 +10,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { McpAccessError, type McpAccess, type McpListFacts } from '../mcp.ts'
+import { McpAccessError, type McpAccess, type McpConfigurator, type McpListFacts } from '../mcp.ts'
+import { McpPatchError } from '../mcp-patch.ts'
 import { makeRoutes } from '../routes.ts'
 import { SKILL_HUB_API, type HubConfig } from '../protocol.ts'
 import { SkillHubStore, statePath } from '../store.ts'
@@ -64,6 +65,7 @@ describe('mcp routes', () => {
   let dir: string
   let deps: SkillHubRouteDeps
   let access: { list: ReturnType<typeof vi.fn>; setEnabled: ReturnType<typeof vi.fn> }
+  let config: { save: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> }
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-mcp-routes-'))
@@ -72,12 +74,17 @@ describe('mcp routes', () => {
       list: vi.fn(async () => facts()),
       setEnabled: vi.fn(async () => ({ application: 'applied' as const })),
     }
+    config = {
+      save: vi.fn(async (_server: unknown, entryId?: string) => ({ application: 'applied' as const, entryId: entryId ?? 'mcp-hub-demo' })),
+      remove: vi.fn(async (entryId: string) => ({ application: 'applied' as const, entryId })),
+    }
     deps = {
       skills: { snapshot: async () => ({ skills: [], complete: true }), get: async () => undefined },
       store,
       home: dir,
       agentsHome: join(dir, 'agents-home'),
       mcp: access as unknown as McpAccess,
+      mcpConfig: config as unknown as McpConfigurator,
     }
   })
 
@@ -169,6 +176,119 @@ describe('mcp routes', () => {
     await routeFor(SKILL_HUB_API.mcpToggle).handler(fakeReq('POST', SKILL_HUB_API.mcpToggle, { entryId: 'mcp-x', enabled: true }), res as never)
     expect(res.status).toBe(500)
     expect(res.json()).toEqual({ error: 'pluginManager service is absent' })
+  })
+
+  it('answers 503 when the deployment has no configurator', async () => {
+    deps.mcpConfig = undefined
+    for (const [path, body] of [
+      [SKILL_HUB_API.mcpSave, { server: { serverName: 'demo', transport: 'stdio', command: 'node' } }],
+      [SKILL_HUB_API.mcpRemove, { entryId: 'mcp-hub-demo' }],
+    ] as const) {
+      const res = new FakeResponse()
+      await routeFor(path).handler(fakeReq('POST', path, body), res as never)
+      expect(res.status).toBe(503)
+    }
+  })
+
+  it('normalizes the submitted server and returns the refreshed list', async () => {
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpSave).handler(
+      fakeReq('POST', SKILL_HUB_API.mcpSave, { server: { serverName: ' demo ', transport: 'stdio', command: 'node', url: 'ignored' } }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(config.save).toHaveBeenCalledWith(
+      { serverName: 'demo', transport: 'stdio', command: 'node', args: [], env: {}, toolCallTimeoutMs: undefined, maxInstructionBytes: undefined },
+      undefined,
+    )
+    const body = res.json() as { ok: boolean; application: string; entryId: string; mcp: { servers: unknown[] } }
+    expect(body).toMatchObject({ ok: true, application: 'applied', entryId: 'mcp-hub-demo' })
+    expect(body.mcp.servers).toHaveLength(1)
+  })
+
+  it('passes the entry id through for an edit', async () => {
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpSave).handler(
+      fakeReq('POST', SKILL_HUB_API.mcpSave, { entryId: 'mcp-old', server: { serverName: 'old', transport: 'streamable-http', url: 'https://x/mcp' } }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(config.save).toHaveBeenCalledWith(
+      expect.objectContaining({ serverName: 'old', transport: 'streamable-http', url: 'https://x/mcp' }),
+      'mcp-old',
+    )
+  })
+
+  it('answers 400 with field errors for an invalid server', async () => {
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpSave).handler(
+      fakeReq('POST', SKILL_HUB_API.mcpSave, { server: { serverName: 'bad name', transport: 'stdio' } }),
+      res as never,
+    )
+    expect(res.status).toBe(400)
+    const body = res.json() as { error: string; fields: Array<{ field: string; code: string }> }
+    expect(body.error).toBe('invalid MCP server config')
+    expect(body.fields.map((field) => field.field).sort()).toEqual(['command', 'serverName'])
+    expect(config.save).not.toHaveBeenCalled()
+  })
+
+  it('maps a duplicate server name to a 400 field error', async () => {
+    config.save.mockRejectedValueOnce(new McpPatchError('MCP server name "demo" is already used by row "mcp-old"', 409, 'serverName'))
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpSave).handler(
+      fakeReq('POST', SKILL_HUB_API.mcpSave, { server: { serverName: 'demo', transport: 'stdio', command: 'node' } }),
+      res as never,
+    )
+    expect(res.status).toBe(400)
+    expect(res.json()).toEqual({
+      error: 'MCP server name "demo" is already used by row "mcp-old"',
+      fields: [{ field: 'serverName', code: 'duplicate' }],
+    })
+  })
+
+  it('maps a rejected save to its status', async () => {
+    config.save.mockRejectedValueOnce(new McpAccessError('this row contains a !!js expression; edit it in the profile patch by hand', 409))
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpSave).handler(
+      fakeReq('POST', SKILL_HUB_API.mcpSave, { entryId: 'mcp-env', server: { serverName: 'x', transport: 'stdio', command: 'node' } }),
+      res as never,
+    )
+    expect(res.status).toBe(409)
+    expect(res.json()).toEqual({ error: 'this row contains a !!js expression; edit it in the profile patch by hand' })
+  })
+
+  it('validates the entryId type and the remove body', async () => {
+    const badId = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpSave).handler(
+      fakeReq('POST', SKILL_HUB_API.mcpSave, { entryId: 3, server: { serverName: 'x', transport: 'stdio', command: 'node' } }),
+      badId as never,
+    )
+    expect(badId.status).toBe(400)
+    expect(badId.json()).toEqual({ error: 'entryId must be a non-empty string when present' })
+
+    const missing = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpRemove).handler(fakeReq('POST', SKILL_HUB_API.mcpRemove, {}), missing as never)
+    expect(missing.status).toBe(400)
+    expect(missing.json()).toEqual({ error: 'entryId is required' })
+    expect(config.remove).not.toHaveBeenCalled()
+  })
+
+  it('removes a managed server and returns the refreshed list', async () => {
+    access.list.mockResolvedValueOnce({ ...facts(), facts: [], tools: [] })
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpRemove).handler(fakeReq('POST', SKILL_HUB_API.mcpRemove, { entryId: 'mcp-hub-demo' }), res as never)
+    expect(res.status).toBe(200)
+    expect(config.remove).toHaveBeenCalledWith('mcp-hub-demo')
+    const body = res.json() as { ok: boolean; application: string; mcp: { servers: unknown[] } }
+    expect(body).toMatchObject({ ok: true, application: 'applied' })
+    expect(body.mcp.servers).toEqual([])
+  })
+
+  it('maps a refused removal to its status', async () => {
+    config.remove.mockRejectedValueOnce(new McpAccessError('this row was not created from this page; remove it where it is declared', 409))
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.mcpRemove).handler(fakeReq('POST', SKILL_HUB_API.mcpRemove, { entryId: 'mcp-old' }), res as never)
+    expect(res.status).toBe(409)
   })
 
   it('rejects other methods and non-loopback requests', async () => {

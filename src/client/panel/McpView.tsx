@@ -13,10 +13,12 @@
  */
 
 import { useState } from 'react'
-import type { McpResponse, McpServerInfo, McpStatus } from '../../protocol.ts'
+import type { McpFieldError, McpResponse, McpServerInput, McpServerInfo, McpStatus } from '../../protocol.ts'
 import type { HubKey } from '../locales.ts'
 import { tt } from '../helpers.ts'
-import type { McpNotice } from './hooks/useMcpFlow.ts'
+import type { McpEditorState, McpNotice } from './hooks/useMcpFlow.ts'
+import { ConfirmDialog } from './dialogs.tsx'
+import { McpServerDialog } from './McpServerDialog.tsx'
 import css from './panel.module.css'
 
 export interface McpViewProps {
@@ -27,10 +29,26 @@ export interface McpViewProps {
   busyEntry: string | null
   notice: McpNotice | null
   expanded: ReadonlySet<string>
+  /** 打开中的新建/编辑表单。 */
+  editor: McpEditorState | null
+  editorBusy: boolean
+  editorErrors: readonly McpFieldError[]
+  editorError: string | null
   onRefresh: () => void
   onToggle: (entryId: string, enabled: boolean) => void
   onToggleExpanded: (entryId: string) => void
+  onOpenEditor: (server?: McpServerInfo) => void
+  onCloseEditor: () => void
+  onSaveServer: (input: McpServerInput, entryId?: string) => void
+  onRemoveServer: (entryId: string) => void
   onDismissNotice: () => void
+}
+
+/** 不可编辑原因 → 文案键。 */
+function editBlockedKey(reason: McpServerInfo['editBlockedReason']): HubKey {
+  if (reason === 'no-editor') return 'mcp.editBlocked.noEditor'
+  if (reason === 'invalid-config') return 'mcp.editBlocked.invalidConfig'
+  return 'mcp.editBlocked.unaddressable'
 }
 
 /** 状态 → 文案键（状态值就是投影里的四个枚举）。 */
@@ -59,7 +77,13 @@ function MetaLine(props: { label: string; children: React.ReactNode }): React.JS
 }
 
 /** 展开后的配置摘要 + 工具清单。env/headers 的值默认遮掩。 */
-function McpDetail({ server }: { server: McpServerInfo }): React.JSX.Element {
+function McpDetail(props: {
+  server: McpServerInfo
+  busy: boolean
+  onEdit: (server: McpServerInfo) => void
+  onAskRemove: (server: McpServerInfo) => void
+}): React.JSX.Element {
+  const { server, busy } = props
   const [revealed, setRevealed] = useState(false)
   const stdio = server.stdio
   const http = server.http
@@ -108,6 +132,14 @@ function McpDetail({ server }: { server: McpServerInfo }): React.JSX.Element {
             ))}
         </span>
       </MetaLine>
+      <div className={css.mcpActions}>
+        {server.editable
+          ? <button type='button' className={css.button} disabled={busy} onClick={() => { props.onEdit(server) }}>{tt('mcp.edit')}</button>
+          : <span className={css.mcpEditBlocked}>{tt(editBlockedKey(server.editBlockedReason))}</span>}
+        {server.removable
+          ? <button type='button' className={css.button + ' ' + css.danger} disabled={busy} onClick={() => { props.onAskRemove(server) }}>{tt('mcp.delete')}</button>
+          : null}
+      </div>
     </div>
   )
 }
@@ -121,6 +153,8 @@ function McpServerRow(props: {
   canManage: boolean
   onToggle: (entryId: string, enabled: boolean) => void
   onToggleExpanded: (entryId: string) => void
+  onEdit: (server: McpServerInfo) => void
+  onAskRemove: (server: McpServerInfo) => void
 }): React.JSX.Element {
   const { server, open, busy, canManage } = props
   const readOnly = server.readOnlyReason !== undefined
@@ -150,6 +184,7 @@ function McpServerRow(props: {
             <span className={css.badge}>{tt(server.transport === 'stdio' ? 'mcp.transport.stdio' : 'mcp.transport.http')}</span>
             <span className={css.badge + ' ' + statusClass(server.status)}>{tt(STATUS_KEY[server.status])}</span>
             {readOnly ? <span className={css.badge + ' ' + css.badgeReadonly} title={reason}>{tt('mcp.readonly.badge')}</span> : null}
+            {server.managed ? <span className={css.badge}>{tt('mcp.managedBadge')}</span> : null}
           </span>
         </button>
         <span className={css.mcpToolCount}>{tt('mcp.toolCount', { count: server.tools.length })}</span>
@@ -169,20 +204,35 @@ function McpServerRow(props: {
       <div className={css.mcpTarget} title={target}>{target !== '' ? target : '—'}</div>
       {/* 只读/不可开关的原因写出来，不藏在 title 里：键盘与读屏都到不了 title。 */}
       {reason !== undefined ? <div className={css.mcpReason}>{reason}</div> : null}
-      {open ? <McpDetail server={server} /> : null}
+      {open
+        ? (
+          <McpDetail
+            server={server}
+            busy={busy}
+            onEdit={props.onEdit}
+            onAskRemove={props.onAskRemove}
+          />
+        )
+        : null}
     </div>
   )
 }
 
 export function McpView(props: McpViewProps): React.JSX.Element {
   const { data, loading, error, notice } = props
+  /** 等待确认删除的服务器（确认框关掉即丢弃）。 */
+  const [pendingRemove, setPendingRemove] = useState<McpServerInfo | null>(null)
   const totalTools = (data?.servers ?? []).reduce((sum, server) => sum + server.tools.length, 0)
+  const addDisabled = loading || data === null || props.busyEntry !== null
   const noticeClass = notice === null ? '' : notice.kind === 'error' ? css.errorBanner : notice.kind === 'warn' ? css.warnBanner : css.successBanner
   return (
     <>
       <div className={css.mcpBar}>
         <button type='button' className={css.opBtn} disabled={loading} onClick={props.onRefresh}>
           {loading ? tt('mcp.loading') : tt('mcp.refresh')}
+        </button>
+        <button type='button' className={css.opBtn} disabled={addDisabled} onClick={() => { props.onOpenEditor() }}>
+          {tt('mcp.add')}
         </button>
         {data !== null
           ? <span className={css.mcpSummary}>{tt('mcp.summary', { servers: data.servers.length, tools: totalTools })}</span>
@@ -235,6 +285,8 @@ export function McpView(props: McpViewProps): React.JSX.Element {
                   canManage={data.canManage}
                   onToggle={props.onToggle}
                   onToggleExpanded={props.onToggleExpanded}
+                  onEdit={props.onOpenEditor}
+                  onAskRemove={setPendingRemove}
                 />
               ))}
             </div>
@@ -251,6 +303,38 @@ export function McpView(props: McpViewProps): React.JSX.Element {
               {data.orphanTools.map((name) => <span key={name} className={css.mcpMono}>{name}</span>)}
             </div>
           </section>
+        )
+        : null}
+
+      {pendingRemove !== null
+        ? (
+          <ConfirmDialog
+            title={tt('mcp.deleteConfirmTitle')}
+            text={tt('mcp.deleteConfirmText', { name: pendingRemove.serverName })}
+            confirmLabel={tt('mcp.delete')}
+            danger
+            onCancel={() => { setPendingRemove(null) }}
+            onConfirm={() => {
+              const entryId = pendingRemove.entryId
+              setPendingRemove(null)
+              props.onRemoveServer(entryId)
+            }}
+          />
+        )
+        : null}
+
+      {props.editor !== null
+        ? (
+          <McpServerDialog
+            editor={props.editor}
+            busy={props.editorBusy}
+            errors={props.editorErrors}
+            error={props.editorError}
+            onCancel={props.onCloseEditor}
+            onSave={(input) => {
+              props.onSaveServer(input, props.editor?.mode === 'edit' ? props.editor.server.entryId : undefined)
+            }}
+          />
         )
         : null}
     </>

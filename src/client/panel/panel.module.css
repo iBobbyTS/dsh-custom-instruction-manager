@@ -386,6 +386,9 @@
 .dialogList li { font-size: 13px; line-height: 20px; opacity: .85; word-break: break-all; }
 .dialogActions { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* Wide variant for dialogs that hold a form (MCP server editor). */
+.dialogWide { max-width: 560px; width: 100%; max-height: calc(100vh - 48px); overflow: auto; }
+
 /* Search + filter + view control share one row (skills tab); the search
    field stretches over the remaining width so the row never looks hollow. */
 .filterBar .search { flex: 1; min-width: 200px; }
@@ -575,3 +578,20 @@
 .mcpToolParams { color: var(--hub-text-3); font-size: 11.5px; line-height: 16px; }
 .mcpToolEmpty { color: var(--hub-text-4); font-size: 12px; line-height: 18px; }
 .mcpOrphans { display: flex; flex-direction: column; gap: 4px; }
+/* 行内动作：只有展开时才出现，右对齐。 */
+.mcpActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+.mcpEditBlocked { margin-right: auto; color: var(--hub-text-3); font-size: 12px; line-height: 18px; }
+
+/* MCP 服务器表单（对话框）。 */
+.mcpForm { display: flex; flex-direction: column; gap: 10px; }
+.mcpField { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mcpFieldLabel { font-size: 12px; line-height: 18px; color: var(--hub-text-2); }
+.mcpInput, .mcpTextarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; line-height: 20px; color: var(--hub-text); background: var(--hub-surface); border: .5px solid var(--hub-border-2); border-radius: var(--dsw-radius-sm, 8px); padding: 5px 8px; }
+.mcpTextarea { resize: vertical; font-family: var(--hub-mono); font-size: 12px; line-height: 18px; }
+.mcpInput:focus-visible, .mcpTextarea:focus-visible { outline: 2px solid var(--hub-brand); outline-offset: 1px; }
+.mcpInputError { border-color: var(--hub-danger); }
+.mcpHint { color: var(--hub-text-3); font-size: 11.5px; line-height: 16px; }
+.mcpFieldError { color: var(--hub-danger); font-size: 11.5px; line-height: 16px; }
+.mcpFormRow { display: flex; gap: 10px; }
+.mcpFormRow .mcpField { flex: 1; }
+.mcpCheck { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; }

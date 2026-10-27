@@ -5,12 +5,14 @@
  * wiring settled after a config-driven reload had torn the plugin down.
  */
 
-import { mkdtemp, rm } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { apply } from './index.ts'
 import { MCP_CLIENT_MODULE } from './mcp.ts'
+import { readManagedBlock } from './mcp-patch.ts'
 
 /** Minimal context double: records what the plugin registers, exposes a controllable fiber. */
 function fakeHost(services: Record<string, unknown> = {}) {
@@ -115,6 +117,19 @@ function fakeRequest(): unknown {
   }
 }
 
+/** Minimal request double for a JSON POST (loopback). */
+function fakePost(body: unknown, path: string): unknown {
+  return {
+    method: 'POST',
+    url: path,
+    headers: { host: '127.0.0.1:60510', 'content-type': 'application/json' },
+    socket: { remoteAddress: '127.0.0.1' },
+    async *[Symbol.asyncIterator]() {
+      yield Buffer.from(JSON.stringify(body))
+    },
+  }
+}
+
 describe('MCP wiring (apply → route → dsh services)', () => {
   it('serves the projection from the loader/pluginManager/tools services it was given', async () => {
     const host = fakeHost({
@@ -144,5 +159,45 @@ describe('MCP wiring (apply → route → dsh services)', () => {
     expect(body.configPath).toBe('/tmp/cordis.patch.yml')
     expect(body.servers.map((server) => server.serverName)).toEqual(['codegraph'])
     expect(body.servers[0]?.tools.map((tool) => tool.name)).toEqual(['mcp__codegraph__explore'])
+  })
+
+  it('creates a server through the managed block over the save route', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-mcp-wire-'))
+    try {
+      const patchPath = join(dir, 'cordis.patch.yml')
+      await writeFile(patchPath, '- id: plugin-manager\n  name: "@deepseek-ai/dsh-plugin-manager"\n  disabled: false\n', 'utf8')
+      const host = fakeHost({
+        pluginManager: {
+          listPlugins: async () => [
+            { entryId: 'mcp-hub-demo', moduleName: MCP_CLIENT_MODULE, enabled: true, fiberPhase: 'active', patchId: 'mcp-hub-demo' },
+          ],
+          setPluginEnabled: async () => ({ application: 'applied' }),
+        },
+        loader: {
+          *entries() {
+            const text = existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : ''
+            for (const row of readManagedBlock(text)) {
+              yield { id: row.id, fiber: { state: 2 }, options: { id: row.id, name: MCP_CLIENT_MODULE, config: row.config } }
+            }
+          },
+        },
+        tools: { schemas: () => [] },
+        profileContext: { patchPath },
+        hmr: { runExclusive: (run: () => Promise<unknown>) => run() },
+        configEditor: { entries: () => [], configuration: () => [], edit: async () => {} },
+      })
+      apply(host.context as never, undefined)
+      const route = host.routes.find((entry) => entry.path === '/api/skill-hub/mcp/save')
+      expect(route).toBeDefined()
+      const res = new FakeResponse()
+      await route!.handler(fakePost({ server: { serverName: 'demo', transport: 'stdio', command: 'node', args: ['server.js'] } }, '/api/skill-hub/mcp/save'), res)
+      expect(res.status).toBe(200)
+      const body = JSON.parse(res.body) as { application: string; entryId: string; mcp: { servers: Array<{ serverName: string; managed: boolean }> } }
+      expect(body).toMatchObject({ application: 'applied', entryId: 'mcp-hub-demo' })
+      expect(body.mcp.servers[0]).toMatchObject({ serverName: 'demo', managed: true })
+      expect(readManagedBlock(readFileSync(patchPath, 'utf8')).map((row) => row.id)).toEqual(['mcp-hub-demo'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

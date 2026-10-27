@@ -44,8 +44,11 @@ export interface MarketSyncDialogState {
   selected: ReadonlySet<string>
 }
 
-/** Overlay + centered alert-dialog shell; outside click or Escape cancels. */
-function DialogShell(props: { onClose: () => void; children: ReactNode }): JSX.Element {
+/**
+ * Overlay + centered alert-dialog shell; outside click or Escape cancels.
+ * `wide` 给带表单的对话框用（380px 放不下字段）。
+ */
+export function DialogShell(props: { onClose: () => void; children: ReactNode; wide?: boolean }): JSX.Element {
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') props.onClose()
@@ -55,7 +58,12 @@ function DialogShell(props: { onClose: () => void; children: ReactNode }): JSX.E
   })
   return (
     <div className={css.dialogOverlay} onClick={props.onClose}>
-      <div className={css.dialog} role='alertdialog' aria-modal='true' onClick={(event) => { event.stopPropagation() }}>
+      <div
+        className={css.dialog + (props.wide === true ? ' ' + css.dialogWide : '')}
+        role={props.wide === true ? 'dialog' : 'alertdialog'}
+        aria-modal='true'
+        onClick={(event) => { event.stopPropagation() }}
+      >
         {props.children}
       </div>
     </div>

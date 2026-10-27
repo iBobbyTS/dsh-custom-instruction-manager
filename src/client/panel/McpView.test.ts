@@ -21,6 +21,9 @@ function server(overrides: Partial<McpServerInfo> = {}): McpServerInfo {
     phase: 'active',
     status: 'running',
     patchId: 'mcp-codegraph',
+    managed: false,
+    editable: true,
+    removable: false,
     toolCallTimeoutMs: 300_000,
     failOnStartupError: true,
     stdio: { command: '/Users/me/.local/bin/codegraph', args: ['serve', '--mcp'], cwd: '/Users/me', env: { PATH: '/opt/homebrew/bin' } },
@@ -33,8 +36,8 @@ const data: McpResponse = {
   ok: true,
   servers: [
     server(),
-    server({ entryId: 'mcp-pw', serverName: 'playwright', patchId: 'mcp-playwright', enabled: false, status: 'disabled', stdio: { command: 'npx', args: ['-y', '@playwright/mcp@latest'], cwd: '', env: {} }, tools: [] }),
-    server({ entryId: 'mcp-sub', serverName: 'external_subagent', patchId: undefined, readOnlyReason: 'unaddressable', tools: [] }),
+    server({ entryId: 'mcp-pw', serverName: 'playwright', patchId: 'mcp-playwright', managed: true, removable: true, enabled: false, status: 'disabled', stdio: { command: 'npx', args: ['-y', '@playwright/mcp@latest'], cwd: '', env: {} }, tools: [] }),
+    server({ entryId: 'mcp-sub', serverName: 'external_subagent', patchId: undefined, readOnlyReason: 'unaddressable', editable: false, editBlockedReason: 'unaddressable', tools: [] }),
     server({
       entryId: 'mcp-remote',
       serverName: 'remote',
@@ -58,9 +61,17 @@ function render(overrides: Partial<McpViewProps> = {}): string {
     busyEntry: null,
     notice: null,
     expanded: new Set<string>(),
+    editor: null,
+    editorBusy: false,
+    editorErrors: [],
+    editorError: null,
     onRefresh: () => {},
     onToggle: () => {},
     onToggleExpanded: () => {},
+    onOpenEditor: () => {},
+    onCloseEditor: () => {},
+    onSaveServer: () => {},
+    onRemoveServer: () => {},
     onDismissNotice: () => {},
     ...overrides,
   }
@@ -111,8 +122,9 @@ describe('MCP page', () => {
 
   it('locks every switch while one toggle is in flight', () => {
     const html = render({ busyEntry: 'mcp-codegraph' })
-    // 4 台服务器 → 4 个开关；飞行中全部禁用，避免并发响应互相覆盖。
-    expect(html.match(/disabled=""/g)).toHaveLength(4)
+    // 4 台服务器 → 4 个开关，外加「新增服务器」按钮；飞行中全部禁用，
+    // 避免并发响应互相覆盖。
+    expect(html.match(/disabled=""/g)).toHaveLength(5)
   })
 
   it('expands a server into its tool list', () => {
@@ -154,6 +166,43 @@ describe('MCP page', () => {
 
     const toggleFailed = render({ notice: { kind: 'error', key: 'mcp.toggleFailed', values: { error: 'row has no id' } } })
     expect(toggleFailed).toContain('开关失败：row has no id')
+  })
+
+  it('offers edit for editable rows and delete only for rows managed here', () => {
+    const collapsed = render()
+    expect(collapsed).not.toContain('>删除<')
+
+    const html = render({ expanded: new Set(['mcp-codegraph', 'mcp-pw', 'mcp-sub']) })
+    expect(html).toContain('>编辑<')
+    expect(html).toContain('>删除<')
+    // 不可寻址的行只说明原因，不给编辑按钮。
+    expect(html).toContain('这一行在补丁里没有唯一 id')
+  })
+
+  it('marks managed rows with a badge', () => {
+    const html = render({ expanded: new Set(['mcp-pw']) })
+    expect(html).toContain('本页管理')
+  })
+
+  it('renders the add-server form and its field errors', () => {
+    const html = render({ editor: { mode: 'create' }, editorErrors: [{ field: 'command', code: 'required' }] })
+    expect(html).toContain('新增 MCP 服务器')
+    expect(html).toContain('名称（serverName）')
+    expect(html).toContain('命令')
+    expect(html).toContain('必填')
+    expect(html).toContain('保存')
+  })
+
+  it('shows a non-field save error inside the dialog', () => {
+    const html = render({ editor: { mode: 'create' }, editorError: 'config editor refused the change: boom' })
+    expect(html).toContain('保存失败：config editor refused the change: boom')
+  })
+
+  it('prefills the edit form from the row and explains the name prefix', () => {
+    const html = render({ editor: { mode: 'edit', server: server() } })
+    expect(html).toContain('编辑 codegraph')
+    expect(html).toContain('value="/Users/me/.local/bin/codegraph"')
+    expect(html).toContain('mcp__codegraph__')
   })
 
   it('renders the empty state with the patch path', () => {

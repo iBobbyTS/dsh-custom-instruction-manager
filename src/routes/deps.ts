@@ -56,6 +56,11 @@ export interface SkillHubRouteDeps {
    */
   mcp?: import('../mcp.ts').McpAccess
   /**
+   * MCP 写入口（新建/编辑/删除服务器行）。受管行直接重写本插件的 insert
+   * 块，其余行转发 dsh 的 config-editor。缺失时保存路由回 503。
+   */
+  mcpConfig?: import('../mcp.ts').McpConfigurator
+  /**
    * System trash directory override (tests point it at a temp dir). Absent uses
    * the platform trash: macOS ~/.Trash, Linux ~/.local/share/Trash/files.
    */

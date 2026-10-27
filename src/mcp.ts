@@ -11,10 +11,12 @@
 
 import type {
   McpApplication,
+  McpEditBlockedReason,
   McpPhase,
   McpReadOnlyReason,
   McpResponse,
   McpServerInfo,
+  McpServerInput,
   McpStatus,
   McpToolInfo,
   McpTransport,
@@ -68,8 +70,24 @@ export interface McpListFacts {
   configPath: string | null
   /** dsh 的插件管理服务可用。 */
   canManage: boolean
+  /**
+   * 可编辑性（相对"开关"是另一套判定）：
+   *   - managedIds：本插件受管块里的行，改/删都走受管块；
+   *   - editableIds：面板能改配置的行（受管行 + dsh 配置编辑服务能定位的行）；
+   *   - editBlocked：不能改的行及原因（缺省按 unaddressable 处理）。
+   */
+  managedIds?: readonly string[]
+  editableIds?: readonly string[]
+  editBlocked?: Readonly<Record<string, McpEditBlockedReason>>
   /** 读取阶段（缺服务、某行读失败）产生的告警。 */
   warnings: string[]
+}
+
+/** 投影要知道的可写能力（列表事实里的可编辑性字段）。 */
+export interface McpCapabilities {
+  managedIds?: readonly string[]
+  editableIds?: readonly string[]
+  editBlocked?: Readonly<Record<string, McpEditBlockedReason>>
 }
 
 /** 一次开关的结果（与 dsh ChangeResult 的对应字段一一映射）。 */
@@ -102,6 +120,25 @@ export interface McpAccess {
   setEnabled(entryId: string, enabled: boolean): Promise<McpToggleOutcome>
 }
 
+/** 一次保存/删除的结果（与开关结果同形，界面复用同一套提示）。 */
+export interface McpSaveOutcome {
+  application: McpApplication
+  /** 新建时是新生成的 id；编辑/删除时回显请求里的 id。 */
+  entryId: string
+  restartReason?: string
+}
+
+/**
+ * MCP 域的写入口：新建/编辑/删除服务器行。
+ *
+ * 两条路径：本插件受管块里的行直接重写块；其余行交给 dsh 的 config-editor
+ * （官方校验 + 原子写 + Loader 热应用）。生产实现见 ./mcp-config.ts。
+ */
+export interface McpConfigurator {
+  save(server: McpServerInput, entryId?: string): Promise<McpSaveOutcome>
+  remove(entryId: string): Promise<McpSaveOutcome>
+}
+
 /**
  * 补丁里的 `!!js` 表达式在 Loader 的条目配置里原样保留成 `{ __jsExpr }`
  * （解析成值发生在 fiber 激活时，面板读到的是原文）。识别它，才能把这类字段
@@ -113,6 +150,16 @@ function isJsExpr(value: unknown): boolean {
 
 /** `!!js` 字段在面板上的占位文本（不执行表达式，也不假装知道它的值）。 */
 export const JS_EXPR_PLACEHOLDER = '⟪!!js⟫'
+
+/** 配置里是否嵌了 `!!js` 表达式（这类行不从表单改，避免把表达式写成字面量）。 */
+function containsJsExpr(value: unknown, depth = 0): boolean {
+  if (depth > 6) return false
+  if (isJsExpr(value)) return true
+  if (Array.isArray(value)) return value.some((entry) => containsJsExpr(entry, depth + 1))
+  const record = asRecord(value)
+  if (record === undefined) return false
+  return Object.values(record).some((entry) => containsJsExpr(entry, depth + 1))
+}
 
 /** 读一个纯对象；数组与 null 都不算。 */
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -195,12 +242,20 @@ function transportOf(raw: Record<string, unknown>): { transport?: McpTransport; 
  *   - 工具按 `mcp__<serverName>__` 归属，最长前缀优先；归不上的进 orphanTools。
  * @param facts - Loader 行事实，顺序即 Loader 顺序。
  * @param tools - 当前注册的工具表。
+ * @param capabilities - 受管行与可编辑行（缺省：全部不可编辑）。
  * @returns 服务器列表、未归属工具与告警。
  */
-export function projectMcpServers(facts: readonly McpServerFacts[], tools: readonly McpToolFact[] = []): McpProjection {
+export function projectMcpServers(
+  facts: readonly McpServerFacts[],
+  tools: readonly McpToolFact[] = [],
+  capabilities: McpCapabilities = {},
+): McpProjection {
   const warnings: string[] = []
   const servers: McpServerInfo[] = []
   const byName = new Map<string, McpServerInfo>()
+  const managedIds = new Set(capabilities.managedIds ?? [])
+  const editableIds = new Set(capabilities.editableIds ?? [])
+  const editBlocked = capabilities.editBlocked ?? {}
 
   for (const fact of facts) {
     const raw = asRecord(fact.config)
@@ -227,6 +282,9 @@ export function projectMcpServers(facts: readonly McpServerFacts[], tools: reado
       continue
     }
     if (note !== undefined) warnings.push(`MCP entry "${fact.entryId}": ${note}`)
+    // 面板/开关用的 entryId 带树前缀（`include:`），补丁与配置编辑服务用
+    // 补丁行 id；可写性按后者判定。
+    const addressId = fact.patchId ?? fact.entryId
     const server: McpServerInfo = {
       entryId: fact.entryId,
       serverName,
@@ -236,7 +294,18 @@ export function projectMcpServers(facts: readonly McpServerFacts[], tools: reado
       status: statusOf(fact.enabled, fact.phase),
       toolCallTimeoutMs: readCount(raw, 'toolCallTimeoutMs') ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
       failOnStartupError: raw.failOnStartupError === true,
+      managed: managedIds.has(addressId),
+      editable: editableIds.has(addressId),
+      removable: managedIds.has(addressId),
       tools: [],
+    }
+    if (!server.editable) server.editBlockedReason = editBlocked[addressId] ?? 'unaddressable'
+    const maxInstructionBytes = readCount(raw, 'maxInstructionBytes')
+    if (maxInstructionBytes !== undefined) server.maxInstructionBytes = maxInstructionBytes
+    // 含 !!js 的行只能读/开关：表单拿不到表达式的真实值，回写会把表达式变成字面量。
+    if (containsJsExpr(raw)) {
+      server.editable = false
+      server.editBlockedReason = 'invalid-config'
     }
     if (fact.patchId !== undefined) server.patchId = fact.patchId
     if (fact.readOnlyReason !== undefined) server.readOnlyReason = fact.readOnlyReason
@@ -285,7 +354,11 @@ export function projectMcpServers(facts: readonly McpServerFacts[], tools: reado
 
 /** 合并投影与环境信息，得到 GET /mcp 的完整响应体。 */
 export function buildMcpResponse(facts: McpListFacts): McpResponse {
-  const projection = projectMcpServers(facts.facts, facts.tools)
+  const projection = projectMcpServers(facts.facts, facts.tools, {
+    managedIds: facts.managedIds,
+    editableIds: facts.editableIds,
+    editBlocked: facts.editBlocked,
+  })
   return {
     ok: true,
     servers: projection.servers,

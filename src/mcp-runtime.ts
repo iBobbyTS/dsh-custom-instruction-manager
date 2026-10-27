@@ -11,8 +11,10 @@
  *   - 不可寻址的行（补丁里没有 id，如外部产品写入的 insert 行）只能列不能开/关。
  */
 
-import type { McpPhase, McpReadOnlyReason } from './protocol.ts'
+import { readFile } from 'node:fs/promises'
+import type { McpEditBlockedReason, McpPhase, McpReadOnlyReason } from './protocol.ts'
 import { McpAccessError, MCP_CLIENT_MODULE, type McpAccess, type McpListFacts, type McpToggleOutcome } from './mcp.ts'
+import { readManagedBlock } from './mcp-patch.ts'
 
 /** dsh 的 PluginInventoryEntry 子集（listPlugins 的返回行）。 */
 interface PluginInfoLike {
@@ -58,6 +60,11 @@ interface ToolsLike {
 /** dsh 的 profileContext 子集。 */
 interface ProfileContextLike {
   patchPath?: string
+}
+
+/** dsh 的 config-editor 子集（列表只用它判断哪些行可编辑）。 */
+interface ConfigEditorLike {
+  entries(): Array<{ id: string; options?: { id?: string; name?: string } }>
 }
 
 /** FiberState 的运行时镜像（DISPOSED = null）。 */
@@ -169,11 +176,48 @@ export function createMcpAccess(get: (name: string) => unknown): McpAccess {
       }
     }
 
+    // 可写性：受管块里的行（本插件建、可改可删）与 config-editor 能定位的行。
+    const managedIds: string[] = []
+    if (profile?.patchPath !== undefined) {
+      try {
+        const text = await readFile(profile.patchPath, 'utf8')
+        managedIds.push(...readManagedBlock(text).map((row) => row.id))
+      } catch (error) {
+        // 没有补丁文件是正常状态（还没写过）；块坏了就是真的坏了，要说出来。
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          warnings.push('MCP managed block: ' + messageOf(error))
+        }
+      }
+    }
+    const editor = get('configEditor') as ConfigEditorLike | undefined
+    const editableIds = new Set<string>(managedIds)
+    if (editor !== undefined) {
+      try {
+        for (const entry of editor.entries()) {
+          if (entry.options?.name !== MCP_CLIENT_MODULE) continue
+          const id = entry.options.id ?? entry.id
+          if (editableIds.has(id)) continue
+          editableIds.add(id)
+        }
+      } catch (error) {
+        warnings.push('configEditor.entries() failed: ' + messageOf(error))
+      }
+    }
+    const editBlocked: Record<string, McpEditBlockedReason> = {}
+    for (const row of rows) {
+      const key = row.patchId ?? row.entryId
+      if (editableIds.has(key)) continue
+      editBlocked[key] = editor === undefined ? 'no-editor' : 'unaddressable'
+    }
+
     return {
       facts,
       tools: toolFacts,
       configPath: profile?.patchPath ?? null,
       canManage,
+      managedIds,
+      editableIds: [...editableIds],
+      editBlocked,
       warnings,
     }
   }

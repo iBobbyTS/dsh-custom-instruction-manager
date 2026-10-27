@@ -28,7 +28,12 @@ import {
   type MarketSourceVersionsResponse,
   type MarketStatsResponse,
   type MarketSyncResponse,
+  type McpRemoveRequest,
+  type McpRemoveResponse,
   type McpResponse,
+  type McpSaveRequest,
+  type McpSaveResponse,
+  type McpServerInput,
   type McpToggleRequest,
   type McpToggleResponse,
   type RepoDiscoverResponse,
@@ -331,6 +336,23 @@ export class SkillHubApi {
   /** 启用/禁用一台 MCP 服务器；响应里带回刷新后的列表（省一次往返）。 */
   toggleMcp(entryId: string, enabled: boolean): Promise<McpToggleResponse> {
     return this.post<McpToggleResponse>(SKILL_HUB_API.mcpToggle, { entryId, enabled } satisfies McpToggleRequest)
+  }
+
+  /**
+   * 新建（不传 entryId）或编辑一台 MCP 服务器。
+   *
+   * 保存落在 profile 补丁里：本页建的行写进本插件的受管块，其余行交给 dsh
+   * 的配置编辑服务。字段校验失败时 host 回 400 + `fields`，错误体在
+   * SkillHubApiError.body 里。
+   */
+  saveMcpServer(server: McpServerInput, entryId?: string): Promise<McpSaveResponse> {
+    const payload: McpSaveRequest = entryId === undefined ? { server } : { entryId, server }
+    return this.post<McpSaveResponse>(SKILL_HUB_API.mcpSave, payload)
+  }
+
+  /** 删除本页管理的 MCP 服务器。 */
+  removeMcpServer(entryId: string): Promise<McpRemoveResponse> {
+    return this.post<McpRemoveResponse>(SKILL_HUB_API.mcpRemove, { entryId } satisfies McpRemoveRequest)
   }
 
   /**

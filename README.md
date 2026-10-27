@@ -50,7 +50,9 @@ The panel remembers the page you left — the top-level category (AGENTS.md / Sk
 - **Config summary** — expand for the command/args/working directory or the URL, plus environment variables and headers; values are masked as `••••••` until “Show values”. The call timeout, abort-on-startup-failure flag and the patch row id ride along.
 - **Tools** — expand to list the tools the server currently registers (public name `mcp__<server>__<tool>`, description, parameter names). Tools that belong to no server listed here (a server inside an agent preset, or a truncated/rewritten name) are listed separately as unattributed.
 - **Toggle** — the per-row switch goes through dsh's plugin manager: it only writes the enablement flag into the profile patch and never edits the server config. The result is reported honestly (applied / restart required / overridden / failed). Rows without an `id` in the patch (e.g. insert rows written by other products) and dsh-managed plugins are read-only, with the reason on the row.
-- **Degraded mode** — without a plugin manager in this deployment the servers are still listed from the Loader; only the switches are disabled, with an explanation.
+- **Add / edit / delete** — “Add server” opens a form for a new `@deepseek-ai/dsh-mcp-client` row: stdio (command, one argument per line, working directory, `KEY=VALUE` environment lines) or Streamable HTTP (URL, `KEY: VALUE` header lines), plus call timeout, abort-on-startup-failure and the instructions byte limit. Rows created here carry an `mcp-hub-*` id and live in one marker-delimited managed block inside the profile patch (`# @managed-by: custom-instruction-manager (mcp)`); a save rewrites only that block — everything outside it, including other products' rows, `!!js` expressions and rows dsh's config editor appends between the markers, stays byte-identical — and Delete removes the row from it.
+- **Rows the panel does not own** — an existing row is edited through dsh's own config editor (`configEditor.edit`), which validates the whole patch, writes it atomically and lets the Loader apply it; it cannot be deleted here because the panel does not own its declaration (delete says where it lives instead). Rows whose config contains a `!!js` expression stay read-only: the form cannot see the expression's value, so a save would silently turn it into a literal. Duplicate `serverName`s are refused up front (dsh rejects the second instance at activation).
+- **Degraded mode** — without a plugin manager in this deployment the servers are still listed from the Loader; only the switches are disabled, with an explanation. Without dsh's config editor only rows in the managed block stay editable.
 
 **Sidebar → Other Plugins → Skill** — 2 tabs: **Sources** (skills, flat/grouped + project tree, with the personal card split by managed-by (market imports show their upstream repo; user-owned skills show User Managed)), **Market** (install + update).
 
@@ -113,6 +115,8 @@ Host uses only `ctx.skills.snapshot/get` and `ctx.webServer.register`. Routes si
 | `/api/skill-hub/skill?name=&cwd=` | GET | skill body |
 | `/api/skill-hub/mcp` | GET | MCP servers (Loader rows + config + tools + writability) |
 | `/api/skill-hub/mcp/toggle` | POST | `{entryId, enabled}` through dsh's plugin manager, returns the refreshed list |
+| `/api/skill-hub/mcp/save` | POST | `{entryId?, server}` — create (no id) or edit; a 400 carries per-field `fields` |
+| `/api/skill-hub/mcp/remove` | POST | `{entryId}` — delete a row from the managed block |
 | `/api/skill-hub/skill/delete` | POST | move to the system trash `~/.Trash` (timestamped on clash) |
 | `/api/skill-hub/skill/reveal` | POST | reveal the skill file in Finder (`open -R`) |
 | `/api/skill-hub/create` | POST | `{name, description?, root?}` |

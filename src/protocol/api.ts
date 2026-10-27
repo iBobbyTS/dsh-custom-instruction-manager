@@ -24,6 +24,8 @@ export const SKILL_HUB_API = {
   catalog: '/api/skill-hub/catalog',
   mcp: '/api/skill-hub/mcp',
   mcpToggle: '/api/skill-hub/mcp/toggle',
+  mcpSave: '/api/skill-hub/mcp/save',
+  mcpRemove: '/api/skill-hub/mcp/remove',
   agents: '/api/skill-hub/agents',
   agentsScan: '/api/skill-hub/agents/scan',
   agentsFile: '/api/skill-hub/agents/file',

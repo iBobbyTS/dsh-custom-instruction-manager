@@ -107,6 +107,7 @@ export { isProjectSource } from './protocol/sources.ts'
 export type {
   McpPhase,
   McpReadOnlyReason,
+  McpEditBlockedReason,
   McpStatus,
   McpTransport,
   McpToolInfo,
@@ -117,4 +118,11 @@ export type {
   McpToggleRequest,
   McpToggleResponse,
   McpApplication,
+  McpServerInput,
+  McpFieldErrorCode,
+  McpFieldError,
+  McpSaveRequest,
+  McpSaveResponse,
+  McpRemoveRequest,
+  McpRemoveResponse,
 } from './protocol/mcp.ts'
