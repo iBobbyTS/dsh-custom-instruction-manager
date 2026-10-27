@@ -5,3 +5,4 @@ lib/
 .dsh/
 docs/
 .workbuddy/
+index.js
