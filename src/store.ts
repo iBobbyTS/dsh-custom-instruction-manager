@@ -1,11 +1,8 @@
 /**
- * Hub sidecar store: remembers which skills the hub toggled off and the
- * user's organization/tracking records. Disabling renames the skill's
- * SKILL.md (or flat .md) out of the filesystem provider's discovery shapes,
- * so the provider catalog alone cannot see disabled skills; this store keeps
- * name/path/root so the GUI can list them and re-enable. It also persists
+ * Hub sidecar store: the user's organization/tracking records. It persists
  * upstream source records (repo + commit snapshot for update checks), the
- * market source list, and the trash (skills removed after upstream deletion).
+ * market source list, the trash (skills removed after upstream deletion), and
+ * usage/market stats snapshots.
  *
  * State file: $DSH_HOME/plugin/data/custom-instruction-manager/state.json — a
  * small JSON document written atomically (tmp file + rename).

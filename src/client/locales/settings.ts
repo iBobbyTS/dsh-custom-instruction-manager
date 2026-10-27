@@ -1,11 +1,9 @@
 /** 设置卡。从 locales.ts 按前缀拆出，键集合不变。 */
 export const zhSettings = {
   'settings.title': '自定义指令管理器',
-  'settings.description': '管理 AGENTS.md 指令文件与本地技能目录：浏览、编辑、开关、来源同步与新建。',
+  'settings.description': '管理 AGENTS.md 指令文件与本地技能目录：浏览、编辑、来源同步与新建。',
   'settings.enabled': '启用插件',
-  'settings.enabledHint': '关闭后本插件的路由、入口与公告全部下线。',
-  'settings.announceToAgent': '向 Agent 公告',
-  'settings.announceToAgentHint': '在系统提示中加入本插件说明，用户提到技能管理时 Agent 知道如何协作。',
+  'settings.enabledHint': '关闭后本插件的路由与入口全部下线。',
   'settings.dotModelColor': '模型可调圆点颜色',
   'settings.dotModelColorHint': '技能行/聊天 / 菜单中「模型可调」蓝色圆点的颜色（#rrggbb）。',
   'settings.dotUserColor': '用户可调圆点颜色',
@@ -39,11 +37,9 @@ export const zhSettings = {
 
 export const enSettings: Record<keyof typeof zhSettings, string> = {
   'settings.title': 'Custom Instruction Manager',
-  'settings.description': 'Manage AGENTS.md instruction files and the local skill catalog: browse, edit, toggle, sync, and scaffold.',
+  'settings.description': 'Manage AGENTS.md instruction files and the local skill catalog: browse, edit, sync, and scaffold.',
   'settings.enabled': 'Enable plugin',
-  'settings.enabledHint': 'Disables this plugin’s routes, entries, and announcement.',
-  'settings.announceToAgent': 'Announce to agent',
-  'settings.announceToAgentHint': 'Adds a system-prompt section so agents know how to collaborate when users mention skill management.',
+  'settings.enabledHint': 'Disables this plugin’s routes and entries.',
   'settings.dotModelColor': 'Model-invocable dot color',
   'settings.dotModelColorHint': 'Color of the blue "model-callable" dot in the skill panel and the chat / menu (#rrggbb).',
   'settings.dotUserColor': 'User-invocable dot color',

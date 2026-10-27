@@ -33,32 +33,28 @@ describe('SkillHubStore', () => {
   })
 
   it('starts empty when no state file exists', async () => {
-    expect(await store.listDisabled()).toEqual([])
     expect(await store.listTrash()).toEqual([])
     expect(await store.listSources()).toEqual([])
   })
 
-  it('persists disabled entries and reloads them', async () => {
-    await store.addDisabled({ name: 'demo-skill', description: 'demo', path: '/tmp/demo/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1234 })
-    const reloaded = new SkillHubStore(file)
-    const entries = await reloaded.listDisabled()
-    expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({ name: 'demo-skill', path: '/tmp/demo/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1234 })
-  })
-
-  it('removes entries on removeDisabled', async () => {
-    await store.addDisabled({ name: 'a', description: '', path: '/tmp/a.md.disabled', root: 'user-dsh', disabledAt: 1 })
-    await store.removeDisabled('a')
-    expect(await store.listDisabled()).toEqual([])
-    expect(await new SkillHubStore(file).listDisabled()).toEqual([])
+  it('drops the removed disabled bucket from an older file', async () => {
+    await writeFile(file, JSON.stringify({
+      version: 5,
+      disabled: [{ name: 'demo-skill', description: 'demo', path: '/tmp/demo/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1234 }],
+      config: { announceToAgent: false, showUseCount: false },
+    }), 'utf8')
+    expect(await store.getConfig()).toEqual({ showUseCount: false })
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; disabled?: unknown }
+    expect(raw.version).toBe(6)
+    expect(raw.disabled).toBeUndefined()
   })
 
   it('survives a corrupt state file', async () => {
     await writeFile(file, 'not json at all', 'utf8')
-    expect(await store.listDisabled()).toEqual([])
-    await store.addDisabled({ name: 'x', description: '', path: '/tmp/x.md.disabled', root: 'user-agents', disabledAt: 2 })
-    const raw = JSON.parse(await readFile(file, 'utf8')) as { disabled: unknown[] }
-    expect(raw.disabled).toHaveLength(1)
+    expect(await store.listTrash()).toEqual([])
+    await store.addMarketSource('x/y')
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { marketSources?: unknown[] }
+    expect(raw.marketSources).toHaveLength(1)
   })
 
   // ------------------------------------------------------- 来源记录
@@ -226,7 +222,7 @@ describe('SkillHubStore', () => {
     })
   })
 
-  it('migrates a v4 file to v5 on load, dropping scenes and trash tagIds', async () => {
+  it('migrates a v4 file to the current schema, dropping scenes, disabled records and trash tagIds', async () => {
     await writeFile(file, JSON.stringify({
       version: 4,
       disabled: [{ name: 'kept', description: 'x', path: '/tmp/kept/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1 }],
@@ -236,14 +232,14 @@ describe('SkillHubStore', () => {
       ],
       trash: [{ name: 'gone', path: '/tmp/trash/gone-1', movedAt: 3, tagIds: ['t1', 't2'], origin: { repo: 'repo/x', root: 'skills', commitSha: 'sha' } }],
     }), 'utf8')
-    // 装载即迁移：读取任一状态都会把旧文件按 v5 重写到磁盘。
-    expect(await store.listDisabled()).toHaveLength(1)
-    const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; tags?: unknown; trash?: Array<Record<string, unknown>> }
-    expect(raw.version).toBe(5)
+    // 装载即迁移：读取任一状态都会把旧文件按当前版本重写到磁盘。
+    expect(await store.listTrash()).toHaveLength(1)
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; tags?: unknown; disabled?: unknown; trash?: Array<Record<string, unknown>> }
+    expect(raw.version).toBe(6)
     expect(raw.tags).toBeUndefined()
+    expect(raw.disabled).toBeUndefined()
     expect(raw.trash?.[0]).not.toHaveProperty('tagIds')
-    // 丢弃的只有场景数据：禁用记录与回收站来源快照都保留。
-    expect(await store.listDisabled()).toMatchObject([{ name: 'kept' }])
+    // 丢弃的只有场景/禁用数据：回收站来源快照保留。
     expect((await store.getTrash('gone'))?.origin).toMatchObject({ repo: 'repo/x', commitSha: 'sha' })
   })
 
@@ -265,22 +261,22 @@ describe('SkillHubStore', () => {
       origins: { docx: 'anthropics/skills', pdf: 'anthropics/skills' },
       scenes: [{ id: 's1', name: '场景', skillNames: ['docx'] }],
     }), 'utf8')
-    expect(await store.listDisabled()).toHaveLength(1)
     const sources = await store.listSources()
     expect(sources).toHaveLength(1)
     expect(sources[0]).toMatchObject({ repo: 'anthropics/skills', commitSha: '', skills: ['docx', 'pdf'] })
     expect(await store.listOrigins()).toEqual({ docx: 'anthropics/skills', pdf: 'anthropics/skills' })
     // scenes 被丢弃：迁移后首次写入持久化时不再保留
     await store.addMarketSource('new/repo')
-    const raw = JSON.parse(await readFile(file, 'utf8')) as { scenes?: unknown[]; marketSources?: unknown[] }
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { scenes?: unknown[]; disabled?: unknown; marketSources?: unknown[] }
     expect(raw.scenes).toBeUndefined()
+    expect(raw.disabled).toBeUndefined()
     expect(raw.marketSources).toEqual([{ repo: 'new/repo' }])
   })
 
   it('rejects a newer schema by starting empty', async () => {
     await writeFile(file, JSON.stringify({ version: 99, disabled: [{ name: 'a', path: '/tmp/a.md.disabled', root: 'user-dsh', disabledAt: 1 }] }), 'utf8')
     const fresh = new SkillHubStore(file)
-    expect(await fresh.listDisabled()).toEqual([])
+    expect(await fresh.listTrash()).toEqual([])
   })
 
   it('keeps an empty root through a reload (repo-root skill), still coercing a corrupt one', async () => {
@@ -331,7 +327,7 @@ describe('SkillHubStore', () => {
     const reloaded = new SkillHubStore(file)
     expect(await reloaded.getSkillStatsState()).toEqual(checkpoint)
     const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; skillStats?: unknown }
-    expect(raw.version).toBe(5)
+    expect(raw.version).toBe(6)
     expect(raw.skillStats).toEqual(checkpoint)
   })
 

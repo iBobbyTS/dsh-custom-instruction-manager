@@ -105,9 +105,9 @@ export async function replaceInPlace(target: string, download: () => Promise<unk
 }
 
 /**
- * 让位：把一个名字下的「非启用态占位」移入回收站并清掉它的 sidecar 禁用记录。
+ * 让位：把一个名字下的「非启用态占位」移入回收站。
  * 只动这两类，**启用的技能一律不碰**：
- * - 禁用发现文件（`<name>/SKILL.md.disabled` 或 `<name>.md.disabled`，两种形态都认）；
+ * - 旧版遗留的禁用发现文件（`<name>/SKILL.md.disabled` 或 `<name>.md.disabled`，两种形态都认）；
  * - 同名目录存在但既无 `SKILL.md` 也无 `SKILL.md.disabled`（导入中断/手工删除的空壳）。
  *
  * 回收站按名字索引，所以多形态只会记下最后一条的恢复指针；其余的那份会在
@@ -129,6 +129,5 @@ export async function retireNamePlaceholders(deps: SkillHubRouteDeps, base: stri
     await deps.store.addTrash({ name, path: moved.path, movedAt: Date.now(), sourcePath: moved.source })
     trashed.push(moved.path)
   }
-  await deps.store.removeDisabled(name)
   return trashed
 }

@@ -2,8 +2,8 @@
  * Sources tab: the flat skill list or the grouped view — a project-level
  * three-tier tree (workspaces from workspace.json, each optionally split by
  * .dsh/.agents), one group per upstream collection with check/sync/
- * follow-delete actions and the tri-state switch, plus the uncategorized
- * "personal" group (project skills never count as personal).
+ * follow-delete actions, plus the uncategorized "personal" group (project
+ * skills never count as personal).
  *
  * Top-level groups follow the official 插件 page: a plain 14/500 section
  * heading ("用户级" / "项目级"), not a collapsible header. Only nested nodes
@@ -19,10 +19,9 @@
 
 import { useMemo, type JSX } from 'react'
 import { managedByText, tt } from '../helpers.ts'
-import { disabledRowKey, groupSwitchView, skillRowKey } from '../grouping.ts'
+import { skillRowKey } from '../grouping.ts'
 import type { GroupView } from './hooks/useGroupView.ts'
 import { SkillRow } from './SkillRow.tsx'
-import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
 import { SubGroup } from './SubGroup.tsx'
 import { ProjectTree } from './ProjectTree.tsx'
@@ -33,13 +32,13 @@ import css from './panel.module.css'
 export function SourcesView(props: { hub: SkillHubState; view: GroupView }): JSX.Element {
   const { hub, view } = props
   const {
-    catalog, skillView, collapsedGroups, viewNames, sourceCheck, actionNames,
-    checkingSource, syncingSource, batchBusy, busyNames, toggleGroupCollapse,
-    checkSources, requestSync, requestDelete, toggleGroup, enableDisabled,
+    catalog, skillView, collapsedGroups, sourceCheck,
+    checkingSource, syncingSource, busyNames, toggleGroupCollapse,
+    checkSources, requestSync, requestDelete,
   } = hub
   const {
     sourceFiltered, projectSkillsAll, hasProject, visible, collections,
-    uncategorized, personalDisabled, allPersonalNames, hasPersonal,
+    uncategorized, allPersonalNames, hasPersonal,
     personalBuckets, subdividedPersonal, topKeys,
   } = view
   /** 重复技能名集合：整表只建一次，行内用 has 取代逐行线性 includes。 */
@@ -47,7 +46,7 @@ export function SourcesView(props: { hub: SkillHubState; view: GroupView }): JSX
   /** dsh 侧面栏的工作区顺序；项目级分组按它排列（未知名排最后）。 */
   const workspaceOrder = useMemo(() => (catalog?.workspaces ?? []).map((entry) => entry.path), [catalog])
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
-  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, listBusy: hub.listBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill, reveal: hub.reveal }
+  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, listBusy: hub.listBusy, duplicateNames, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill, reveal: hub.reveal }
 
   if (skillView === 'flat') {
     return <div className={css.list}>{sourceFiltered.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}</div>
@@ -74,37 +73,28 @@ export function SourcesView(props: { hub: SkillHubState; view: GroupView }): JSX
             />
           )
         }
-        // Collection 分组（上游集合，保留折叠与整组开关）
+        // Collection 分组（上游集合，保留折叠与检查/同步动作）
         if (topKey.startsWith('col:')) {
           const colName = topKey.slice(4)
           const entry = visible.find((item) => item.collection.name === colName)
           if (entry === undefined) return null
-          const { collection, skills, disabledMembers } = entry
+          const { collection, skills } = entry
           const collapsed = collapsedGroups.has('col:' + collection.name)
-          const switchView = groupSwitchView(collection.skillNames, viewNames)
           const check = sourceCheck[collection.name]
-          const hasWritable = collection.skillNames.some((name) => actionNames.has(name))
           return (
             <CollectionCard
               key={'col:' + collection.name}
               collection={collection}
               skills={skills}
-              disabledMembers={disabledMembers}
               collapsed={collapsed}
-              view={switchView}
               check={check}
-              hasWritable={hasWritable}
               checkingSource={checkingSource}
               syncingSource={syncingSource}
-              batchBusy={batchBusy}
               rowProps={rowProps}
               toggleGroupCollapse={toggleGroupCollapse}
               checkSources={checkSources}
               requestSync={requestSync}
               requestDelete={requestDelete}
-              toggleGroup={toggleGroup}
-              enableDisabled={enableDisabled}
-              openDetail={hub.openDetail}
             />
           )
         }
@@ -130,19 +120,17 @@ export function SourcesView(props: { hub: SkillHubState; view: GroupView }): JSX
                       key={subKey}
                       title={managedByText(bucket.managed)}
                       titleHint={tt('groups.managedBy')}
-                      count={bucket.skills.length + bucket.disabled.length}
+                      count={bucket.skills.length}
                       collapsed={subCollapsed}
                       onToggle={() => { toggleGroupCollapse(subKey) }}
                     >
                       {bucket.skills.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
-                      {bucket.disabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} reveal={() => { hub.reveal(record.name) }} requestDelete={() => { hub.requestDeleteSkill(record.name) }} />))}
                     </SubGroup>
                   )
                 })
               ) : (
                 <div className={css.list}>
                   {uncategorized.map((skill) => <SkillRow key={skillRowKey(skill)} skill={skill} {...rowProps} />)}
-                  {personalDisabled.map((record) => (<DisabledRow key={disabledRowKey(record)} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} reveal={() => { hub.reveal(record.name) }} requestDelete={() => { hub.requestDeleteSkill(record.name) }} />))}
                 </div>
               )}
             </section>

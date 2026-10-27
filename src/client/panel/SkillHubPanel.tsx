@@ -1,9 +1,8 @@
 /**
  * The skill hub panel: catalog grouped by source collections, search and
- * filter in one row, per-group tri-state switches with conflict dialogs,
- * upstream source tracking (check / sync / follow upstream deletion into a
- * restorable trash), market sources, disabled re-enable, detail inspection,
- * and the new-skill scaffold form.
+ * filter in one row, upstream source tracking (check / sync / follow upstream
+ * deletion into a restorable trash), market sources, detail inspection, and
+ * the new-skill scaffold form.
  *
  * Thin shell: state and flows live in useSkillHub, the tab contents live in
  * SourcesView / MarketView, the dialog family lives in dialogs.tsx, and their
@@ -73,14 +72,14 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     catalog, loading, loadError, successBanner, updateState, detail, detailLoading, showForm, formName, formDesc,
     formRoot, formBusy, formMessage, hubConfig, tab, skillView, sourceFilter, sortKey, search,
     workspace, setWorkspace,
-    sourcesState, groupsState, listBusy, batchBusy, sourceOptions, filtered,
-    conflictDialog, confirmDialog, deleteSkillDialog, confirmClearTrash, branchChoice, branchBusy, marketSyncDialog,
+    sourcesState, listBusy, batchBusy, sourceOptions, filtered,
+    confirmDialog, deleteSkillDialog, confirmClearTrash, branchChoice, branchBusy, marketSyncDialog,
     syncBusy, uses, sourceCheck, checkingSource, syncingSource,
     setLoadError, setSuccessBanner, setDetail, setShowForm, setFormName, setFormDesc, setFormRoot, setFormMessage, setTab,
-    setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog, setDeleteSkillDialog,
+    setSkillView, setSourceFilter, setSortKey, setSearch, setConfirmDialog, setDeleteSkillDialog,
     setConfirmClearTrash, setBranchChoice, setMarketSyncDialog,
     checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill,
-    runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, enableDisabled,
+    runConfirmed, confirmBranchChoice, confirmMarketSync, create,
     agents, agentsScan, agentsError, excludeSaving, loadAgents, saveExcludeDirs,
     agentsFile, openAgentsFile, closeAgentsFile, patchAgentsFile,
   } = hub
@@ -222,7 +221,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   }
 
   if (detail !== null) {
-    const disabledRecord = catalog?.disabled.find((record) => record.name === detail.name)
     return (
       <div className={css.pageShell} ref={refShell}>
         <div className={css.scrollArea} data-hub-scroll="" ref={scrollRef}>
@@ -234,7 +232,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             sourceCheck={sourceCheck}
             checkingSource={checkingSource}
             syncingSource={syncingSource}
-            disabled={disabledRecord !== undefined}
             editable={detail.editable}
             tokenTable={{ state: skillTokens, models: tokenModels.models, busyModel: tokenModels.busy, modelError: tokenModels.error, onSelectModel: selectTokenModel }}
             edit={{
@@ -250,7 +247,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             notice={editNotice ?? undefined}
             invocationBusy={hub.invocationBusy}
             onInvocationChange={(modelInvocable, userInvocable) => { void hub.setInvocation(detail.name, modelInvocable, userInvocable) }}
-            onEnable={disabledRecord !== undefined ? () => { leaveDetail(() => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) }) } : undefined}
             onBack={() => { leaveDetail(() => { setDetail(null) }) }}
             onCheck={(repo) => { void checkSources(repo) }}
             onSync={requestSync}
@@ -300,12 +296,9 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           （新建技能）放在视图切换那一行的右端。 */}
       <div className={css.pageHeading}>
         <h1 className={css.title}>{tt('panel.title')}</h1>
-        {/* 禁用计数与诊断提示只属于 Skill 页；标题本身保持官方那样的纯文字行盒。 */}
+        {/* 诊断与目录完整性提示只属于 Skill 页；标题本身保持官方那样的纯文字行盒。 */}
         {category === 'skills'
           ? <span className={css.headingMeta}>
-              {catalog !== null && catalog.disabled.length > 0
-                ? <span className={css.headerCount}>{tt('panel.disabledCount', { count: catalog.disabled.length })}</span>
-                : null}
               {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
               {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
             </span>
@@ -515,7 +508,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           ) : null}
 
           {filtered.length === 0 && search.trim() !== '' ? <div className={css.empty}>{tt('panel.empty')}</div> : null}
-          {filtered.length === 0 && search.trim() === '' && catalog.skills.length === 0 && catalog.disabled.length === 0 && catalog.diagnostics.length === 0
+          {filtered.length === 0 && search.trim() === '' && catalog.skills.length === 0 && catalog.diagnostics.length === 0
             ? <div className={css.empty}>{tt('panel.emptyAll')}</div>
             : null}
 
@@ -569,10 +562,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
       )}
 
       <PanelDialogs
-        conflictDialog={conflictDialog}
-        collections={groupsState?.collections ?? []}
-        setConflictDialog={setConflictDialog}
-        resolveConflict={resolveConflict}
         confirmDialog={confirmDialog}
         setConfirmDialog={setConfirmDialog}
         runConfirmed={runConfirmed}

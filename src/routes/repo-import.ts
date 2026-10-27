@@ -98,8 +98,9 @@ export function repoImportRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           }
         }
         const { ref: resolvedRef, tree, truncated } = await loadRepoTree(repo, ref)
-        // 发现态也只看「已启用」：否则已禁用占位会把真技能标成「已存在」并禁掉勾选（issue #16）。
-        const existing = await knownSkillNames(deps, { includeDisabled: false })
+        // 发现态只看「已启用」：旧版遗留的 `.disabled` 占位不算「已存在」，
+        // 否则真技能会被标成「已存在」并禁掉勾选（issue #16）。
+        const existing = await knownSkillNames(deps)
         const entries = discoverRepoEntries(tree, repo, existing)
         writeJson(res, 200, { ok: true, repo, ref: resolvedRef, entries, ...(truncated ? { truncated: true } : {}) } satisfies RepoDiscoverResponse)
       },
@@ -121,8 +122,8 @@ export function repoImportRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         const requestedRef = readString(body, 'ref')
         const ref = requestedRef !== '' ? requestedRef : parsed.ref
         const { ref: resolvedRef, tree } = await loadRepoTree(repo, ref)
-        // 导入去重同 discover：已禁用不算「已存在」（issue #16）。
-        const existing = await knownSkillNames(deps, { includeDisabled: false })
+        // 导入去重同 discover：旧版 `.disabled` 占位不算「已存在」（issue #16）。
+        const existing = await knownSkillNames(deps)
         const entries = discoverRepoEntries(tree, repo, existing)
         // truncated tree is still usable for the selected paths the user already picked from the prior discover response
         const byPath = new Map(entries.map((entry) => [entry.path, entry]))
@@ -180,9 +181,9 @@ export function repoImportRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
               job.done += 1
               continue
             }
-            // 磁盘上有同名占位。若它只是一个已禁用的占位（目录包或扁平）或一个空壳
-            // 目录，先把旧东西移入回收站再继续导入；有启用的同名技能时退回「跳过」
-            // （issue #16）。
+            // 磁盘上有同名占位。若它只是一个旧版遗留的 `.disabled` 占位（目录包或
+            // 扁平）或一个空壳目录，先把旧东西移入回收站再继续导入；有启用的同名
+            // 技能时退回「跳过」（issue #16）。
             const occupancy = await occupancyOf(targetRoot, entry.name)
             if (occupancy.enabled.length > 0 || occupancy.disabled.length > 0 || occupancy.bareDir !== undefined) {
               let cleared = false

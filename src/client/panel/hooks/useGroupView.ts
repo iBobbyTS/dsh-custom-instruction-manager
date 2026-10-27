@@ -8,12 +8,11 @@
  */
 
 import { useMemo } from 'react'
-import type { CatalogSkill, CollectionGroup, DisabledSkill } from '../../../protocol.ts'
+import type { CatalogSkill, CollectionGroup } from '../../../protocol.ts'
 import {
   filterBySource,
   isProjectSource,
   personalManagedBuckets,
-  PRIVATE_SOURCE,
   visibleCollections,
   type ManagedBucket,
   type VisibleCollection,
@@ -31,7 +30,6 @@ export interface GroupView {
   collections: CollectionGroup[]
   /** 未绑定来源、非项目级的技能（用户级）。 */
   uncategorized: CatalogSkill[]
-  personalDisabled: DisabledSkill[]
   allPersonalNames: string[]
   hasPersonal: boolean
   personalBuckets: ManagedBucket[]
@@ -46,40 +44,30 @@ export interface GroupView {
 
 export function useGroupView(hub: SkillHubState): GroupView {
   const {
-    catalog, groupsState, sourceFilter, origins, sorted, normalized,
+    groupsState, sourceFilter, origins, sorted,
     collapsedGroups, subdividedProjects,
   } = hub
 
   const sourceFiltered = useMemo(() => filterBySource(sorted, sourceFilter, origins), [sorted, sourceFilter, origins])
   const projectSkillsAll = useMemo(() => sourceFiltered.filter((skill) => isProjectSource(skill.source)), [sourceFiltered])
   const hasProject = projectSkillsAll.length > 0
-  // 无可见成员的来源组不渲染：来源记录指向的技能可能已被删除，或禁用记录
-  // 丢失导致技能既非启用也非禁用，留下一个组头有数字、展开 0 行的空壳。
+  // 无可见成员的来源组不渲染：来源记录指向的技能可能已被删除，留下一个组头
+  // 有数字、展开 0 行的空壳。
   const visible = useMemo(
-    () => visibleCollections(groupsState?.collections ?? [], sourceFiltered, catalog?.disabled ?? [], normalized, sourceFilter, origins),
-    [groupsState, sourceFiltered, catalog, normalized, sourceFilter, origins],
+    () => visibleCollections(groupsState?.collections ?? [], sourceFiltered),
+    [groupsState, sourceFiltered],
   )
   const collections = useMemo(() => visible.map((entry) => entry.collection), [visible])
   const uncategorized = useMemo(
     () => sourceFiltered.filter((skill) => origins[skill.name] === undefined && !isProjectSource(skill.source)),
     [sourceFiltered, origins],
   )
-  const personalDisabled = useMemo(
-    () => (catalog?.disabled ?? [])
-      .filter((record) => origins[record.name] === undefined)
-      .filter((record) => normalized.length === 0 || record.name.toLocaleLowerCase().includes(normalized) || record.description.toLocaleLowerCase().includes(normalized))
-      .filter(() => sourceFilter === 'all' || sourceFilter === PRIVATE_SOURCE),
-    [catalog, origins, normalized, sourceFilter],
-  )
-  const allPersonalNames = useMemo(
-    () => [...uncategorized.map((skill) => skill.name), ...personalDisabled.map((record) => record.name)],
-    [uncategorized, personalDisabled],
-  )
+  const allPersonalNames = useMemo(() => uncategorized.map((skill) => skill.name), [uncategorized])
   const hasPersonal = allPersonalNames.length > 0
   // 个人技能二级分类：按「管理方」聚合，复用项目级 .dsh/.agents 那一层的
   // 显示。用户自己的技能统一成 User Managed，不再逐个显示 provider id；
   // 只有一个管理方时不铺二级（单组的二级头纯属噪音）。
-  const personalBuckets = useMemo(() => personalManagedBuckets(uncategorized, personalDisabled), [uncategorized, personalDisabled])
+  const personalBuckets = useMemo(() => personalManagedBuckets(uncategorized), [uncategorized])
   const subdividedPersonal = personalBuckets.length > 1
   /** 顶层分组顺序：用户级 → 来源集合 → 项目级（全部由数据推导，不可重排）。 */
   const topKeys = useMemo(() => [
@@ -104,7 +92,7 @@ export function useGroupView(hub: SkillHubState): GroupView {
 
   return {
     sourceFiltered, projectSkillsAll, hasProject, visible, collections, uncategorized,
-    personalDisabled, allPersonalNames, hasPersonal, personalBuckets, subdividedPersonal,
+    allPersonalNames, hasPersonal, personalBuckets, subdividedPersonal,
     topKeys, collapsibleKeys, allCollapsed,
   }
 }

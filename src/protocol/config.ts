@@ -5,10 +5,8 @@ export interface ErrorResponse {
 
 /** The skill hub's own runtime configuration, edited from the settings card. */
 export interface HubConfig {
-  /** Master switch: routes, provider, and announcement all go live with this. */
+  /** Master switch: routes and provider go live with this. */
   enabled: boolean
-  /** When true, a system-prompt section announces the hub to every agent. */
-  announceToAgent: boolean
   /** Model-invocable dot color (#rrggbb); absent means the panel default. */
   dotModelColor?: string
   /** User-invocable dot color (#rrggbb); absent means the panel default. */
@@ -53,7 +51,6 @@ export type RedactedHubConfig = Omit<HubConfig, 'githubToken'>
  */
 export type HubSettingsValue = {
   enabled: boolean
-  announceToAgent: boolean
   showUseCount: boolean
   showUseTime: boolean
   showGroupSummary: boolean
@@ -87,7 +84,6 @@ export const HUB_ENTRY_ID = 'skill-hub'
  */
 export const HUB_CONFIG_DEFAULTS = {
   enabled: true,
-  announceToAgent: true,
   showUseCount: true,
   showUseTime: true,
   showGroupSummary: true,
@@ -134,7 +130,6 @@ export function resolveHubConfig(base: Partial<HubConfig> = {}): HubConfig {
   const scanMinutes = clampNumber(base.statsScanMinutes, 1) ?? HUB_CONFIG_DEFAULTS.statsScanMinutes
   return {
     enabled: base.enabled ?? HUB_CONFIG_DEFAULTS.enabled,
-    announceToAgent: base.announceToAgent ?? HUB_CONFIG_DEFAULTS.announceToAgent,
     showUseCount: base.showUseCount ?? HUB_CONFIG_DEFAULTS.showUseCount,
     showUseTime: base.showUseTime ?? HUB_CONFIG_DEFAULTS.showUseTime,
     showGroupSummary: base.showGroupSummary ?? HUB_CONFIG_DEFAULTS.showGroupSummary,
@@ -190,8 +185,6 @@ export interface ConfigResponse {
 export interface ConfigRequest {
   /** Set the field; null clears the saved override so it re-inherits the default. */
   enabled?: boolean | null
-  /** Set the field; null clears the saved override so it re-inherits the default. */
-  announceToAgent?: boolean | null
   /** Set the field; null clears the saved override so it re-inherits the default. */
   showUseCount?: boolean | null
   /** Set the field; null clears the saved override so it re-inherits the default. */

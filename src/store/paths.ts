@@ -1,11 +1,10 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
 
 /** Wire shape persisted on disk. */
 export interface StoreFile {
   version: number
-  disabled: DisabledSkill[]
   /** Runtime configuration edited from the web settings card (hub-owned, not settings-service). */
   config?: Partial<HubConfig>
   /** Upstream source tracking records (repo + commit snapshot). */
@@ -45,7 +44,7 @@ export function pluginDataDir(home = dshHome()): string {
   return join(home, 'plugin', 'data', PLUGIN_DATA_SLUG)
 }
 
-/** 记录文件路径（技能开关、来源、市场源、回收站、统计快照）。 */
+/** 记录文件路径（来源、市场源、回收站、统计快照）。 */
 export function statePath(home = dshHome()): string {
   return join(pluginDataDir(home), 'state.json')
 }
@@ -66,4 +65,4 @@ export function legacyTokenizerDir(home = dshHome()): string {
 }
 
 /** Current sidecar schema version. Bump on breaking shape changes and add a migration below. */
-export const STORE_VERSION = 5
+export const STORE_VERSION = 6

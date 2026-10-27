@@ -1,6 +1,6 @@
 /**
- * 目录域路由：catalog / skill 详情 / skill 删除 / toggle / toggle-batch /
- * create / stats。从 routes.ts 原样搬出，handler 逻辑不变。
+ * 目录域路由：catalog / skill 详情 / skill 删除 / create / stats。
+ * 从 routes.ts 原样搬出，handler 逻辑不变。
  */
 
 import { readFile, stat } from 'node:fs/promises'
@@ -16,11 +16,9 @@ import {
   type SkillInvocationResponse,
   type SkillRevealResponse,
   type StatsResponse,
-  type ToggleBatchResponse,
-  type ToggleResponse,
   type WritableRoot,
 } from '../protocol.ts'
-import { createSkill, disableSkill, disabledOccupancyIn, editableSkillFile, enableSkill, isBundledPath, occupancyOf, parseFrontmatter, readSkillInterface, revealInFileManager, rootOfPath, rootPath, setInvocationPolicy, systemTrashDir, trashSourceOf, trashSkillToSystem } from '../skillfs.ts'
+import { createSkill, editableSkillFile, isBundledPath, occupancyOf, parseFrontmatter, readSkillInterface, revealInFileManager, rootPath, setInvocationPolicy, systemTrashDir, trashSourceOf, trashSkillToSystem } from '../skillfs.ts'
 import { errorText } from '../error-text.ts'
 import {
   applyInterface,
@@ -31,7 +29,6 @@ import {
   pathExists,
   queryParam,
   readString,
-  readStrings,
   resolveWritableSkill,
   toDetail,
   workspaceEntries,
@@ -43,8 +40,7 @@ import {
 
 /**
  * 文件创建/修改时间与大小 → 详情行的 addedAt/updatedAt/size（读取失败时省略
- * 字段，详情页不显示那两行）。禁用态与启用态详情共用；size 是编辑保存时
- * 判断「磁盘是否被改过」的指纹之一。
+ * 字段，详情页不显示那两行）；size 是编辑保存时判断「磁盘是否被改过」的指纹之一。
  */
 async function applyFileTimes(row: { addedAt?: number; updatedAt?: number; size?: number }, path: string): Promise<void> {
   try {
@@ -93,34 +89,6 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         const cwd = queryParam(url, 'cwd') ?? ''
         const skill = await findSkill(deps, name, cwd)
         if (skill === undefined) {
-          // Hub-disabled skills live outside registry discovery (renamed to .disabled);
-          // serve their detail straight from the sidecar record + file.
-          const record = await deps.store.getDisabled(name)
-          if (record !== undefined) {
-            try {
-              const text = await readFile(record.path, 'utf8')
-              const parsed = parseFrontmatter(text)
-              if (!('error' in parsed)) {
-                const disabledDetail: SkillDetail = {
-                  name: record.name,
-                  description: parsed.value.description,
-                  ...(parsed.value.whenToUse !== undefined ? { whenToUse: parsed.value.whenToUse } : {}),
-                  invocation: { ...parsed.value.invocation },
-                  provider: 'skill-hub (disabled)',
-                  source: record.root,
-                  path: record.path,
-                  // 禁用记录只存在于用户根，调用方式同样可改（写的是 .disabled 文件）。
-                  editable: editableSkillFile(record.path, homeOf(deps)),
-                  content: parsed.value.content,
-                }
-                await applyFileTimes(disabledDetail, record.path)
-                writeJson(res, 200, { ok: true, skill: disabledDetail } satisfies SkillDetailResponse)
-                return
-              }
-            } catch {
-              // fall through to 404 below
-            }
-          }
           writeError(res, 404, 'skill not found: ' + name)
           return
         }
@@ -162,21 +130,14 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         // Same resolution order as the detail route, so the checkbox row edits
         // exactly the skill the page is showing (including project skills).
         const skill = await findSkill(deps, name, cwd)
-        let path: string
-        if (skill === undefined) {
-          // Hub-disabled skills sit outside discovery: edit the renamed file.
-          const record = await deps.store.getDisabled(name)
-          if (record === undefined) { writeError(res, 404, 'skill not found: ' + name); return }
-          path = record.path
-        } else {
-          if (skill.path === undefined) {
-            writeError(res, 409, 'skill "' + name + '" is registered by provider "' + skill.provider + '" and has no file to edit')
-            return
-          }
-          path = skill.path
+        if (skill === undefined) { writeError(res, 404, 'skill not found: ' + name); return }
+        if (skill.path === undefined) {
+          writeError(res, 409, 'skill "' + name + '" is registered by provider "' + skill.provider + '" and has no file to edit')
+          return
         }
+        const path = skill.path
         if (!editableSkillFile(path, homeOf(deps))) {
-          writeError(res, 409, 'skill "' + name + '" is managed by provider "' + (skill?.provider ?? 'unknown') + '"; only skill files under a user or project root can change invocation')
+          writeError(res, 409, 'skill "' + name + '" is managed by provider "' + skill.provider + '"; only skill files under a user or project root can change invocation')
           return
         }
         try {
@@ -204,7 +165,7 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         if (name === '') { writeError(res, 400, 'name is required'); return }
         const cwd = readString(body, 'cwd')
         const skill = await findSkill(deps, name, cwd)
-        const target = skill?.path ?? (await deps.store.getDisabled(name))?.path
+        const target = skill?.path
         if (target === undefined) { writeError(res, 404, 'skill has no file on disk: ' + name); return }
         if (isBundledPath(target)) { writeError(res, 409, 'skill lives inside the dsh application bundle: ' + target); return }
         if (!await pathExists(target)) { writeError(res, 404, 'skill file is missing on disk: ' + target); return }
@@ -219,7 +180,7 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
     },
     // -------------------------------------------------------- skill/delete
     // 把单个技能（目录或平面文件）移入系统废纸篓（~/.Trash，可在 Finder 中恢复），
-    // 并清理禁用记录与来源映射。重名时目标名追加时间戳，绝不覆盖已有废纸篓条目。
+    // 并清理来源映射。重名时目标名追加时间戳，绝不覆盖已有废纸篓条目。
     // 上游跟删（sources/delete）走的是 hub 自己的 .trash，可在面板内恢复。
     {
       path: SKILL_HUB_API.skillDelete,
@@ -230,30 +191,8 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         if (name === '') { writeError(res, 400, 'name is required'); return }
         const cwd = readString(body, 'cwd')
         const resolved = await resolveWritableSkill(deps, name, cwd !== '' ? cwd : undefined)
-        // 已禁用的技能不在 registry 中，resolve 会 404，这里单独处理：允许整组删除未开启的技能
-        let entry: string
-        if (resolved.ok) {
-          entry = trashSourceOf(resolved.path)
-        } else {
-          const disabled = await deps.store.getDisabled(name)
-          if (disabled === undefined) { writeError(res, resolved.status, resolved.error); return }
-          // sidecar 里的路径可能是外部写入/损坏的：移动前必须确认它落在
-          // 可写根内（正常路径由 disableSkill 保证，这里只拦异常数据）。
-          if (rootOfPath(disabled.path, homeOf(deps)) === undefined) {
-            writeError(res, 409, 'disabled skill path is outside the hub writable roots')
-            return
-          }
-          // 记录还在、文件已经不在（手工删了 / 从备份恢复过 sidecar）：这条记录
-          // 只是残留，清掉即算删除完成，否则它会永久占住这个名字。
-          if (!await pathExists(disabled.path)) {
-            await deps.store.removeDisabled(name)
-            deps.invalidate?.()
-            writeJson(res, 200, { ok: true, name, path: disabled.path } satisfies SkillDeleteResponse)
-            return
-          }
-          // 禁用态：SKILL.md.disabled 或 *.md.disabled，整个技能条目一起搬。
-          entry = trashSourceOf(disabled.path)
-        }
+        if (!resolved.ok) { writeError(res, resolved.status, resolved.error); return }
+        const entry = trashSourceOf(resolved.path)
         let path: string
         try {
           path = await trashSkillToSystem(entry, deps.trashDir ?? systemTrashDir())
@@ -262,102 +201,9 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           writeError(res, (error as NodeJS.ErrnoException).code === 'ENOENT' ? 404 : 409, 'cannot move the skill into the system trash: ' + errorText(error))
           return
         }
-        await deps.store.removeDisabled(name)
         await deps.store.removeSkillFromSources(name)
         deps.invalidate?.()
         writeJson(res, 200, { ok: true, name, path } satisfies SkillDeleteResponse)
-      },
-    },
-    // -------------------------------------------------------------- toggle
-    {
-      path: SKILL_HUB_API.toggle,
-      methods: ['POST'],
-      jsonBody: true,
-      handler: async ({ res, body }) => {
-        const name = readString(body, 'name')
-        if (name === '') { writeError(res, 400, 'name is required'); return }
-        const cwd = readString(body, 'cwd')
-        const lookup = cwd !== '' ? { cwd } : undefined
-        if (body.enabled === true) {
-          const record = await deps.store.getDisabled(name)
-          if (record === undefined) { writeError(res, 404, 'skill is not hub-disabled: ' + name); return }
-          // 记录里的路径可能已经失效（文件被手工删/搬走）。先在同 root 下找现存的
-          // 禁用占位：找得到就把记录指向它，找不到说明这条记录是残留 —— 清掉并把
-          // 名字还给用户，而不是让「启用」永远失败把名字锁死。
-          let disabledPath = record.path
-          if (!await pathExists(disabledPath)) {
-            // root 从记录路径反推，不直接信 sidecar 里的 root 字段（可能是损坏数据）。
-            const root = rootOfPath(disabledPath, homeOf(deps))
-            const occupancy = root === undefined ? undefined : await disabledOccupancyIn(rootPath(root, homeOf(deps)), name)
-            if (occupancy === undefined) {              await deps.store.removeDisabled(name)
-              deps.invalidate?.()
-              writeError(res, 409, 'disabled record was stale (its file no longer exists); the record has been removed — retry now')
-              return
-            }
-            disabledPath = occupancy
-          }
-          try {
-            await enableSkill(disabledPath)
-          } catch (error) {
-            // The renamed file may have vanished (external cleanup); report
-            // precisely instead of a generic 500, like toggle-batch does.
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-              writeError(res, 409, 'disabled skill file is missing on disk: ' + disabledPath)
-              return
-            }
-            throw error
-          }
-          await deps.store.removeDisabled(name)
-        } else {
-          const resolved = await resolveWritableSkill(deps, name, cwd !== '' ? cwd : undefined)
-          if (!resolved.ok) { writeError(res, resolved.status, resolved.error); return }
-          const disabledPath = await disableSkill(resolved.path)
-          await deps.store.addDisabled({
-            name,
-            description: resolved.skill.description,
-            path: disabledPath,
-            root: resolved.root,
-            disabledAt: Date.now(),
-          })
-        }
-        deps.invalidate?.()
-        writeJson(res, 200, { ok: true, catalog: await buildCatalog(deps, lookup?.cwd) } satisfies ToggleResponse)
-      },
-    },
-    // -------------------------------------------------------- toggle-batch
-    // One write for a whole group: enables every hub-disabled name, or
-    // disables every writable name. Skips already-target states as no-ops;
-    // per-name failures are reported, never fatal.
-    {
-      path: SKILL_HUB_API.toggleBatch,
-      methods: ['POST'],
-      jsonBody: true,
-      handler: async ({ res, body }) => {
-        const names = readStrings(body, 'names')
-        if (names.length === 0) { writeError(res, 400, 'names must be a non-empty array'); return }
-        const enabled = body.enabled === true
-        const cwd = readString(body, 'cwd')
-        const lookup = cwd !== '' ? { cwd } : undefined
-        const failures: Array<{ name: string; error: string }> = []
-        for (const name of names) {
-          try {
-            if (enabled) {
-              const record = await deps.store.getDisabled(name)
-              if (record === undefined) continue // already enabled: no-op
-              await enableSkill(record.path)
-              await deps.store.removeDisabled(name)
-            } else {
-              const resolved = await resolveWritableSkill(deps, name, cwd !== '' ? cwd : undefined)
-              if (!resolved.ok) { failures.push({ name, error: resolved.error }); continue }
-              const disabledPath = await disableSkill(resolved.path)
-              await deps.store.addDisabled({ name, description: resolved.skill.description, path: disabledPath, root: resolved.root, disabledAt: Date.now() })
-            }
-          } catch (error) {
-            failures.push({ name, error: errorText(error) })
-          }
-        }
-        deps.invalidate?.()
-        writeJson(res, 200, { ok: true, catalog: await buildCatalog(deps, lookup?.cwd), failures } satisfies ToggleBatchResponse)
       },
     },
     // -------------------------------------------------------------- create
@@ -374,17 +220,20 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         const root: WritableRoot = rootText
         const existing = await deps.skills.get(name)
         if (existing !== undefined) { writeError(res, 409, 'skill name already exists: ' + name); return }
-        if (await deps.store.getDisabled(name) !== undefined) { writeError(res, 409, 'skill name is disabled: re-enable it from the disabled list first'); return }
         // 建档前先看磁盘：三种占位都会让新目录与旧文件并存成同名两形态 ——
-        // 已启用的发现文件（frontmatter 坏了因此注册表看不见）、已禁用的占位
-        // （目录包或扁平）、以及没有 SKILL.md 的空壳目录（正是发现诊断在报的东西）。
+        // 已启用的发现文件（frontmatter 坏了因此注册表看不见）、旧版遗留的
+        // `.disabled` 占位（目录包或扁平）、以及没有 SKILL.md 的空壳目录。
         const occupancy = await occupancyOf(rootPath(root, homeOf(deps)), name)
         if (occupancy.enabled.length > 0) {
           writeError(res, 409, 'a skill file already occupies this name on disk: ' + name + ' (check the discovery diagnostics)')
           return
         }
-        if (occupancy.disabled.length > 0 || occupancy.bareDir !== undefined) {
-          writeError(res, 409, 'name is occupied by a disabled placeholder or an empty directory on disk: ' + name + ' (check the discovery diagnostics)')
+        if (occupancy.disabled.length > 0) {
+          writeError(res, 409, 'name is occupied by a legacy .disabled file on disk: ' + name + ' (rename or remove it manually)')
+          return
+        }
+        if (occupancy.bareDir !== undefined) {
+          writeError(res, 409, 'name is occupied by an empty directory on disk: ' + name + ' (check the discovery diagnostics)')
           return
         }
         const path = await createSkill(root, name, readString(body, 'description'), homeOf(deps))

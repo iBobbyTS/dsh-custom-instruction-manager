@@ -32,8 +32,6 @@ export interface SkillDetailViewProps {
   sourceCheck: Readonly<Record<string, SourceCheckResult>>
   checkingSource: string | null
   syncingSource: string | null
-  /** Whether the skill is currently hub-disabled (served from the .disabled file). */
-  disabled?: boolean
   /**
    * 调用方式是否可写（host 按文件位置判定：用户根/项目根可写，内置/插件
    * provider 没有可写文件）。不可写时两个 checkbox 置灰；`undefined` 表示
@@ -51,8 +49,6 @@ export interface SkillDetailViewProps {
   notice?: string
   /** 写入调用方式（两个布尔是期望的「可调」状态，不是 frontmatter 的键值）。 */
   onInvocationChange: (modelInvocable: boolean, userInvocable: boolean) => void
-  /** Re-enable a hub-disabled skill. */
-  onEnable?: () => void
   onBack: () => void
   /** Check one source repo for upstream updates. */
   onCheck: (repo: string) => void
@@ -63,12 +59,12 @@ export interface SkillDetailViewProps {
 }
 
 export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
-  const { detail, hubConfig, uses, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, editable, invocationBusy, tokenTable, edit, notice, onInvocationChange, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
+  const { detail, hubConfig, uses, sourcesState, sourceCheck, checkingSource, syncingSource, editable, invocationBusy, tokenTable, edit, notice, onInvocationChange, onBack, onCheck, onSync, onFollowDelete } = props
   const detailSource = sourcesState?.sources.find((source) => source.skills.includes(detail.name))
   const detailCheck = detailSource !== undefined ? sourceCheck[detailSource.repo] : undefined
   /** 管理方：上游仓库优先；否则按技能根目录/注册表 provider 归类。 */
   const detailManaged = managedByOf(
-    { source: detail.source ?? (disabled === true ? 'user-dsh' : ''), provider: detail.provider },
+    { source: detail.source, provider: detail.provider },
     sourcesState?.origins[detail.name],
   )
   const [copied, setCopied] = useState<string | null>(null)
@@ -92,7 +88,6 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
           <InvocationDots invocation={detail.invocation} hubConfig={hubConfig} />
         </span>
         <span className={css.actions} style={{ marginLeft: 'auto', gap: 6 }}>
-          {disabled === true && onEnable !== undefined ? <button type='button' className={css.opBtn} role='switch' aria-checked={false} aria-label={tt('row.enable')} onClick={onEnable}>{tt('row.enable')}</button> : null}
           <button type='button' className={css.opBtn} onClick={() => { copyText('$' + detail.name, 'mention') }}>{copied === 'mention' ? tt('detail.copied') : tt('detail.copyMention')}</button>
           {detail.path !== undefined ? <button type='button' className={css.opBtn} onClick={() => { const path = detail.path; if (path !== undefined) copyText(path, 'path') }}>{copied === 'path' ? tt('detail.copied') : tt('detail.copyPath')}</button> : null}
         </span>
@@ -155,16 +150,12 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
             <button type='button' className={css.opBtn} disabled={checkingSource !== null} onClick={() => { onCheck(detailSource.repo) }}>
               {checkingSource === detailSource.repo ? tt('source.checking') : tt('source.check')}
             </button>
-            {disabled !== true ? (
-              <>
-                <button type='button' className={css.opBtn} disabled={syncingSource !== null} onClick={() => { onSync(detailSource.repo, [detail.name]) }}>
-                  {syncingSource === detailSource.repo ? tt('source.syncing') : tt('source.sync')}
-                </button>
-                {detailCheck?.deleted.includes(detail.name) === true
-                  ? <button type='button' className={css.opBtn + ' ' + css.opDanger} onClick={() => { onFollowDelete(detailSource.repo, [detail.name]) }}>{tt('source.followDelete')}</button>
-                  : null}
-              </>
-            ) : null}
+            <button type='button' className={css.opBtn} disabled={syncingSource !== null} onClick={() => { onSync(detailSource.repo, [detail.name]) }}>
+              {syncingSource === detailSource.repo ? tt('source.syncing') : tt('source.sync')}
+            </button>
+            {detailCheck?.deleted.includes(detail.name) === true
+              ? <button type='button' className={css.opBtn + ' ' + css.opDanger} onClick={() => { onFollowDelete(detailSource.repo, [detail.name]) }}>{tt('source.followDelete')}</button>
+              : null}
           </div>
         </div>
       ) : null}

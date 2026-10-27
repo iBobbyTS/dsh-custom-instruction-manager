@@ -4,8 +4,8 @@
  * 边界（与需求契约一致）：
  *  - 只替换 frontmatter 之后的那段正文，frontmatter 逐字节保留
  *    （name / description / 调用键都归详情页的其他控件管）；
- *  - 可写范围沿用调用方式那条线：用户根与项目根的发现文件，禁用态写
- *    `.disabled` 文件，内置/插件 provider 没有文件可写；
+ *  - 可写范围沿用调用方式那条线：用户根与项目根的真实发现文件，内置/插件
+ *    provider 没有文件可写；
  *  - 载入时的 mtime/size 与磁盘不一致 → 409 + 最新内容，客户端弹
  *    「复制并重新加载 / 继续编辑 / 仍然覆盖」；
  *  - 同目录临时文件 + rename 原子落盘，保留原权限位。
@@ -32,23 +32,16 @@ export function editRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         if (typeof body.content !== 'string') { writeError(res, 400, 'content must be a string'); return }
         const content = body.content
         const cwd = readString(body, 'cwd')
-        // 与详情页同一条解析顺序：显式 cwd → 已知工作区 → 用户根；禁用技能
-        // 不在注册表里，回落到 sidecar 记录里的 .disabled 文件。
+        // 与详情页同一条解析顺序：显式 cwd → 已知工作区 → 用户根。
         const skill = await findSkill(deps, name, cwd)
-        let path: string
-        if (skill === undefined) {
-          const record = await deps.store.getDisabled(name)
-          if (record === undefined) { writeError(res, 404, 'skill not found: ' + name); return }
-          path = record.path
-        } else {
-          if (skill.path === undefined) {
-            writeError(res, 409, 'skill "' + name + '" is registered by provider "' + skill.provider + '" and has no file to edit')
-            return
-          }
-          path = skill.path
+        if (skill === undefined) { writeError(res, 404, 'skill not found: ' + name); return }
+        if (skill.path === undefined) {
+          writeError(res, 409, 'skill "' + name + '" is registered by provider "' + skill.provider + '" and has no file to edit')
+          return
         }
+        const path = skill.path
         if (!editableSkillFile(path, homeOf(deps))) {
-          writeError(res, 409, 'skill "' + name + '" is managed by provider "' + (skill?.provider ?? 'unknown') + '"; only skill files under a user or project root can be edited')
+          writeError(res, 409, 'skill "' + name + '" is managed by provider "' + skill.provider + '"; only skill files under a user or project root can be edited')
           return
         }
         const snapshot = await readFileSnapshot(path)

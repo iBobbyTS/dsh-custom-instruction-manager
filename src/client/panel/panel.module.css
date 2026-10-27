@@ -138,7 +138,6 @@
 
 /* 版本号 + 计数 + 诊断提示成一组，跟在标题右侧；整组与标题同基线。 */
 .headingMeta { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
-.headerCount { font-size: 13px; line-height: 20px; color: var(--hub-text-3); white-space: nowrap; }
 
 /* 分类导航：官方自动化任务页的分段筛选项——28px 胶囊、10px 内边距、
    14px 圆角、14px/22px 文字；未选中三级墨色，hover 与选中取同一种
@@ -301,10 +300,6 @@
 .useCount { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 500; color: var(--hub-text-2); background: var(--hub-surface); border-radius: 999px; padding: 0 6px; line-height: 17px; vertical-align: 1px; }
 /* Relative last-used time: right-aligned on the name row, above the description. */
 .useTime { margin-left: auto; font-size: 12px; line-height: 18px; color: var(--hub-text-4); white-space: nowrap; }
-
-/* Tri-state group switch: mixed = half-filled (thumb centered, soft accent). */
-.switchMixed { background: rgba(47,129,247,.45); background: color-mix(in srgb, var(--hub-brand) 45%, transparent); }
-.switchMixed .switchThumb { transform: translateX(8px); }
 
 /* Source link inside group titles / rows. */
 .sourceLink { color: inherit; font-weight: 500; text-decoration: none; border-bottom: 1px dotted currentColor; opacity: .9; }

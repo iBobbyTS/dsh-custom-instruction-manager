@@ -36,8 +36,6 @@ export const SKILL_HUB_API = {
   skillDelete: '/api/skill-hub/skill/delete',
   skillReveal: '/api/skill-hub/skill/reveal',
   skillInvocation: '/api/skill-hub/skill/invocation',
-  toggle: '/api/skill-hub/toggle',
-  toggleBatch: '/api/skill-hub/toggle-batch',
   create: '/api/skill-hub/create',
   stats: '/api/skill-hub/stats',
   config: '/api/skill-hub/config',

@@ -1,11 +1,10 @@
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
 import { isValidRepoRoot } from '../protocol/repo.ts'
 import { STORE_VERSION } from './paths.ts'
 
 /** Normalized raw sidecar document after schema migration (fields still unvalidated). */
 export interface MigratedStore {
   version: number
-  disabled: unknown
   config?: unknown
   sources?: unknown
   marketSources?: unknown
@@ -24,6 +23,9 @@ export interface MigratedStore {
  * instead of bare repo slugs, so a source can pin a release/branch version.
  * v4 to v5: the scene system is gone — `tags` and trash `tagIds` are simply
  * not read any more, so a loaded v4 file is rewritten without them.
+ * v5 to v6: the skill enable/disable toggle is gone — the `disabled` bucket and
+ * the saved `announceToAgent` config field are no longer read, so a loaded
+ * older file is rewritten without them.
  * Returns null when the file claims a newer schema than this plugin
  * understands, so the caller starts empty instead of risking data loss.
  */
@@ -32,7 +34,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
   const record = parsed as Record<string, unknown>
   const version = typeof record.version === 'number' ? record.version : 0
   if (version > STORE_VERSION) return null
-  const disabled = Array.isArray(record.disabled) ? record.disabled : []
   const config = typeof record.config === 'object' && record.config !== null && !Array.isArray(record.config) ? record.config : undefined
   const trash = Array.isArray(record.trash) ? record.trash : undefined
   // v2 stored bare slugs; v3 stores records. Normalize both shapes here.
@@ -66,7 +67,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
   }
   return {
     version: STORE_VERSION,
-    disabled,
     ...(config !== undefined ? { config } : {}),
     ...(sources !== undefined ? { sources } : {}),
     ...(marketSources !== undefined ? { marketSources } : {}),
@@ -83,7 +83,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
 
 /** Validated in-memory state hydrated from a migrated document. */
 export interface HydratedState {
-  entries: Map<string, DisabledSkill>
   config: Partial<HubConfig>
   sourcesByRepo: Map<string, SourceRecord>
   marketSources: MarketSourceRecord[]
@@ -99,20 +98,10 @@ export interface HydratedState {
  * 绝不因一条脏数据丢掉整个 sidecar（与原 ensureLoaded 内联逻辑一致）。
  */
 export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
-  const entries = new Map<string, DisabledSkill>()
-  if (Array.isArray(migrated.disabled)) {
-    for (const entry of migrated.disabled) {
-      if (typeof entry?.name === 'string' && typeof entry?.path === 'string') {
-        entries.set(entry.name, entry)
-      }
-    }
-  }
-
   const config: Partial<HubConfig> = {}
-  const saved = migrated.config as { enabled?: unknown; announceToAgent?: unknown; dotModelColor?: unknown; dotUserColor?: unknown; showUseCount?: unknown; showUseTime?: unknown; showGroupSummary?: unknown } | undefined
+  const saved = migrated.config as { enabled?: unknown; dotModelColor?: unknown; dotUserColor?: unknown; showUseCount?: unknown; showUseTime?: unknown; showGroupSummary?: unknown } | undefined
   if (typeof saved === 'object' && saved !== null) {
     if (typeof saved.enabled === 'boolean') config.enabled = saved.enabled
-    if (typeof saved.announceToAgent === 'boolean') config.announceToAgent = saved.announceToAgent
     if (typeof saved.dotModelColor === 'string' && saved.dotModelColor !== '') config.dotModelColor = saved.dotModelColor
     if (typeof saved.dotUserColor === 'string' && saved.dotUserColor !== '') config.dotUserColor = saved.dotUserColor
     if (typeof saved.showUseCount === 'boolean') config.showUseCount = saved.showUseCount
@@ -273,5 +262,5 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
     ? migrated.tokenModels.filter((id): id is string => typeof id === 'string' && id !== '')
     : undefined
 
-  return { entries, config, sourcesByRepo, marketSources, trashByPath, skillStats, marketStats, tokenModels }
+  return { config, sourcesByRepo, marketSources, trashByPath, skillStats, marketStats, tokenModels }
 }

@@ -9,14 +9,14 @@ export interface HubInvocation {
   userInvocable: boolean
 }
 
-/** One enabled skill row in the catalog. */
+/** One skill row in the catalog. */
 export interface CatalogSkill {
   name: string
   description: string
   whenToUse?: string
   invocation: HubInvocation
   provider: string
-  /** Whether the hub may toggle this skill (user-level filesystem skills only). */
+  /** Whether the hub may edit or delete this skill's files (user-level filesystem skills only). */
   writable: boolean
   /** 技能来源标识（user-dsh/user-agents/project-dsh/project-agents/...）。 */
   source: string
@@ -35,16 +35,6 @@ export interface CatalogSkill {
   iconSmall?: string
   iconLarge?: string
   defaultPrompt?: string
-}
-
-/** One disabled skill tracked by the hub sidecar (SKILL.md renamed away). */
-export interface DisabledSkill {
-  name: string
-  description: string
-  /** Absolute path of the renamed file (SKILL.md.disabled / <name>.md.disabled). */
-  path: string
-  root: WritableRoot
-  disabledAt: number
 }
 
 /** One discovery diagnostic: a file the filesystem provider skips, with the reason. */
@@ -74,8 +64,6 @@ export interface CatalogResponse {
   complete: boolean
   /** Sorted winning summaries of every enabled skill (all roots + providers). */
   skills: CatalogSkill[]
-  /** Skills the hub has toggled off (kept outside provider discovery). */
-  disabled: DisabledSkill[]
   /** Files in the writable roots the provider ignores, with reasons. */
   diagnostics: DiagnosticEntry[]
   /** Skill names that appeared in multiple roots (first wins, others hidden). Mirrors codex name_counts. */
@@ -154,7 +142,7 @@ export interface SkillRevealRequest {
 export interface SkillRevealResponse {
   ok: true
   name: string
-  /** 被显示的文件（目录包为 SKILL.md / SKILL.md.disabled，平面技能为 .md）。 */
+  /** 被显示的文件（目录包为 SKILL.md，平面技能为 .md）。 */
   path: string
 }
 
@@ -177,7 +165,7 @@ export interface SkillInvocationRequest {
 export interface SkillInvocationResponse {
   ok: true
   name: string
-  /** 被改写的发现文件（目录包的 SKILL.md 或扁平 .md；禁用态为 .disabled）。 */
+  /** 被改写的发现文件（目录包的 SKILL.md 或扁平 .md）。 */
   path: string
   /** 写入后的调用方式（回读校验过的值）。 */
   invocation: HubInvocation
@@ -233,41 +221,13 @@ export interface SkillContentRequest {
 export interface SkillContentResponse {
   ok: true
   name: string
-  /** 被写入的发现文件（目录包的 SKILL.md 或扁平 .md；禁用态为 .disabled）。 */
+  /** 被写入的发现文件（目录包的 SKILL.md 或扁平 .md）。 */
   path: string
   /** 实际落盘的正文（行尾已 trim、换行已按原文件统一）；页面据此刷新。 */
   content: string
   /** 写回后的文件大小与 mtime。 */
   modifiedAt: number
   size: number
-}
-
-/** POST /api/skill-hub/toggle */
-export interface ToggleRequest {
-  /** Kebab-case skill name. */
-  name: string
-  /** true re-enables a hub-disabled skill; false disables an enabled one. */
-  enabled: boolean
-}
-
-export interface ToggleResponse {
-  ok: true
-  /** Fresh catalog after the mutation (the filesystem provider may lag a beat). */
-  catalog: CatalogResponse
-}
-
-/** POST /api/skill-hub/toggle-batch — one group of skills, one write. */
-export interface ToggleBatchRequest {
-  names: string[]
-  enabled: boolean
-}
-
-/** POST /api/skill-hub/toggle-batch */
-export interface ToggleBatchResponse {
-  ok: true
-  catalog: CatalogResponse
-  /** Per-name failures (unknown/read-only skills); empty means all landed. */
-  failures: Array<{ name: string; error: string }>
 }
 
 /** POST /api/skill-hub/create */

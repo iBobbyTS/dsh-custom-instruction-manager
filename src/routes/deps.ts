@@ -10,7 +10,7 @@ import { rootOfPath } from '../skillfs.ts'
 import { dshHome, type SkillHubStore } from '../store.ts'
 import { writeError, type RouteFence } from './http.ts'
 
-/** Sources the hub may toggle (the user-level filesystem roots). */
+/** Sources whose files the hub may write (the user-level filesystem roots). */
 export function isWritableSource(source: string): source is WritableRoot {
   return source === 'user-dsh' || source === 'user-agents'
 }
@@ -124,8 +124,8 @@ export type WritableSkillResult = { ok: true } & WritableSkill | { ok: false } &
 /**
  * Resolve a skill by name as something the hub may write, or the exact
  * refusal the caller should answer with. Owns the guard sequence shared by
- * toggle, toggle-batch, and skill/delete: registry lookup, writable source,
- * writable file, and path containment inside a user root.
+ * skill/delete: registry lookup, writable source, writable file, and path
+ * containment inside a user root.
  */
 export async function resolveWritableSkill(deps: SkillHubRouteDeps, name: string, cwd?: string): Promise<WritableSkillResult> {
   const lookup = cwd !== undefined && cwd !== '' ? { cwd } : undefined

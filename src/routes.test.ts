@@ -391,83 +391,6 @@ describe('skill-hub routes', () => {
     expect(missing.status).toBe(404)
   })
 
-  it('toggles a writable skill off and back on', async () => {
-    const path = join(home, 'skills', 'demo-skill', 'SKILL.md')
-    await mkdir(join(home, 'skills', 'demo-skill'), { recursive: true })
-    await writeFile(path, '---\nname: demo-skill\ndescription: demo\n---\n\nbody', 'utf8')
-    skills.get = async () => definition({ path })
-    const off = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: false }), off as never)
-    expect(off.status).toBe(200)
-    expect(await store.listDisabled()).toHaveLength(1)
-    await expect(access(path)).rejects.toThrow()
-    const on = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: true }), on as never)
-    expect(on.status).toBe(200)
-    expect(await store.listDisabled()).toHaveLength(0)
-    await expect(access(path)).resolves.toBeUndefined()
-  })
-
-  it('refuses to toggle read-only sources', async () => {
-    skills.get = async () => definition({ source: 'bundled', provider: 'bundled' })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: false }), res as never)
-    expect(res.status).toBe(409)
-    const body = res.json() as ErrorResponse
-    expect(body.error).toContain('managed outside the hub')
-  })
-
-  it('disables a whole group in one write', async () => {
-    for (const name of ['batch-a', 'batch-b']) {
-      const dir = join(home, 'skills', name)
-      await mkdir(dir, { recursive: true })
-      await writeFile(join(dir, 'SKILL.md'), '---\nname: ' + name + '\ndescription: A batch skill\n---\n\nbody', 'utf8')
-    }
-    skills.get = async (name: string) => definition({ name, path: join(home, 'skills', name, 'SKILL.md'), source: 'user-dsh' })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggleBatch).handler(fakeReq('POST', SKILL_HUB_API.toggleBatch, { names: ['batch-a', 'batch-b'], enabled: false }), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as import('./protocol.ts').ToggleBatchResponse
-    expect(body.ok).toBe(true)
-    expect(body.failures).toEqual([])
-    expect(await store.listDisabled()).toHaveLength(2)
-  })
-
-  it('re-enables a group and skips already-enabled names as no-ops', async () => {
-    const pathA = join(home, 'skills', 'batch-a', 'SKILL.md')
-    const pathB = join(home, 'skills', 'batch-b', 'SKILL.md')
-    for (const pth of [pathA, pathB]) {
-      await mkdir(dirname(pth), { recursive: true })
-      await writeFile(pth, '---\nname: x\ndescription: y\n---\n\nbody', 'utf8')
-    }
-    const { disableSkill } = await import('./skillfs.ts')
-    const disabledA = await disableSkill(pathA)
-    await store.addDisabled({ name: 'batch-a', description: 'y', path: disabledA, root: 'user-dsh', disabledAt: 1 })
-    skills.get = async (name: string) => definition({ name, source: 'user-dsh' })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggleBatch).handler(fakeReq('POST', SKILL_HUB_API.toggleBatch, { names: ['batch-a', 'batch-b'], enabled: true }), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as import('./protocol.ts').ToggleBatchResponse
-    expect(body.failures).toEqual([])
-    expect(await store.listDisabled()).toHaveLength(0)
-  })
-
-  it('reports per-name failures for read-only skills while landing the rest', async () => {
-    const dir = join(home, 'skills', 'batch-c')
-    await mkdir(dir, { recursive: true })
-    await writeFile(join(dir, 'SKILL.md'), '---\nname: batch-c\ndescription: ok\n---', 'utf8')
-    skills.get = async (name: string) => name === 'batch-c'
-      ? definition({ name, path: join(dir, 'SKILL.md'), source: 'user-dsh' })
-      : definition({ name, source: 'bundled', provider: 'bundled' })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggleBatch).handler(fakeReq('POST', SKILL_HUB_API.toggleBatch, { names: ['batch-c', 'readonly-x'], enabled: false }), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as import('./protocol.ts').ToggleBatchResponse
-    expect(body.failures).toHaveLength(1)
-    expect(body.failures[0].name).toBe('readonly-x')
-    expect(await store.listDisabled()).toHaveLength(1)
-  })
-
   // ---------------------------------------------------- skill invocation
   it('writes the invocation policy into a user skill file and invalidates the catalog', async () => {
     const dir = join(home, 'skills', 'guard-me')
@@ -503,7 +426,7 @@ describe('skill-hub routes', () => {
     expect(restored).not.toContain('user-invocable')
   })
 
-  it('edits project skills, which the hub cannot toggle but may rewrite', async () => {
+  it('edits project skills, which are read-only for delete but writable for invocation', async () => {
     const ws = join(dir, 'ws')
     const file = join(ws, '.agents', 'skills', 'release', 'SKILL.md')
     await mkdir(dirname(file), { recursive: true })
@@ -517,22 +440,6 @@ describe('skill-hub routes', () => {
     )
     expect(res.status).toBe(200)
     expect(await readFile(file, 'utf8')).toContain('user-invocable: false')
-  })
-
-  it('edits a hub-disabled skill through its .disabled file', async () => {
-    const dir = join(home, 'skills', 'off-skill')
-    await mkdir(dir, { recursive: true })
-    const file = join(dir, 'SKILL.md.disabled')
-    await writeFile(file, '---\nname: off-skill\ndescription: Off\n---\n', 'utf8')
-    await store.addDisabled({ name: 'off-skill', description: 'Off', path: file, root: 'user-dsh', disabledAt: 1 })
-
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillInvocation).handler(
-      fakeReq('POST', SKILL_HUB_API.skillInvocation, { name: 'off-skill', modelInvocable: false, userInvocable: true }),
-      res as never,
-    )
-    expect(res.status).toBe(200)
-    expect(await readFile(file, 'utf8')).toContain('disable-model-invocation: true')
   })
 
   it('refuses invocation writes for provider-managed skills and bad payloads', async () => {
@@ -622,22 +529,6 @@ describe('skill-hub routes', () => {
     await expect(readFile(body.path, 'utf8')).resolves.toContain('name: flat-delete')
   })
 
-  it('moves a hub-disabled bundle into the system trash and drops its record', async () => {
-    const bundle = join(home, 'skills', 'off-me')
-    await mkdir(bundle, { recursive: true })
-    await writeFile(join(bundle, 'SKILL.md.disabled'), '---\nname: off-me\ndescription: x\n---', 'utf8')
-    await store.addDisabled({ name: 'off-me', description: 'x', path: join(bundle, 'SKILL.md.disabled'), root: 'user-dsh', disabledAt: Date.now() })
-    skills.get = async () => undefined
-
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'off-me' }), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as import('./protocol.ts').SkillDeleteResponse
-    expect(body.path).toBe(join(systemTrash, 'off-me'))
-    await expect(access(join(body.path, 'SKILL.md.disabled'))).resolves.toBeUndefined()
-    expect(await store.getDisabled('off-me')).toBeUndefined()
-  })
-
   it('reveals a skill file through the injected opener', async () => {
     const file = join(home, 'skills', 'reveal-me', 'SKILL.md')
     await mkdir(dirname(file), { recursive: true })
@@ -650,21 +541,6 @@ describe('skill-hub routes', () => {
     await routeFor(SKILL_HUB_API.skillReveal).handler(fakeReq('POST', SKILL_HUB_API.skillReveal, { name: 'reveal-me' }), res as never)
     expect(res.status).toBe(200)
     expect(res.json()).toEqual({ ok: true, name: 'reveal-me', path: file })
-    expect(reveal).toHaveBeenCalledWith(file)
-  })
-
-  it('reveals a disabled record via its sidecar path', async () => {
-    const file = join(home, 'skills', 'hidden-me', 'SKILL.md.disabled')
-    await mkdir(dirname(file), { recursive: true })
-    await writeFile(file, '---\nname: hidden-me\ndescription: x\n---', 'utf8')
-    await store.addDisabled({ name: 'hidden-me', description: 'x', path: file, root: 'user-dsh', disabledAt: Date.now() })
-    const reveal = vi.fn(async () => {})
-    deps.reveal = reveal
-    skills.get = async () => undefined
-
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillReveal).handler(fakeReq('POST', SKILL_HUB_API.skillReveal, { name: 'hidden-me' }), res as never)
-    expect(res.status).toBe(200)
     expect(reveal).toHaveBeenCalledWith(file)
   })
 
@@ -718,19 +594,6 @@ describe('skill-hub routes', () => {
     expect(empty.status).toBe(400)
   })
 
-  it('refuses to trash a hub-disabled record whose sidecar path is outside the writable roots', async () => {
-    // 防御损坏的 sidecar：禁用态删除走 disabled.path，必须先做包含性校验，
-    // 否则一条伪造路径就能把任意目录挪进废纸篓。
-    skills.get = async () => undefined
-    await store.addDisabled({ name: 'evil', description: '', path: '/etc/passwd', root: 'user-dsh', disabledAt: Date.now() })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'evil' }), res as never)
-    expect(res.status).toBe(409)
-    expect(res.json()).toEqual({ error: 'disabled skill path is outside the hub writable roots' })
-    expect(await store.listTrash()).toEqual([])
-    await expect(access('/etc/passwd')).resolves.toBeUndefined()
-  })
-
   it('creates a skill scaffold and rejects bad names', async () => {
     const ok = new FakeResponse()
     await routeFor(SKILL_HUB_API.create).handler(fakeReq('POST', SKILL_HUB_API.create, { name: 'new-skill', description: 'Fresh' }), ok as never)
@@ -747,23 +610,10 @@ describe('skill-hub routes', () => {
     expect(res.status).toBe(409)
   })
 
-  it('refuses to create a skill whose name is currently disabled', async () => {
-    await store.addDisabled({
-      name: 'demo-skill',
-      description: 'old disabled skill',
-      path: join(home, 'skills', 'demo-skill', 'SKILL.md.disabled'),
-      root: 'user-dsh',
-      disabledAt: Date.now(),
-    })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.create).handler(fakeReq('POST', SKILL_HUB_API.create, { name: 'demo-skill' }), res as never)
-    expect(res.status).toBe(409)
-  })
-
   it('serves the hub config with saved overrides', async () => {
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: false, announceToAgent: true }),
+      config: () => ({ enabled: false }),
       saved: () => ({ enabled: false }),
     })
     const res = new FakeResponse()
@@ -772,7 +622,7 @@ describe('skill-hub routes', () => {
     const body = res.json() as ConfigResponse
     expect(body.ok).toBe(true)
     expect(body.pluginVersion).toMatch(/^\d+\.\d+\.\d+$/)
-    expect(body.config).toEqual({ enabled: false, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5, excludeDirs: ['.agent-work'] })
+    expect(body.config).toEqual({ enabled: false, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5, excludeDirs: ['.agent-work'] })
     expect(body.saved).toEqual({ enabled: false })
   })
 
@@ -781,7 +631,7 @@ describe('skill-hub routes', () => {
     // GET with a token in effect: the flag says yes, no payload field carries it.
     const getRoutes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: true, announceToAgent: true, githubToken: token }),
+      config: () => ({ enabled: true, githubToken: token }),
       saved: () => ({ githubToken: token }),
     })
     const get = new FakeResponse()
@@ -801,7 +651,7 @@ describe('skill-hub routes', () => {
     expect(merged.body).not.toContain(token)
 
     // POST, owner updateConfig path.
-    const updateConfig = async (): Promise<HubConfig> => ({ enabled: true, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true, githubToken: token })
+    const updateConfig = async (): Promise<HubConfig> => ({ enabled: true, showUseCount: true, showUseTime: true, showGroupSummary: true, githubToken: token })
     const postRoutes = makeRoutes({ ...deps, updateConfig })
     const posted = new FakeResponse()
     await postRoutes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('POST', SKILL_HUB_API.config, { enabled: true }), posted as never)
@@ -823,31 +673,31 @@ describe('skill-hub routes', () => {
     const patches: Array<Partial<HubConfig>> = []
     const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
       patches.push(patch)
-      return { enabled: false, announceToAgent: false, showUseCount: true, showUseTime: true, showGroupSummary: true }
+      return { enabled: false, showUseCount: false, showUseTime: true, showGroupSummary: true }
     }
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: true, announceToAgent: true }),
-      saved: () => ({ enabled: false, announceToAgent: false }),
+      config: () => ({ enabled: true }),
+      saved: () => ({ enabled: false }),
       updateConfig,
     })
     const res = new FakeResponse()
-    await routes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('POST', SKILL_HUB_API.config, { announceToAgent: false }), res as never)
+    await routes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('POST', SKILL_HUB_API.config, { showUseCount: false }), res as never)
     expect(res.status).toBe(200)
-    expect(patches).toEqual([{ announceToAgent: false }])
+    expect(patches).toEqual([{ showUseCount: false }])
     const body = res.json() as ConfigResponse
-    expect(body.config).toEqual({ enabled: false, announceToAgent: false, showUseCount: true, showUseTime: true, showGroupSummary: true })
+    expect(body.config).toEqual({ enabled: false, showUseCount: false, showUseTime: true, showGroupSummary: true })
   })
 
   it('clears a saved override with null on the config route', async () => {
     const patches: Array<Partial<HubConfig>> = []
     const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
       patches.push(patch)
-      return { enabled: true, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true }
+      return { enabled: true, showUseCount: true, showUseTime: true, showGroupSummary: true }
     }
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: false, announceToAgent: true }),
+      config: () => ({ enabled: false }),
       saved: () => ({ enabled: false }),
       updateConfig,
     })
@@ -1237,7 +1087,7 @@ describe('skill-hub routes', () => {
     const patches: Array<Partial<HubConfig>> = []
     const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
       patches.push(patch)
-      return { enabled: true, announceToAgent: true, excludeDirs: patch.excludeDirs ?? [] }
+      return { enabled: true, excludeDirs: patch.excludeDirs ?? [] }
     }
     const routes = makeRoutes({ ...deps, updateConfig })
     const set = new FakeResponse()
@@ -1255,7 +1105,7 @@ describe('skill-hub routes', () => {
     const patches: Array<Partial<HubConfig>> = []
     const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
       patches.push(patch)
-      return { enabled: true, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5 }
+      return { enabled: true, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5 }
     }
     const routes = makeRoutes({ ...deps, updateConfig })
     const set = new FakeResponse()
@@ -1274,7 +1124,7 @@ describe('skill-hub routes', () => {
   it('keeps the config route up while the hub is disabled (business routes 503)', async () => {
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: false, announceToAgent: true }),
+      config: () => ({ enabled: false }),
       saved: () => ({ enabled: false }),
     })
     const business = new FakeResponse()
@@ -1369,7 +1219,7 @@ describe('skill-hub routes', () => {
   it('clamps the numeric stats knobs and fills the remaining defaults', async () => {
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: true, announceToAgent: true, statsWindowDays: -5, statsScanMinutes: 0 }),
+      config: () => ({ enabled: true, statsWindowDays: -5, statsScanMinutes: 0 }),
     })
     const res = new FakeResponse()
     await routes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('GET', SKILL_HUB_API.config), res as never)
@@ -1433,13 +1283,6 @@ describe('skill-hub routes', () => {
     const dir = join(home, 'skills', name)
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'SKILL.md.disabled'), `---\nname: ${name}\ndescription: stub\n---\n`, 'utf8')
-    await store.addDisabled({
-      name,
-      description: 'stub',
-      path: join(dir, 'SKILL.md.disabled'),
-      root: 'user-dsh',
-      disabledAt: Date.now(),
-    })
     return dir
   }
 
@@ -1496,9 +1339,8 @@ describe('skill-hub routes', () => {
       expect(prog!.imported.map((r) => r.name)).toEqual(['code-review'])
       expect(prog!.replaced).toEqual(['code-review'])
       await expect(readFile(join(dir, 'SKILL.md'), 'utf8')).resolves.toContain('name: code-review')
-      // 旧占位进回收站（可恢复），禁用记录被清掉，不然目录会留个幽灵禁用项。
+      // 旧占位进回收站（可恢复），目录里不再留幽灵禁用项。
       await expect(access(join(dir, 'SKILL.md.disabled'))).rejects.toThrow()
-      expect(await store.listDisabled()).toEqual([])
       const trash = await store.listTrash()
       expect(trash).toHaveLength(1)
       expect(trash[0].name).toBe('code-review')
@@ -1641,7 +1483,6 @@ describe('skill-hub routes', () => {
     const dir = join(home, 'skills', 'docx')
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'SKILL.md.disabled'), '---\nname: docx\ndescription: old\n---', 'utf8')
-    await store.addDisabled({ name: 'docx', description: 'old', path: join(dir, 'SKILL.md.disabled'), root: 'user-dsh', disabledAt: 1 })
 
     stubFetch([
       ['repos/repo/sync-a/commits', jsonResponse({ sha: 'new-sha', commit: { tree: { sha: 'treeY' } } })],
@@ -1726,48 +1567,6 @@ describe('skill-hub routes', () => {
     expect(invalidate).toHaveBeenCalledTimes(1)
   })
 
-  // --------------------------- 同名双形态 / 陈旧禁用记录（issue #16 类，实测 G5/G7/G8）
-  it('self-heals a stale disabled record by pointing it at the surviving placeholder', async () => {
-    // 记录指目录形态，磁盘上只剩扁平占位 —— 导入让位/L2 迁移后的典型残留。
-    await writeFile(join(home, 'skills', 'code-review.md.disabled'), '---\nname: code-review\ndescription: stub\n---', 'utf8')
-    await store.addDisabled({ name: 'code-review', description: 'stub', path: join(home, 'skills', 'code-review', 'SKILL.md.disabled'), root: 'user-dsh', disabledAt: 1 })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'code-review', enabled: true }), res as never)
-    expect(res.status).toBe(200)
-    await expect(access(join(home, 'skills', 'code-review.md'))).resolves.toBeUndefined()
-    expect(await store.getDisabled('code-review')).toBeUndefined()
-  })
-
-  it('drops a fully stale disabled record so the name becomes usable again', async () => {
-    await store.addDisabled({ name: 'ghost', description: 'x', path: join(home, 'skills', 'ghost', 'SKILL.md.disabled'), root: 'user-dsh', disabledAt: 1 })
-    // 记录还在时，新建同名技能被 409 挡住。
-    const blocked = new FakeResponse()
-    await routeFor(SKILL_HUB_API.create).handler(fakeReq('POST', SKILL_HUB_API.create, { name: 'ghost', description: 'x' }), blocked as never)
-    expect(blocked.status).toBe(409)
-    // 启用报「记录已失效」并把记录清掉，而不是留下一条谁都动不了的死记录。
-    const enable = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'ghost', enabled: true }), enable as never)
-    expect(enable.status).toBe(409)
-    expect(String((enable.json() as { error: string }).error)).toContain('stale')
-    expect(await store.getDisabled('ghost')).toBeUndefined()
-    // 名字已释放：新建成功，再次启用则报「不是禁用态」。
-    const created = new FakeResponse()
-    await routeFor(SKILL_HUB_API.create).handler(fakeReq('POST', SKILL_HUB_API.create, { name: 'ghost', description: 'x' }), created as never)
-    expect(created.status).toBe(201)
-    await expect(access(join(home, 'skills', 'ghost', 'SKILL.md'))).resolves.toBeUndefined()
-    const again = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'ghost', enabled: true }), again as never)
-    expect(again.status).toBe(404)
-  })
-
-  it('deletes a stale disabled record instead of failing on the missing file', async () => {
-    await store.addDisabled({ name: 'ghost', description: 'x', path: join(home, 'skills', 'ghost', 'SKILL.md.disabled'), root: 'user-dsh', disabledAt: 1 })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'ghost' }), res as never)
-    expect(res.status).toBe(200)
-    expect(await store.getDisabled('ghost')).toBeUndefined()
-  })
-
   it('flags two discovery forms occupying the same skill name in one root', async () => {
     // 目录包与扁平文件同名：注册表只给一个，另一个静默不可达 → 必须报诊断。
     await writeFile(join(home, 'skills', 'dup-skill.md'), '---\nname: dup-skill\ndescription: flat one\n---', 'utf8')
@@ -1802,14 +1601,6 @@ describe('skill-hub routes', () => {
   })
 
   // ------------------------- 导入/同步/删除/新建 遇到扁平形态（issue #16 类，实测 G1–G4）
-  /** 造一个「扁平已禁用占位」：`<name>.md.disabled` + 指向它的 sidecar 记录。 */
-  async function seedFlatDisabledPlaceholder(name: string) {
-    const flat = join(home, 'skills', name + '.md.disabled')
-    await writeFile(flat, `---\nname: ${name}\ndescription: stub\n---\n`, 'utf8')
-    await store.addDisabled({ name, description: 'stub', path: flat, root: 'user-dsh', disabledAt: Date.now() })
-    return flat
-  }
-
   it('imports over a flat disabled placeholder instead of leaving it behind', async () => {
     const flat = await seedFlatDisabledPlaceholder('code-review')
     const skillMd = '---\nname: code-review\ndescription: Reviews code\n---\n\nbody'
@@ -1840,7 +1631,6 @@ describe('skill-hub routes', () => {
       expect(prog!.replaced).toEqual(['code-review'])
       await expect(access(flat)).rejects.toThrow()
       await expect(readFile(join(home, 'skills', 'code-review', 'SKILL.md'), 'utf8')).resolves.toContain('name: code-review')
-      expect(await store.listDisabled()).toEqual([])
       expect((await store.listTrash()).map((entry) => entry.name)).toEqual(['code-review'])
     } finally {
       vi.unstubAllGlobals()
@@ -1856,6 +1646,13 @@ describe('skill-hub routes', () => {
       ['repos/example/repo/commits', jsonResponse({ sha: 'abc123', commit: { tree: { sha: 'tree1' } } })],
       ['raw.githubusercontent.com/example/repo/abc123/skills/code-review/SKILL.md', new Response('---\nname: code-review\ndescription: upstream\n---\n', { status: 200 })],
     ])
+  }
+
+  /** 造一个「扁平旧版禁用占位」：`<name>.md.disabled`（开关功能移除后不再有 sidecar 记录）。 */
+  async function seedFlatDisabledPlaceholder(name: string) {
+    const flat = join(home, 'skills', name + '.md.disabled')
+    await writeFile(flat, `---\nname: ${name}\ndescription: stub\n---\n`, 'utf8')
+    return flat
   }
 
   it('syncs a flat-stored skill into the bundle slot instead of leaving both', async () => {
@@ -1875,7 +1672,7 @@ describe('skill-hub routes', () => {
     }
   })
 
-  it('syncs a flat hub-disabled skill and repoints its record at the new bundle', async () => {
+  it('syncs a flat legacy-disabled skill into the bundle slot and keeps it out of discovery', async () => {
     const flat = await seedFlatDisabledPlaceholder('code-review')
     await store.addSourceSkill('example/repo', 'skills', '', 'main', 'code-review')
     stubSyncFetch()
@@ -1883,24 +1680,20 @@ describe('skill-hub routes', () => {
       const res = new FakeResponse()
       await routeFor(SKILL_HUB_API.sourceSync).handler(fakeReq('POST', SKILL_HUB_API.sourceSync, { repo: 'example/repo' }), res as never)
       expect(res.status).toBe(200)
-      // 禁用态要保持，但记录必须改指新形态 —— 否则「启用」会去动那个已被替换掉的旧文件。
+      // 旧版留下的禁用态要保持：新内容写进目录包后仍然改名为 .disabled。
       const bundleDisabled = join(home, 'skills', 'code-review', 'SKILL.md.disabled')
       await expect(access(bundleDisabled)).resolves.toBeUndefined()
       await expect(access(flat)).rejects.toThrow()
-      expect((await store.getDisabled('code-review'))?.path).toBe(bundleDisabled)
     } finally {
       vi.unstubAllGlobals()
     }
   })
 
   it('keeps a bundle-disabled skill disabled after syncing it again', async () => {
-    // 记录本来就指向目录包形态（`<name>/SKILL.md.disabled`）：让位步骤会把记录删掉，
-    // 若只在「path 变了」时写回，这里就会连禁用状态和记录一起丢掉（活体实测抓到过）。
     const dir = join(home, 'skills', 'code-review')
     await mkdir(dir, { recursive: true })
     const bundleDisabled = join(dir, 'SKILL.md.disabled')
     await writeFile(bundleDisabled, '---\nname: code-review\ndescription: old\n---\n', 'utf8')
-    await store.addDisabled({ name: 'code-review', description: 'old', path: bundleDisabled, root: 'user-dsh', disabledAt: 1 })
     await store.addSourceSkill('example/repo', 'skills', '', 'main', 'code-review')
     stubSyncFetch()
     try {
@@ -1908,7 +1701,6 @@ describe('skill-hub routes', () => {
       await routeFor(SKILL_HUB_API.sourceSync).handler(fakeReq('POST', SKILL_HUB_API.sourceSync, { repo: 'example/repo' }), res as never)
       expect((res.json() as import('./protocol.ts').SourceSyncResponse).synced).toEqual(['code-review'])
       await expect(access(bundleDisabled)).resolves.toBeUndefined()
-      expect((await store.getDisabled('code-review'))?.path).toBe(bundleDisabled)
     } finally {
       vi.unstubAllGlobals()
     }
@@ -1938,21 +1730,15 @@ describe('skill-hub routes', () => {
     await expect(access(join(home, 'skills', 'foo'))).rejects.toThrow()
   })
 
-  it('refuses to create a skill whose name is held by a disabled placeholder', async () => {
-    // 有 sidecar 记录时走既有的「先重新启用」提示；没有记录（记录丢失/手改过）
-    // 时以前会直接建档造出同名两形态，现在由磁盘占位检查兜住。
+  it('refuses to create a skill whose name is held by a legacy .disabled placeholder', async () => {
+    // 开关功能移除后磁盘上仍可能留着旧的 `.disabled` 文件：建档不能让新目录与它
+    // 并存成同名两形态，提示用户手动改名或删除。
     await writeFile(join(home, 'skills', 'foo.md.disabled'), '---\nname: foo\ndescription: stub\n---\n', 'utf8')
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.create).handler(fakeReq('POST', SKILL_HUB_API.create, { name: 'foo', description: 'x' }), res as never)
     expect(res.status).toBe(409)
-    expect(String((res.json() as { error: string }).error)).toContain('disabled placeholder')
+    expect(String((res.json() as { error: string }).error)).toContain('legacy .disabled file')
     await expect(access(join(home, 'skills', 'foo'))).rejects.toThrow()
-    // 有记录时保持原有提示口径。
-    await seedFlatDisabledPlaceholder('bar')
-    const withRecord = new FakeResponse()
-    await routeFor(SKILL_HUB_API.create).handler(fakeReq('POST', SKILL_HUB_API.create, { name: 'bar', description: 'x' }), withRecord as never)
-    expect(withRecord.status).toBe(409)
-    expect(String((withRecord.json() as { error: string }).error)).toContain('re-enable it from the disabled list first')
   })
 
   it('patches display toggles on the config route', async () => {

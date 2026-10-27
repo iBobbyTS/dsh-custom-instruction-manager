@@ -88,7 +88,7 @@ export function useSkillHub(api: SkillHubApi, initialTab: SkillTab = 'sources') 
   const catalogFlow = useCatalogFlow(api, meta.uses, shared, collapsePersonal, clearSourceFilter)
 
   // ----------------------------------------------------------------- groups
-  const groupFlow = useGroupFlow(api, shared, catalogFlow.batchToggleNames, catalogFlow.actionNames)
+  const groupFlow = useGroupFlow(api, shared)
 
   // ----------------------------------------------------------------- sources
   const sourceFlow = useSourceFlow(api, shared, catalogFlow.load, groupFlow.loadGroups)
@@ -172,8 +172,7 @@ export function useSkillHub(api: SkillHubApi, initialTab: SkillTab = 'sources') 
     groupsState: groupFlow.groupsState, sourcesState: sourceFlow.sourcesState,
     sourceCheck: sourceFlow.sourceCheck, checkingSource: sourceFlow.checkingSource,
     syncingSource: sourceFlow.syncingSource,
-    conflictDialog: groupFlow.conflictDialog, confirmDialog: sourceFlow.confirmDialog,
-    deleteSkillDialog: sourceFlow.deleteSkillDialog,
+    confirmDialog: sourceFlow.confirmDialog, deleteSkillDialog: sourceFlow.deleteSkillDialog,
     confirmClearTrash: sourceFlow.confirmClearTrash, updateAllDialog: marketFlow.updateAllDialog,
     listBusy,
     collapsedGroups, subdividedProjects,
@@ -187,7 +186,6 @@ export function useSkillHub(api: SkillHubApi, initialTab: SkillTab = 'sources') 
     // MCP 页（服务器列表 / 工具 / 开关）
     mcp: mcpFlow,
     // derived
-    actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
     normalized: catalogFlow.normalized, origins, sourceOptions,
     filtered: catalogFlow.filtered, sorted: catalogFlow.sorted, shortenedCount: catalogFlow.shortenedCount,
     // actions + setters
@@ -198,16 +196,14 @@ export function useSkillHub(api: SkillHubApi, initialTab: SkillTab = 'sources') 
     setRepoSelected: marketFlow.setRepoSelected, setTab, setSkillView,
     setSourceFilter, setInvocationFilter: catalogFlow.setInvocationFilter, setSortKey: catalogFlow.setSortKey,
     setBranchChoice: marketFlow.setBranchChoice, setMarketSyncDialog: marketFlow.setMarketSyncDialog,
-    setNewSourceName: marketFlow.setNewSourceName, setConflictDialog: groupFlow.setConflictDialog,
+    setNewSourceName: marketFlow.setNewSourceName,
     setConfirmDialog: sourceFlow.setConfirmDialog,
     setDeleteSkillDialog: sourceFlow.setDeleteSkillDialog,
     setConfirmClearTrash: sourceFlow.setConfirmClearTrash, setUpdateAllDialog: marketFlow.setUpdateAllDialog,
     setVersionDialog: marketFlow.setVersionDialog,
     toggleGroupCollapse, toggleSubdivide, setAllGroupsCollapsed, checkUpdate: meta.checkUpdate, loadMarket: marketFlow.loadMarket,
-    openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle, enableDisabled: catalogFlow.enableDisabled,
+    openDetail: catalogFlow.openDetail,
     reveal: catalogFlow.reveal,
-    toggleGroup: groupFlow.toggleGroup,
-    resolveConflict: groupFlow.resolveConflict,
     runConfirmed: sourceFlow.runConfirmed, checkSources: sourceFlow.checkSources,
     requestSync: sourceFlow.requestSync, requestDelete: sourceFlow.requestDelete,
     restoreTrash: sourceFlow.restoreTrash, clearTrash: sourceFlow.clearTrash,

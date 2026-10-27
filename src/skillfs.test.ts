@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearTrash, createSkill, disableSkill, editableSkillFile, enableSkill, fixDiagnosticFile, isBundledPath, parseFrontmatter, readFileSnapshot, replaceSkillBody, restoreSkill, rootOfPath, scanDiagnostics, setInvocationInText, setInvocationPolicy, splitSkillFile, systemTrashDir, trashSkill, trashSkillToSystem, writeTextAtomic } from './skillfs.ts'
+import { clearTrash, createSkill, editableSkillFile, fixDiagnosticFile, isBundledPath, parseFrontmatter, readFileSnapshot, replaceSkillBody, restoreSkill, rootOfPath, scanDiagnostics, setInvocationInText, setInvocationPolicy, splitSkillFile, systemTrashDir, trashSkill, trashSkillToSystem, writeTextAtomic } from './skillfs.ts'
 
 describe('parseFrontmatter', () => {
   it('parses a healthy frontmatter', () => {
@@ -173,9 +173,9 @@ describe('setInvocationPolicy / editableSkillFile', () => {
     expect(await readdir(dirname(path))).toEqual(['SKILL.md'])
   })
 
-  it('accepts flat files, .disabled files and project roots, but nothing else', async () => {
+  it('accepts flat files and project roots, but not legacy .disabled files or anything else', async () => {
     expect(editableSkillFile(join(skills, 'flat-skill.md'), home)).toBe(true)
-    expect(editableSkillFile(join(skills, 'off', 'SKILL.md.disabled'), home)).toBe(true)
+    expect(editableSkillFile(join(skills, 'off', 'SKILL.md.disabled'), home)).toBe(false)
     expect(editableSkillFile(join(dir, 'ws', '.dsh', 'skills', 'release', 'SKILL.md'), home)).toBe(true)
     expect(editableSkillFile(join(dir, 'ws', '.agents', 'skills', 'flat.md'), home)).toBe(true)
     // 发现范围之外：嵌套目录、任意 md、技能目录里的辅助文件。
@@ -193,7 +193,7 @@ describe('setInvocationPolicy / editableSkillFile', () => {
   })
 })
 
-describe('createSkill / disableSkill / enableSkill', () => {
+describe('createSkill', () => {
   let dir: string
   let home: string
 
@@ -232,29 +232,6 @@ describe('createSkill / disableSkill / enableSkill', () => {
 
   it('refuses non-kebab-case names', async () => {
     await expect(createSkill('user-dsh', 'Not Valid', '', home)).rejects.toThrow(/kebab-case/)
-  })
-
-  it('toggles a directory bundle off and back on', async () => {
-    const original = await createSkill('user-dsh', 'toggle-skill', 'Toggle me', home)
-    const disabled = await disableSkill(original)
-    expect(disabled.endsWith('.disabled')).toBe(true)
-    await expect(access(original)).rejects.toThrow()
-    const restored = await enableSkill(disabled)
-    expect(restored).toBe(original)
-    await expect(access(original)).resolves.toBeUndefined()
-  })
-
-  it('toggles a flat skill file off and back on', async () => {
-    const flat = join(home, 'skills', 'flat-skill.md')
-    await writeFile(flat, '---\nname: flat-skill\ndescription: Flat\n---\n\nBody', 'utf8')
-    const disabled = await disableSkill(flat)
-    expect(disabled).toBe(flat + '.disabled')
-    const restored = await enableSkill(disabled)
-    expect(restored).toBe(flat)
-  })
-
-  it('refuses to disable a non-skill file', async () => {
-    await expect(disableSkill(join(home, 'skills', 'notes.txt'))).rejects.toThrow(/not a discoverable skill file/)
   })
 })
 

@@ -19,8 +19,9 @@ export interface SkillEntry {
 
 /**
  * Scan one skills root for discovery files: directory bundles (SKILL.md)
- * and flat <name>.md files. Hub-disabled files (.disabled) are excluded;
- * dot-prefixed entries (including .trash and .system) are always skipped.
+ * and flat <name>.md files. `.disabled` files (legacy renames left on disk by
+ * older hub builds) are excluded; dot-prefixed entries (including .trash and
+ * .system) are always skipped.
  */
 export async function scanRoot(base: string): Promise<SkillEntry[]> {
   const entries: SkillEntry[] = []
@@ -52,46 +53,6 @@ export async function scanRoot(base: string): Promise<SkillEntry[]> {
 /** Scan one writable root. */
 export function listSkillEntries(root: WritableRoot, home = dshHome()): Promise<SkillEntry[]> {
   return scanRoot(rootPath(root, home))
-}
-
-/**
- * Scan one skills root for hub-disabled discovery files: directory bundles
- * renamed to SKILL.md.disabled and flat <name>.md.disabled files. Used by
- * the startup reconcile to rebuild sidecar records that were lost, which
- * would otherwise leave the skill invisible in every view.
- */
-export async function scanDisabledRoot(base: string): Promise<string[]> {
-  const paths: string[] = []
-  let names: string[]
-  try {
-    names = await readdir(base)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return paths
-    throw error
-  }
-  for (const name of names) {
-    if (name.startsWith('.')) continue
-    const absolute = join(base, name)
-    let stats
-    try {
-      stats = await stat(absolute)
-    } catch {
-      continue
-    }
-    if (stats.isDirectory()) {
-      const candidate = join(absolute, 'SKILL.md.disabled')
-      try {
-        if ((await stat(candidate)).isFile()) paths.push(candidate)
-      } catch {
-        // 目录里没有禁用的发现文件，跳过
-      }
-    } else if (name.endsWith('.md.disabled')) {
-      // 扁平形态的禁用文件。根级 `SKILL.md.disabled` 也归这里：`scanRoot` 会把
-      // 根级 `SKILL.md` 文件当作一个扁平技能，它的禁用对应物就该被对账到。
-      paths.push(absolute)
-    }
-  }
-  return paths.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 }
 
 /** UI metadata from `agents/openai.yaml` beside a directory skill (mirrors codex SkillInterface). */
@@ -174,9 +135,8 @@ export async function findProjectRoot(cwd: string): Promise<string> {
 /**
  * Scan one writable root for files the provider ignores, so the GUI can show
  * why a skill never appears — a missing frontmatter, a name that disagrees
- * with the discovery path, and the like must be visible, not silent. Files the
- * hub itself disabled (`.disabled`) are skipped: they are a toggle state, not
- * a defect.
+ * with the discovery path, and the like must be visible, not silent. Legacy
+ * `.disabled` files left on disk are skipped: they are not a defect.
  */
 export async function scanDiagnostics(root: WritableRoot, home = dshHome()): Promise<DiagnosticEntry[]> {
   const entries = await listSkillEntries(root, home)
@@ -254,12 +214,25 @@ export async function scanDiagnostics(root: WritableRoot, home = dshHome()): Pro
 }
 
 /**
- * 某个名字在一个 root 下现存的禁用发现文件（两种形态都认），没有则 undefined。
- * 目录包形态优先（`<name>/SKILL.md.disabled`），其次扁平 `<name>.md.disabled`。
- * 单点定义「禁用态在磁盘上长什么样」，避免各处再拼一次路径（issue #16 类）。
+ * 一个名字在某个 root 下的全部磁盘占位。技能名是系统里唯一的身份，但同一个名字
+ * 可以被两种形态（目录包 `<name>/SKILL.md` / 扁平 `<name>.md`）× 两种状态
+ * （启用 / 旧版遗留的 `.disabled` 改名）占据，而且两种形态可以**同时存在** ——
+ * 注册表只会给出其中一个，另一个静默不可达。所有按名字操作文件的路径都应该从
+ * 这里取值，而不是各自拼一次路径（issue #16 类的根因）。
+ *
+ * 两个数组都按「目录包优先」排序：目录包是 hub 自己写入的形态（导入、创建、
+ * 同步都建目录包），冲突时它是更「权威」的那份。
+ *
+ * `.disabled` 占位只用于写入前的占位检测（避免新技能与旧文件并存）；开关功能
+ * 移除后，插件不再创建或管理它们。
  */
-export async function disabledOccupancyIn(base: string, name: string): Promise<string | undefined> {
-  return (await occupancyOf(base, name)).disabled[0]
+export interface NameOccupancy {
+  /** 启用态发现文件（目录包 `<name>/SKILL.md` 在前，扁平 `<name>.md` 在后）。 */
+  enabled: string[]
+  /** 禁用态发现文件（`<name>/SKILL.md.disabled` 在前，`<name>.md.disabled` 在后）。 */
+  disabled: string[]
+  /** `<name>/` 存在，但既没有 `SKILL.md` 也没有 `SKILL.md.disabled`（空壳/残留目录）。 */
+  bareDir?: string
 }
 
 /** stat 一次给出形态；不存在或不可读时 undefined。 */
@@ -270,25 +243,6 @@ async function statKind(path: string): Promise<'file' | 'directory' | undefined>
   } catch {
     return undefined
   }
-}
-
-/**
- * 一个名字在某个 root 下的全部磁盘占位。技能名是系统里唯一的身份，但同一个名字
- * 可以被两种形态（目录包 `<name>/SKILL.md` / 扁平 `<name>.md`）× 两种状态
- * （启用 / `.disabled` 改名）占据，而且两种形态可以**同时存在** —— 注册表只会
- * 给出其中一个，另一个静默不可达。所有按名字操作文件的路径都应该从这里取值，
- * 而不是各自拼一次路径（issue #16 类的根因）。
- *
- * 两个数组都按「目录包优先」排序：目录包是 hub 自己写入的形态（导入、创建、
- * 同步都建目录包），冲突时它是更「权威」的那份。
- */
-export interface NameOccupancy {
-  /** 启用态发现文件（目录包 `<name>/SKILL.md` 在前，扁平 `<name>.md` 在后）。 */
-  enabled: string[]
-  /** 禁用态发现文件（`<name>/SKILL.md.disabled` 在前，`<name>.md.disabled` 在后）。 */
-  disabled: string[]
-  /** `<name>/` 存在，但既没有 `SKILL.md` 也没有 `SKILL.md.disabled`（空壳/残留目录）。 */
-  bareDir?: string
 }
 
 /** 读一个名字在某个 skills root 下的全部占位。只读，不修改磁盘。 */

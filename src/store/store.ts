@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
 import { skillDirPrefix } from '../repo/discovery.ts'
 import { StoreError } from './errors.ts'
 import { hydrateMigratedState, migrateStore } from './migrate.ts'
@@ -8,7 +8,6 @@ import { STORE_VERSION, statePath, type StoreFile } from './paths.ts'
 
 /** Sidecar state owner. */
 export class SkillHubStore {
-  private entries = new Map<string, DisabledSkill>()
   private config: Partial<HubConfig> = {}
   private sourcesByRepo = new Map<string, SourceRecord>()
   private marketSources: MarketSourceRecord[] = []
@@ -36,7 +35,6 @@ export class SkillHubStore {
         console.warn('[dsh-skill-hub] sidecar state uses a newer schema than this plugin supports; starting empty')
       } else {
         const state = hydrateMigratedState(migrated)
-        this.entries = state.entries
         this.config = state.config
         this.sourcesByRepo = state.sourcesByRepo
         this.marketSources = state.marketSources
@@ -56,28 +54,6 @@ export class SkillHubStore {
         console.warn('[dsh-skill-hub] sidecar state unreadable, starting empty:', error instanceof Error ? error.message : error)
       }
     }
-  }
-
-  async listDisabled(): Promise<DisabledSkill[]> {
-    await this.ensureLoaded()
-    return [...this.entries.values()].sort((a, b) => a.name.localeCompare(b.name))
-  }
-
-  async getDisabled(name: string): Promise<DisabledSkill | undefined> {
-    await this.ensureLoaded()
-    return this.entries.get(name)
-  }
-
-  async addDisabled(entry: DisabledSkill): Promise<void> {
-    await this.ensureLoaded()
-    this.entries.set(entry.name, entry)
-    await this.persist()
-  }
-
-  async removeDisabled(name: string): Promise<void> {
-    await this.ensureLoaded()
-    if (!this.entries.delete(name)) return
-    await this.persist()
   }
 
   /** The hub's saved runtime configuration (fields absent here mean "not overridden"). */
@@ -410,7 +386,6 @@ export class SkillHubStore {
     const run = this.writeChain.then(async () => {
       const payload: StoreFile = {
         version: STORE_VERSION,
-        disabled: [...this.entries.values()],
         config: this.config,
         ...(this.sourcesByRepo.size > 0 ? { sources: [...this.sourcesByRepo.values()] } : {}),
         ...(this.marketSources.length > 0 ? { marketSources: [...this.marketSources] } : {}),

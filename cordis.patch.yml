@@ -4,7 +4,7 @@
 # `dsh plugin --profile <name> add dsh-skill-hub`.
 #
 # The row is a bare plugin by package name: the node half (exports ".") runs
-# in the host process (skill catalog routes, toggle/create operations), and
+# in the host process (skill catalog routes, edit/create operations), and
 # the `dsh.client` declaration in package.json makes the browser half
 # (exports "./client", served at /plugins/<id>/client.js) load in the web GUI.
 - insert:

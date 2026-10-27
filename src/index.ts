@@ -1,10 +1,9 @@
 /**
  * dsh-skill-hub — host half. Mounts the /api/skill-hub route family (full
  * skill catalog from the official ctx.skills registry, skill detail,
- * enable/disable toggle, new-skill scaffold) plus a system-prompt
- * announcement. The browser half (./client) renders the sidebar entry and
- * the skill hub panel. Everything rides official NPM SDK packages — no dsh
- * source changes.
+ * new-skill scaffold, market/source management). The browser half (./client)
+ * renders the sidebar entry and the skill hub panel. Everything rides
+ * official NPM SDK packages — no dsh source changes.
  */
 
 import type { Context, Volatile } from '@deepseek-ai/cordis'
@@ -18,7 +17,6 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-skill'
-import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-settings'
 import { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, resolveHubConfig, type HubConfig } from './protocol.ts'
@@ -29,7 +27,6 @@ import { hostTrustFence, makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { createSkillStatsReader, asPersistenceSeam, type SessionPersistenceLike, type SessionQueryLike, type SkillStatsReader } from './stats.ts'
 import { migrateLegacyData } from './data-migrate.ts'
 import { SkillHubStore } from './store.ts'
-import { reconcileDisabledSkills, pruneStaleDisabledSkills } from './reconcile.ts'
 import { cleanupLeftoverImportDirs, setGithubToken } from './repo.ts'
 import { dshHome } from './store.ts'
 import { join } from 'node:path'
@@ -39,7 +36,7 @@ import { homedir } from 'node:os'
 export const name = 'skill-hub'
 
 /** Services required before the skill-hub surfaces can mount. `settings` is deliberately NOT here: the plugin reads its own volatile config refs and only reaches for the settings service when it is present (issue #11). */
-export const inject = ['webServer', 'skills', 'systemPrompt']
+export const inject = ['webServer', 'skills']
 
 /**
  * Plugin config, validated by the same-named schemastery schema.
@@ -52,9 +49,7 @@ export const inject = ['webServer', 'skills', 'systemPrompt']
  * through the settings transport.
  */
 export interface Config {
-  /** When true (default), a system-prompt section announces the hub to every agent. */
-  announceToAgent: Volatile<boolean>
-  /** Master switch for the plugin (routes, prompt section). */
+  /** Master switch for the plugin (routes, provider). */
   enabled: Volatile<boolean>
   /** Show per-skill invocation count chip. Default true. */
   showUseCount: Volatile<boolean>
@@ -84,8 +79,7 @@ export interface Config {
  * every wire read.
  */
 const ConfigFields = {
-  enabled: z.boolean().default(HUB_CONFIG_DEFAULTS.enabled).description('关闭后技能中枢的路由、入口与公告全部下线。'),
-  announceToAgent: z.boolean().default(HUB_CONFIG_DEFAULTS.announceToAgent).description('在系统提示中加入本插件说明，用户提到技能管理时 Agent 知道如何协作。'),
+  enabled: z.boolean().default(HUB_CONFIG_DEFAULTS.enabled).description('关闭后技能中枢的路由与入口全部下线。'),
   dotModelColor: z.string().pattern(HEX_COLOR_RE).description('技能行与聊天「/」菜单中「模型可调」圆点的颜色（#rrggbb）。'),
   dotUserColor: z.string().pattern(HEX_COLOR_RE).description('技能行与聊天「/」菜单中「仅用户可调」圆点的颜色（#rrggbb）。'),
   showUseCount: z.boolean().default(HUB_CONFIG_DEFAULTS.showUseCount).description('在技能名旁显示调用次数。'),
@@ -103,7 +97,6 @@ const ConfigFields = {
  */
 export const Config = z.object({
   enabled: ConfigFields.enabled.volatile(),
-  announceToAgent: ConfigFields.announceToAgent.volatile(),
   dotModelColor: ConfigFields.dotModelColor.volatile(),
   dotUserColor: ConfigFields.dotUserColor.volatile(),
   showUseCount: ConfigFields.showUseCount.volatile(),
@@ -125,7 +118,6 @@ export const ENTRY_ID = HUB_ENTRY_ID as SettingsNamespace
 /** Every config field, in the order the settings page renders them (used to walk the volatile refs). */
 const CONFIG_FIELDS = [
   'enabled',
-  'announceToAgent',
   'dotModelColor',
   'dotUserColor',
   'showUseCount',
@@ -137,18 +129,9 @@ const CONFIG_FIELDS = [
   'githubToken',
 ] as const
 
-/** Order of the announcement section within the tool-guidance band. */
-const SECTION_ORDER = 152
-
-/** Model-facing announcement: plugin presence, capabilities, and limits. */
-export const SKILL_HUB_GUIDANCE = [
-  '本机已安装 dsh-skill-hub 插件（DSH Web GUI 技能中枢）：侧边栏「技能」为管理主页；侧边栏 → 其他插件 → AGENTS.md 页按用户级与每个工作区列出磁盘上 dsh 支持的指令文件（点开一行可看正文，也可直接编辑并写回磁盘；排除目录在页面内配置，默认跳过 .agent-work）；本插件的配置页（启用/公告开关、圆点颜色、GitHub token、统计窗口）在插件管理页——侧边栏「插件」→ 本插件，是本插件自己注册的配置卡片（默认折叠，点标题展开）。能力：完整本地技能目录（项目/自定义/用户/内置全部来源，走官方 ctx.skills 注册表，含第三方 provider）；按来源与自定义分组浏览，分组/来源头部的滑动开关可一键启用/禁用整组（跨组冲突时询问）；市场：内置市场目录（精选仓库一键添加）加自定义仓库源，扫描后勾选安装，每个市场源行显示已装/可更新/上游已删数量，支持「检查全部」与「全部更新」；来源跟踪：从 GitHub 仓库（市场源或直接地址）导入的技能记录上游 repo/commit 快照，可检查更新、选择同步、上游删除时跟进删除（移入回收站可恢复，恢复后保留来源与场景归属）；个人技能（无来源记录）不跟踪；调用次数与最近使用时间统计；查看与编辑技能正文（正文框直接可改、无编辑态，只改 frontmatter 之后的正文，⌘S 保存，保存冲突弹「复制并重新加载 / 继续编辑 / 仍然覆盖」）；发现诊断；新建技能向导（写入 ~/.dsh/skills 或 ~/.agents/skills）；每行右侧「…」菜单：在 Finder 中显示技能文件，可写技能的删除移入系统废纸篓（~/.Trash，重名追加时间戳，绝不直接删除）；技能详情与指令文件详情在正文下方给出一张两列 token 统计表（模型 / Tokens，进入页面时异步现算；默认 DeepSeek V4.1 Flash 与 GLM-5.3，表底「管理模型」可按需勾上 Kimi K3——勾选即下载词表、取消即删除）。MCP 页列出本机 Loader 里配置的 MCP 服务器（每台 = 一行 @deepseek-ai/dsh-mcp-client 插件）：名称、传输、启用态、工具清单（名称/描述/参数名）与配置摘要（环境变量与请求头默认遮掩），可逐台启用/禁用；开关走 dsh 的插件管理接口、只动 profile 补丁里的启用位，不改服务器配置；补丁里没有 id 的行（例如外部产品写入的 insert 行）与 dsh 自管的插件只能看、不能开关；dsh 不暴露 MCP 连接状态，页面只显示「已加载/启动中/启动失败/已禁用」与当前工具数，不代表会话已连接。限制：开关与删除只作用于用户级根（user-dsh/user-agents）；正文编辑范围是用户根与项目根的真实技能文件、以及任一已注册工作区里的指令文件，内置/插件 provider 技能没有文件所以只读；路由受 dsh 自身的 /api 信任栅栏保护（回环、监听器绑定地址、--trusted-host 声明的 authority，外加浏览器会话认证），因此反代部署下与 GUI 同一套放行规则。用户提到「技能管理 / 技能列表 / 技能开关 / 技能同步 / 技能市场 / 更新技能 / 新建技能」时即指本插件，请据此协作。',
-  'The dsh-skill-hub plugin is installed (the DSH Web GUI skill hub): The sidebar "Skills" entry opens the management page; the AGENTS.md category of the same panel lists the instruction files dsh supports that exist on disk, grouped by user level and each workspace (a row opens the file body, which can be edited and saved straight back to disk, the excluded-directory list is edited on that page, .agent-work skipped by default); the plugin\'s configuration page (enable / announcement toggles, dot colors, GitHub token, stats window) is registered by the plugin itself on its own page in the Plugins manager (sidebar → 插件 → the plugin; collapsed until you expand the title). Capabilities: full local skill catalog (project / custom / user / bundled roots via the official ctx.skills registry, including third-party providers); browsing by source and custom groups, each group header carrying a sliding switch to enable/disable the whole group in one click (cross-group conflicts prompt the user); market: a built-in catalog of curated repos (one-click add) plus custom repo sources, scan-and-install import, per-source installed / updatable / deleted-upstream badges with "check all" and "update all" actions; upstream source tracking: skills imported from GitHub repos (market sources or direct URLs) record the repo/commit snapshot, support update checks, selective sync, and follow-up deletion when the upstream removes a skill (moves it into a restorable trash; restoring keeps the source and scene membership); personal skills (no source record) are never tracked; invocation counts and last-used times; inspecting and editing skill bodies (the body box is editable in place with no separate edit mode; only the text after the frontmatter changes, ⌘S saves, a file changed elsewhere raises the copy-and-reload / keep-editing / overwrite dialog); discovery diagnostics; new-skill wizard (writes to ~/.dsh/skills or ~/.agents/skills); a per-row “…” menu that reveals a skill file in Finder and deletes writable skills by moving them into the system trash (~/.Trash, timestamped on a name clash — never a hard delete); skill and instruction-file detail pages end with a two-column token-count table (model / tokens, counted asynchronously when the page opens; DeepSeek V4.1 Flash and GLM-5.3 by default, with a “Manage models” row that adds Kimi K3 — checking it downloads the vocabulary, unchecking deletes it). The MCP page lists the MCP servers configured in this dsh Loader (each is one @deepseek-ai/dsh-mcp-client row): name, transport, enablement, its tools (name / description / parameter names) and a config summary (env and header values masked by default), with per-server enable/disable; the toggle goes through the dsh plugin manager and only writes the enablement flag into the profile patch, never the server config; rows without an id in the patch (e.g. insert rows written by other products) and dsh-managed plugins are read-only; dsh exposes no MCP connection state, so the page reports only Loaded / Starting / Failed / Disabled plus the current tool count — that does not mean the session is connected. Limits: toggling and deleting only touch the user-level roots (user-dsh/user-agents); body editing covers real skill files under user or project roots plus any instruction file inside a registered workspace, while bundled/plugin-provider skills have no file and stay read-only; the routes sit behind dsh\'s own /api trust fence (loopback, the listener\'s bind address, any --trusted-host authority, plus browser-session authentication), so a reverse-proxied deployment is judged exactly like the GUI around it. When the user mentions "skill management / skill list / skill toggle / skill sync / skill market / update skills / new skill", this plugin is what they mean — collaborate accordingly.'
-].join('\n\n')
-
 /**
- * Mount the skill hub routes and announcement.
- * @param ctx - host plugin context carrying webServer/skills/systemPrompt/settings.
+ * Mount the skill hub routes.
+ * @param ctx - host plugin context carrying webServer/skills/settings.
  */
 export function apply(ctx: Context, config?: Config): void {
   /**
@@ -185,7 +168,6 @@ export function apply(ctx: Context, config?: Config): void {
   const migration = migrateLegacyData()
   const store = new SkillHubStore()
   let disposeRoutes: (() => void) | undefined
-  let disposeSection: (() => void) | undefined
   // The hub's own provider contributes user/project skills to the registry's
   // GLOBAL layer — the web app deliberately keeps that layer empty (presets
   // own per-scope discovery), and the GUI needs a session-independent view.
@@ -220,7 +202,7 @@ export function apply(ctx: Context, config?: Config): void {
     if (ops.length > 0) {
       await settings.mutate(ENTRY_ID, ops)
       // A settings write updates this entry's values in place WITHOUT
-      // re-entering apply() (see `current`), so the section / provider / routes
+      // re-entering apply() (see `current`), so the provider / routes
       // registered from the old values would otherwise keep serving them until
       // a restart. Re-evaluate here, where we know the write landed.
       sync()
@@ -242,7 +224,7 @@ export function apply(ctx: Context, config?: Config): void {
    * plugin, and disable/enable tears it down. Service reads on an inactive
    * context throw instead of returning undefined, so every continuation
    * re-checks this before touching `ctx` (issue #19: a cold-start abort with
-   * `cannot get required service "systemPrompt" in inactive context`).
+   * `cannot get required service "webServer" in inactive context`).
    *
    * The generation counters cannot cover this: they only invalidate a build
    * superseded by a *newer* build, and teardown does not bump them.
@@ -275,10 +257,6 @@ export function apply(ctx: Context, config?: Config): void {
   const sync = (): void => {
     // A late stats continuation may still reach here after teardown (#19).
     if (!mounted()) return
-    if (disposeSection !== undefined) {
-      disposeSection()
-      disposeSection = undefined
-    }
     if (disposeProvider !== undefined) {
       disposeProvider()
       disposeProvider = undefined
@@ -288,13 +266,6 @@ export function apply(ctx: Context, config?: Config): void {
     // fallback (read at module load); an explicit settings value wins and is
     // applied by re-running this sync from updateConfig after the write lands.
     setGithubToken(value.githubToken)
-    if (value.announceToAgent) {
-      disposeSection = ctx.systemPrompt.section({
-        name: 'plugin:dsh-skill-hub',
-        order: SECTION_ORDER,
-        text: SKILL_HUB_GUIDANCE,
-      })
-    }
     if (value.enabled) {
       // registerProvider returns the exact cordis effect disposer: the fiber
       // unregisters the provider and invalidates catalog caches on teardown.
@@ -307,7 +278,7 @@ export function apply(ctx: Context, config?: Config): void {
         'dsh-skill-hub: provider',
       )
     }
-    ctx.logger.info(`[dsh-skill-hub] surfaces synced: enabled=${value.enabled} announceToAgent=${value.announceToAgent}`)
+    ctx.logger.info(`[dsh-skill-hub] surfaces synced: enabled=${value.enabled}`)
     if (disposeRoutes !== undefined) {
       disposeRoutes()
       disposeRoutes = undefined
@@ -369,26 +340,6 @@ export function apply(ctx: Context, config?: Config): void {
       } catch (error) {
         logWarn('[dsh-skill-hub] startup cleanup failed', error)
       }
-    }
-    // 对账：磁盘上已有 .disabled、sidecar 却无记录（状态文件被恢复/手改、旧版本
-    // 遗留）时补记录，否则这些技能在面板里既不算启用也不算禁用，来源组空壳。
-    try {
-      const reconciled = await reconcileDisabledSkills(store, home)
-      if (reconciled.length > 0) {
-        logInfo(`[dsh-skill-hub] startup reconciled ${reconciled.length} disabled skill record(s): ${reconciled.map((entry) => entry.name).join(', ')}`)
-      }
-    } catch (error) {
-      logWarn('[dsh-skill-hub] startup disabled-skill reconcile failed', error)
-    }
-    // 反向对账：记录还在、文件已不在 → 修路径或删记录。不做这一步，那条记录会
-    // 把名字永久锁死（启用/新建/删除三条路都失败）。
-    try {
-      const pruned = await pruneStaleDisabledSkills(store, home)
-      if (pruned.repaired.length > 0 || pruned.removed.length > 0) {
-        logInfo(`[dsh-skill-hub] startup pruned disabled records: repaired ${pruned.repaired.length} (${pruned.repaired.map((entry) => entry.name).join(', ') || '-'}), removed ${pruned.removed.length} (${pruned.removed.join(', ') || '-'})`)
-      }
-    } catch (error) {
-      logWarn('[dsh-skill-hub] startup disabled-record prune failed', error)
     }
   })()
 

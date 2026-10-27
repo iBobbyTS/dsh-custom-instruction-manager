@@ -6,20 +6,9 @@
  */
 
 import { useEffect, useState, type JSX, type ReactNode } from 'react'
-import type { CollectionGroup } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
-import { groupNamesOf } from '../grouping.ts'
 import type { EditChoice } from './hooks/useEditFlow.ts'
 import css from './panel.module.css'
-
-/** A group-close conflict waiting for the user's decision. */
-export interface ConflictDialogState {
-  /** Group key: 'col:<name>'. */
-  key: string
-  name: string
-  /** Conflicting skill names (enabled here and in other groups). */
-  conflicts: string[]
-}
 
 /** A destructive/sync confirmation waiting for the user's decision. */
 export interface ConfirmDialogState {
@@ -122,35 +111,6 @@ export function ConfirmDialog(props: {
         <button type='button' className={css.button + (danger === true ? ' ' + css.danger : ' ' + css.primary)} onClick={onConfirm}>
           {confirmLabel}
         </button>
-      </div>
-    </DialogShell>
-  )
-}
-
-/** Group-close conflict: which skills stay on, and which other groups also enable them. */
-export function ConflictDialog(props: {
-  dialog: ConflictDialogState
-  collections: readonly CollectionGroup[]
-  onClose: () => void
-  onKeepOn: () => void
-  onCloseAll: () => void
-}): JSX.Element {
-  const { dialog, collections, onClose, onKeepOn, onCloseAll } = props
-  return (
-    <DialogShell onClose={onClose}>
-      <h3 className={css.dialogTitle}>{tt('groups.conflictTitle')}</h3>
-      <p className={css.dialogText}>{tt('groups.conflictText')}</p>
-      <ul className={css.dialogList}>
-        {dialog.conflicts.map((name) => (
-          <li key={name}>
-            <span className={css.rowNameText}>{name}</span>
-            {' — ' + groupNamesOf(name, [...collections]).join(', ')}
-          </li>
-        ))}
-      </ul>
-      <div className={css.dialogActions}>
-        <button type='button' className={css.button} onClick={onKeepOn}>{tt('groups.keepOn')}</button>
-        <button type='button' className={css.button + ' ' + css.primary} onClick={onCloseAll}>{tt('groups.closeAll')}</button>
       </div>
     </DialogShell>
   )

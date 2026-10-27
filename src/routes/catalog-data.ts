@@ -18,22 +18,12 @@ import { CURRENT_VERSION } from '../update.ts'
 import { homeOf, isWritableSource, type SkillHubRouteDeps } from './deps.ts'
 
 /**
- * 目录中存在的技能名集合。默认（`includeDisabled` 未显式关闭）为「启用目录 ∪
- * 已禁用名单」。
- *
- * 导入去重必须传 `{ includeDisabled: false }`：禁用只意味着「暂不启用」，把它
- * 算作「已存在」会让一次禁用产生「永久占名」的副作用，真技能再也导不进来
- * （issue #16）。
+ * 目录中存在的技能名集合。只算启用的技能；旧版遗留的 `.disabled` 文件不属于
+ * 目录，也不参与去重。
  */
-export async function knownSkillNames(
-  deps: SkillHubRouteDeps,
-  options?: { includeDisabled?: boolean },
-): Promise<Set<string>> {
+export async function knownSkillNames(deps: SkillHubRouteDeps): Promise<Set<string>> {
   const snapshot = await deps.skills.snapshot()
-  const names = new Set(snapshot.skills.map((skill) => skill.name))
-  if (options?.includeDisabled === false) return names
-  for (const disabled of await deps.store.listDisabled()) names.add(disabled.name)
-  return names
+  return new Set(snapshot.skills.map((skill) => skill.name))
 }
 
 /** 已知工作区条目（dsh 的 workspace.json 表）。 */
@@ -103,7 +93,7 @@ export async function workspaceEntries(home: string): Promise<WorkspaceEntry[]> 
 }
 
 /**
- * Build the full catalog response (shared by catalog/toggle/create handlers).
+ * Build the full catalog response (shared by catalog/create handlers).
  * 显式 cwd 只看该工作区；否则合并所有已知工作区（workspace.json）的项目技能
  * + 用户级技能，同名技能先到先得；没有任何工作区时回退为仅用户级视图。
  */
@@ -142,18 +132,7 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
       })
     }
   }
-  const disabled = await deps.store.listDisabled()
   const byName = byKey
-  // A hub-disabled record whose name is also enabled elsewhere hides one
-  // identity behind the toggle; flag it as well.
-  for (const d of disabled) {
-    let identities = identitiesByKey.get(d.name)
-    if (identities === undefined) {
-      identities = new Set()
-      identitiesByKey.set(d.name, identities)
-    }
-    identities.add('hub-disabled\0' + d.root)
-  }
   const duplicateNames = [...identitiesByKey.entries()]
     .filter(([, identities]) => identities.size > 1)
     .map(([key]) => key.split('\0')[0])
@@ -245,7 +224,6 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
     pluginVersion: CURRENT_VERSION,
     complete,
     skills,
-    disabled,
     diagnostics,
     ...(workspaceRefs !== undefined && workspaceRefs.length > 0 ? { workspaces: workspaceRefs } : {}),
     ...(duplicateNames.length > 0 ? { duplicateNames } : {}),

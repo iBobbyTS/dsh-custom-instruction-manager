@@ -37,20 +37,19 @@ export function rootOfPath(path: string, home = dshHome()): WritableRoot | undef
   return undefined
 }
 
-/** Discovery-file shapes the hub may rewrite: `<name>/SKILL.md` and `<name>.md`, plus the `.disabled` variants. */
+/** Discovery-file shapes the hub may rewrite: `<name>/SKILL.md` and `<name>.md`. */
 function discoveryLeafKind(path: string): 'bundle' | 'flat' | undefined {
   const leaf = basename(resolve(path))
-  if (leaf === 'SKILL.md' || leaf === 'SKILL.md.disabled') return 'bundle'
-  if (/[^.]\.md(?:\.disabled)?$/.test(leaf)) return 'flat'
+  if (leaf === 'SKILL.md') return 'bundle'
+  if (/[^.]\.md$/.test(leaf)) return 'flat'
   return undefined
 }
 
 /**
  * Whether a path is a skill discovery file whose invocation policy the hub may
  * rewrite: a top-level entry of a user root, or
- * `<workspace>/.dsh|.agents/skills/<name>/SKILL.md` (flat and `.disabled`
- * variants included). Nested/arbitrary files are refused — the write lands on
- * real skill files only.
+ * `<workspace>/.dsh|.agents/skills/<name>/SKILL.md`. Nested/arbitrary files are
+ * refused — the write lands on real skill files only.
  */
 export function editableSkillFile(path: string, home = dshHome()): boolean {
   const absolute = resolve(path)

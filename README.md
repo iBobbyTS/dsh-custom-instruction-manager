@@ -11,7 +11,7 @@
   <img src="https://raw.githubusercontent.com/cheshireez/dsh-skill-hub/main/promo/real-skill-hub.png" alt="dsh-skill-hub panel" width="640">
 </p>
 
-In-GUI skill hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — browse the full `ctx.skills` catalog, toggle skills, inspect bodies, fix discovery issues, install from the market, and scaffold new ones.
+In-GUI skill hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — browse the full `ctx.skills` catalog, inspect bodies, fix discovery issues, install from the market, and scaffold new ones.
 
 > Host runs in the dsh process via official SDKs only; browser renders through official slots. No dsh source changes.
 
@@ -29,7 +29,7 @@ Restart DSH if prompted, then open **sidebar → Skills**. Use **Market → Scan
 
 Requires `Node ^22.19 || >=24` + dsh web `>=0.1.7-alpha.1 <0.3`. Git installations run this repository's `prepare` script to compile the `lib/` entrypoints.
 
-Two surfaces — the hub panel opens from the **Skills** entry in the main sidebar, and this plugin's own configuration card sits on the plugin's page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub). The card is registered by the plugin itself into the `plugins.bundle.config` slot — dsh has no auto-generated config page — and covers the master switch, announce-to-agent, dot colors, usage display and the stats window/interval.
+Two surfaces — the hub panel opens from the **Skills** entry in the main sidebar, and this plugin's own configuration card sits on the plugin's page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub). The card is registered by the plugin itself into the `plugins.bundle.config` slot — dsh has no auto-generated config page — and covers the master switch, dot colors, usage display and the stats window/interval.
 
 ## Features
 
@@ -55,7 +55,7 @@ The panel remembers the page you left — the top-level category (AGENTS.md / Sk
 **Sidebar → Other Plugins → Skill** — 2 tabs: **Sources** (skills, flat/grouped + project tree, with the personal card split by managed-by (market imports show their upstream repo; user-owned skills show User Managed)), **Market** (install + update).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding. Project workspaces are ordered exactly like the DSH sidebar (`workspace.json` → `global.workspaceIds`).
-- **Toggle** — per-skill switches and per-group tri-state switches with a conflict dialog (close all / keep on). Disabling renames the discovery file (never deletes); disabled skills stay inspectable and re-enableable from their detail page. Only `~/.dsh/skills` & `~/.agents/skills` are writable; everything else is read-only.
+- **No enable/disable** — the hub does not toggle skills. `SKILL.md.disabled` files left by older versions stay untouched and outside discovery; rename one back manually (`SKILL.md.disabled` → `SKILL.md`, or `<name>.md.disabled` → `<name>.md`) to re-enable it.
 - **Invocation** — two checkboxes on the skill detail page rewrite `SKILL.md`'s `disable-model-invocation` / `user-invocable` (absent key means allowed; writing a default back removes the key). User and project roots are writable; bundled or plugin-provided skills have no file, so theirs stay greyed out.
 - **Edit** — the skill body box is editable in place; there is no separate edit mode. It looks exactly like the read-only box (height follows the content, scrolling inside past 62vh) and carries a fixed "Save / Discard all edits" row. Only the text after the frontmatter is replaced: `name` / `description` / invocation keys stay byte-for-byte as they are (change those through the invocation checkboxes or an editor). Both buttons are grey until something changes; ⌘S saves; going back with unsaved changes asks first; after a save the body becomes what actually landed on disk, the buttons grey out, and tokens are recounted.
 - **Save conflicts** — a save carries the `mtime` + size it was loaded with. If the file changed elsewhere in the meantime (say an agent in a dsh session), the save is blocked and three choices appear: **Copy and reload** (your draft goes to the clipboard first, then the editor switches to the on-disk version) / **Keep editing** (dialog closes, draft kept, nothing written) / **Overwrite anyway**.
@@ -67,7 +67,7 @@ The panel remembers the page you left — the top-level category (AGENTS.md / Sk
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist), and a `SKILL.md` at the repo root itself scans as a single skill named after the repo (minus repo tooling such as `.github/`). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
 - **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps the source record. Update information lives only in the detail page's upstream card, and only skills imported from a market source or a direct repo have one: built-in, plugin-provided, hand-placed and project skills show no update UI at all.
 - **Stats** — per-skill call counts + last-used times from session logs (incremental cache), group summaries; window and scan interval live-configurable from the settings card.
-- **Settings card** — registered on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub; collapsed until you expand the title): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval.
+- **Settings card** — registered on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub; collapsed until you expand the title): master switch, invocation dot colors, usage display toggles, stats window/interval.
 
 ## Why not just the read-only browser?
 
@@ -76,7 +76,6 @@ The panel remembers the page you left — the top-level category (AGENTS.md / Sk
 | Capability | read-only browser | **dsh-skill-hub** |
 | --- | --- | --- |
 | Catalog | user roots, self-scanned | `ctx.skills` registry, all roots + third-party |
-| Toggle | ❌ | ✅ per-skill + per-group, never deletes |
 | Diagnostics | ❌ | ✅ reasons + one-click fix |
 | Market | ❌ | ✅ built-in + custom, version pins, update-all |
 | Source tracking | ❌ | ✅ check/sync/trash with restore |
@@ -104,20 +103,18 @@ GitHub repo ──scan/import──▶ ~/.dsh/skills
                     /api/skill-hub/* ──▶ Panel (sidebar → Skills)
 ```
 
-Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemPrompt.section`. Routes sit behind dsh's own `/api` trust fence (loopback / the listener's bind address / `--trusted-host`), JSON.
+Host uses only `ctx.skills.snapshot/get` and `ctx.webServer.register`. Routes sit behind dsh's own `/api` trust fence (loopback / the listener's bind address / `--trusted-host`), JSON.
 
 ## HTTP API
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/api/skill-hub/catalog?cwd=` | GET | skills + disabled + diagnostics + duplicates |
-| `/api/skill-hub/skill?name=&cwd=` | GET | skill body (works for disabled too) |
+| `/api/skill-hub/catalog?cwd=` | GET | skills + diagnostics + duplicates |
+| `/api/skill-hub/skill?name=&cwd=` | GET | skill body |
 | `/api/skill-hub/mcp` | GET | MCP servers (Loader rows + config + tools + writability) |
 | `/api/skill-hub/mcp/toggle` | POST | `{entryId, enabled}` through dsh's plugin manager, returns the refreshed list |
 | `/api/skill-hub/skill/delete` | POST | move to the system trash `~/.Trash` (timestamped on clash) |
 | `/api/skill-hub/skill/reveal` | POST | reveal the skill file in Finder (`open -R`) |
-| `/api/skill-hub/toggle` | POST | `{name, enabled}` |
-| `/api/skill-hub/toggle-batch` | POST | `{names, enabled}` |
 | `/api/skill-hub/create` | POST | `{name, description?, root?}` |
 | `/api/skill-hub/diagnostic/fix` | POST | `{path}` auto-fix frontmatter |
 | `/api/skill-hub/stats` | GET | invocation counts |
@@ -137,7 +134,7 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 306 tests, 16 suites
+npm test           # 456 tests, 30 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 
@@ -149,9 +146,8 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 - `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` — pnpm requires explicit approval before executing a Git dependency's build scripts. Review this repository's `prepare` / `build` commands first. Then, in `~/.dsh/profiles/desktop/pnpm-workspace.yaml`, set **the exact Git-dependency key printed by pnpm** under `allowBuilds` to `true` and retry the installation (or use `pnpm approve-builds` for the relevant profile). Do not enable all dependency builds indiscriminately.
 
 - `duplicate loader entry id: skill-hub` — remove the duplicate install (keep one `dsh plugin add` method).
-- Skill missing — check the diagnostics section (frontmatter / name mismatch / short description / two discovery forms claiming the same name: a `<name>/SKILL.md` bundle and a `<name>.md` file can coexist on disk, and the registry keeps only one of them).
-- Empty source group — its skills were deleted, or their disabled records were lost (sidecar restored/hand-edited). Startup reconciles `.disabled` files on disk **and prunes records whose file is gone** (a record left behind by a hand-deleted directory used to be un-actionable: enable, create and delete all failed). Source groups with no visible member are no longer rendered.
-- A skill cannot be created / stays "disabled" — the disabled record pointed at a file that no longer exists. At startup (and on the next enable attempt) the record is repointed at the surviving `.disabled` file, or dropped so the name is free again.
+- Skill missing — check the diagnostics section (frontmatter / name mismatch / short description / two discovery forms claiming the same name: a `<name>/SKILL.md` bundle and a `<name>.md` file can coexist on disk, and the registry keeps only one of them). A `.disabled` file left by an older version is not listed and not managed: rename it back manually to re-enable the skill.
+- A skill cannot be created — the name is occupied on disk by an active file, a legacy `.disabled` placeholder, or an empty directory. Rename or remove the placeholder first; the hub no longer manages it.
 - Dots missing in `/` menu — dsh internals changed; catalog still works.
 - Settings card missing — open the plugin in the Plugins manager (sidebar → 插件 → dsh-skill-hub) and expand the 「技能中枢」 card at the top of the page (collapsed by default). On dsh older than `0.1.7-alpha.1` this plugin does not load at all (the settings API it targets does not exist there).
 

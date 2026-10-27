@@ -1,14 +1,11 @@
 /**
- * useCatalogFlow — 目录域：catalog 加载、详情、开关（单个/禁用态/批量）、
- * 新建、诊断修复，以及列表过滤/排序派生。跨域刷新只通过 shared 通知，
- * 不直接碰其他域的 state。
+ * useCatalogFlow — 目录域：catalog 加载、详情、新建、诊断修复，以及列表
+ * 过滤/排序派生。跨域刷新只通过 shared 通知，不直接碰其他域的 state。
  */
 
 import { useCallback, useMemo, useRef, useState, type FormEvent } from 'react'
 import type {
   CatalogResponse,
-  CatalogSkill,
-  DisabledSkill,
   SkillDetail,
   WritableRoot,
 } from '../../../protocol.ts'
@@ -52,7 +49,7 @@ export function useCatalogFlow(
     try {
       const next = await api.catalog(workspace !== '' ? { cwd: workspace } : undefined)
       setCatalog(next)
-      if (!autoCollapsedPersonal.current && next.skills.length + next.disabled.length > 80) {
+      if (!autoCollapsedPersonal.current && next.skills.length > 80) {
         autoCollapsedPersonal.current = true
         collapsePersonal()
       }
@@ -71,50 +68,9 @@ export function useCatalogFlow(
     }, () => setDetailLoading(false))
   }, [api, workspace, shared])
 
-  const toggle = useCallback(async (skill: CatalogSkill, enabled: boolean): Promise<void> => {
-    setBusyNames((previous) => new Set(previous).add(skill.name))
-    await runFlow(shared, async () => {
-      const next = await api.toggle(skill.name, enabled)
-      setCatalog(next)
-    }, () => {
-      setBusyNames((previous) => {
-        const next = new Set(previous)
-        next.delete(skill.name)
-        return next
-      })
-    })
-  }, [api, shared])
-
-  const enableDisabled = useCallback(async (record: DisabledSkill): Promise<void> => {
-    setBusyNames((previous) => new Set(previous).add(record.name))
-    await runFlow(shared, async () => {
-      const next = await api.toggle(record.name, true)
-      setCatalog(next)
-    }, () => {
-      setBusyNames((previous) => {
-        const next = new Set(previous)
-        next.delete(record.name)
-        return next
-      })
-    })
-  }, [api, shared])
-
   /** 在 Finder 中显示一个技能文件（host 调 `open -R`；找不到文件时报错条幅）。 */
   const reveal = useCallback((name: string, cwd?: string): void => {
     void runFlow(shared, async () => { await api.revealSkill(name, cwd) })
-  }, [api, shared])
-
-  /** Toggle an explicit name set in one write (enables disabled members too). */
-  const batchToggleNames = useCallback(async (names: string[], enabled: boolean): Promise<void> => {
-    if (names.length === 0) return
-    shared.setBatchBusy(true)
-    await runFlow(shared, async () => {
-      const next = await api.toggleBatch(names, enabled)
-      setCatalog(next.catalog)
-      if (next.failures.length > 0) {
-        shared.fail('toggle-batch: ' + next.failures.map((failure) => failure.name + ': ' + failure.error).join('; '))
-      }
-    }, () => shared.setBatchBusy(false))
   }, [api, shared])
 
   const fixDiagnostic = useCallback(async (path: string): Promise<void> => {
@@ -173,12 +129,6 @@ export function useCatalogFlow(
 
   const normalized = search.trim().toLocaleLowerCase()
 
-  /** 当前启用且可写的技能名（组开关只作用于它们）。 */
-  const actionNames = useMemo(() => new Set((catalog?.skills ?? []).filter((skill) => skill.writable).map((skill) => skill.name)), [catalog])
-
-  /** 当前启用的全部技能名（含只读，用于派生开关状态）。 */
-  const viewNames = useMemo(() => new Set((catalog?.skills ?? []).map((skill) => skill.name)), [catalog])
-
   const filtered = useMemo(() => (catalog?.skills ?? []).filter((skill) => {
     if (invocationFilter === 'model' && !skill.invocation.modelInvocable) return false
     if (invocationFilter === 'user' && !skill.invocation.userInvocable) return false
@@ -203,10 +153,10 @@ export function useCatalogFlow(
   return {
     catalog, loading, detail, detailLoading, busyNames, search, workspace,
     showForm, formName, formDesc, formRoot, formBusy, formMessage, fixingPaths, invocationBusy,
-    invocationFilter, sortKey, normalized, actionNames, viewNames,
+    invocationFilter, sortKey, normalized,
     filtered, sorted, shortenedCount,
     setDetail, setSearch, setWorkspace, setShowForm, setFormName, setFormDesc,
     setFormRoot, setFormMessage, setInvocationFilter, setSortKey,
-    load, openDetail, toggle, enableDisabled, batchToggleNames, fixDiagnostic, setInvocation, create, clearListFilters, reveal,
+    load, openDetail, fixDiagnostic, setInvocation, create, clearListFilters, reveal,
   }
 }

@@ -165,7 +165,7 @@ describe('AGENTS.md inventory scan', () => {
     ])
 
     // 显式清空排除清单 → 只剩硬剪枝的 .git / node_modules 不出现。
-    deps.config = () => ({ enabled: true, announceToAgent: true, excludeDirs: [] })
+    deps.config = () => ({ enabled: true, excludeDirs: [] })
     const none = await scanInstructionGroups(deps)
     expect(projectGroups(none.groups)[0]!.files.map((file) => file.path)).toEqual([
       'proj/.agent-work',

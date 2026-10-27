@@ -9,7 +9,7 @@ import { errorText } from '../error-text.ts'
 import { RepoFetchError } from '../repo.ts'
 import { StoreError } from '../store.ts'
 
-/** Cap on JSON request bodies (toggle/create payloads are tiny). */
+/** Cap on JSON request bodies (create/config payloads are tiny). */
 export const MAX_JSON_BODY_BYTES = 64 * 1024
 
 /** Loopback literal check plus browser same-origin markers. */

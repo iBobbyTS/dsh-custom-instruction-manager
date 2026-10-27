@@ -1,9 +1,8 @@
 /**
  * Skill filesystem operations for the writable roots and the hub provider's
- * discovery. Toggling works by renaming the discovery file (SKILL.md inside
- * a directory bundle, or the flat <name>.md) to a .disabled name; the
- * watcher (ours or the preset's official filesystem provider) then updates
- * the live catalog by itself.
+ * discovery. Discovery reads `SKILL.md` inside a directory bundle or the flat
+ * `<name>.md`; the preset's official filesystem provider watches the same
+ * files.
  *
  * Frontmatter parsing mirrors @deepseek-ai/dsh-skill-filesystem semantics:
  * required name (kebab-case) + description, optional whenToUse, invocation
@@ -66,31 +65,6 @@ export async function createSkill(root: WritableRoot, name: string, description:
 }
 
 /**
- * Disable one skill file by renaming it out of discovery shapes. Accepts
- * either the SKILL.md of a directory bundle or a flat .md.
- * @returns the absolute path after renaming.
- */
-export async function disableSkill(path: string): Promise<string> {
-  const kind = skillFileKind(path)
-  if (kind === undefined) {
-    throw new TypeError('not a discoverable skill file: ' + path)
-  }
-  const disabled = path + '.disabled'
-  await rename(path, disabled)
-  return disabled
-}
-
-/** Re-enable a previously disabled file (reverse of disableSkill). */
-export async function enableSkill(disabledPath: string): Promise<string> {
-  if (!disabledPath.endsWith('.disabled')) {
-    throw new TypeError('not a disabled skill file: ' + disabledPath)
-  }
-  const original = disabledPath.slice(0, -'.disabled'.length)
-  await rename(disabledPath, original)
-  return original
-}
-
-/**
  * Move one already-resolved skill (a bundle directory or a flat .md file) into
  * its root's trash as `<root>/.trash/<name>-<timestamp>`.
  *
@@ -112,10 +86,10 @@ export async function moveIntoTrash(source: string): Promise<{ path: string; sou
 
 /**
  * The filesystem entry behind a discovery file: a directory bundle is addressed
- * by its `SKILL.md` (or `SKILL.md.disabled`) and moved as a whole directory, a
- * flat `<name>.md` file is moved as itself. Single definition of that mapping —
- * delete, restore, sync-replace and placeholder retirement must all agree on it,
- * or one of them moves a bundle's discovery file and leaves an empty directory.
+ * by its `SKILL.md` and moved as a whole directory, a flat `<name>.md` file is
+ * moved as itself. Single definition of that mapping — delete, restore,
+ * sync-replace and placeholder retirement must all agree on it, or one of them
+ * moves a bundle's discovery file and leaves an empty directory.
  */
 export function trashSourceOf(discoveryPath: string): string {
   const base = basename(discoveryPath)
@@ -237,15 +211,7 @@ export async function clearTrash(entry: TrashEntry, home = dshHome()): Promise<s
   return entry.path
 }
 
-/** Classify a skill file path: 'directory' (SKILL.md), 'flat' (<name>.md), or undefined. */
-function skillFileKind(path: string): 'directory' | 'flat' | undefined {
-  if (basename(path) === 'SKILL.md') return 'directory'
-  if (path.endsWith('.md')) return 'flat'
-  return undefined
-}
-
-/**
- * Repair one file on disk when its frontmatter is auto-fixable. Returns the new text.
+/** Repair one file on disk when its frontmatter is auto-fixable. Returns the new text.
  *
  * The write is atomic (sibling temp file + rename), matching the sidecar's
  * persist path: this rewrites a real skill file in place, and a crash midway

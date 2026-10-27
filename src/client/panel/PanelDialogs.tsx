@@ -1,21 +1,15 @@
 /**
- * PanelDialogs — SkillHubPanel 底部的对话框接线层（冲突、同步/删除确认、
- * 分支选择、版本选择、市场同步、删除技能、清空回收站）。状态与动作仍由
- * useSkillHub 的 hub 持有；这里只收窄成显式 props，渲染顺序与拆分前完全一致。
+ * PanelDialogs — SkillHubPanel 底部的对话框接线层（同步/删除确认、分支选择、
+ * 版本选择、市场同步、删除技能、清空回收站）。状态与动作仍由 useSkillHub
+ * 的 hub 持有；这里只收窄成显式 props，渲染顺序与拆分前完全一致。
  */
 
 import type { JSX } from 'react'
-import type { CollectionGroup } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
-import { BranchChoiceDialog, ConfirmDialog, ConflictDialog, MarketSyncDialog, VersionChoiceDialog } from './dialogs.tsx'
+import { BranchChoiceDialog, ConfirmDialog, MarketSyncDialog, VersionChoiceDialog } from './dialogs.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
 
 export interface PanelDialogsProps {
-  /** 分组开关冲突（groupsState 未加载时传空数组）。 */
-  conflictDialog: SkillHubState['conflictDialog']
-  collections: readonly CollectionGroup[]
-  setConflictDialog: SkillHubState['setConflictDialog']
-  resolveConflict: SkillHubState['resolveConflict']
   /** 来源同步/删除确认。 */
   confirmDialog: SkillHubState['confirmDialog']
   setConfirmDialog: SkillHubState['setConfirmDialog']
@@ -47,7 +41,6 @@ export interface PanelDialogsProps {
 
 export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
   const {
-    conflictDialog, collections, setConflictDialog, resolveConflict,
     confirmDialog, setConfirmDialog, runConfirmed,
     branchChoice, branchBusy, setBranchChoice, confirmBranchChoice,
     versionDialog, versionBusy, setVersionDialog, confirmVersionDialog,
@@ -57,16 +50,6 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
   } = props
   return (
     <>
-      {conflictDialog !== null ? (
-        <ConflictDialog
-          dialog={conflictDialog}
-          collections={collections}
-          onClose={() => { setConflictDialog(null) }}
-          onKeepOn={() => { void resolveConflict(false) }}
-          onCloseAll={() => { void resolveConflict(true) }}
-        />
-      ) : null}
-
       {confirmDialog !== null ? (
         <ConfirmDialog
           title={confirmDialog.kind === 'sync' ? tt('source.syncConfirmTitle') : tt('source.deleteConfirmTitle')}

@@ -13,7 +13,6 @@ export type {
   WritableRoot,
   HubInvocation,
   CatalogSkill,
-  DisabledSkill,
   DiagnosticEntry,
   DiagnosticFixRequest,
   DiagnosticFixResponse,
@@ -30,10 +29,6 @@ export type {
   EditConflictResponse,
   SkillContentRequest,
   SkillContentResponse,
-  ToggleRequest,
-  ToggleResponse,
-  ToggleBatchRequest,
-  ToggleBatchResponse,
   CreateRequest,
   CreateResponse,
 } from './protocol/catalog.ts'

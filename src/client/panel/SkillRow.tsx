@@ -1,7 +1,6 @@
 /**
- * One enabled skill row: name + invocation dots + usage meta, the trailing
- * enable switch, and the row menu (在 Finder 中显示 / 删除). Shared by the
- * flat list and both grouped views.
+ * One skill row: name + invocation dots + usage meta and the row menu
+ * (在 Finder 中显示 / 删除). Shared by the flat list and both grouped views.
  */
 
 import type { JSX, KeyboardEvent } from 'react'
@@ -21,13 +20,12 @@ export interface SkillRowProps {
   uses: ReadonlyMap<string, { count: number; lastUsed?: number }>
   /** Effective hub config; null while it has not loaded. */
   hubConfig: HubConfig | null
-  /** Names with an in-flight toggle/delete. */
+  /** Names with an in-flight delete. */
   busyNames: ReadonlySet<string>
   /** True while a list operation runs (also blocks row deletes). */
   listBusy: boolean
   /** Names that collide with another skill (duplicate badge). */
   duplicateNames: ReadonlySet<string>
-  toggle: (skill: CatalogSkill, enabled: boolean) => Promise<void>
   openDetail: (name: string) => Promise<void>
   /** 打开删除确认（移入系统废纸篓）。 */
   requestDeleteSkill: (name: string) => void
@@ -36,7 +34,7 @@ export interface SkillRowProps {
 }
 
 export function SkillRow(props: SkillRowProps): JSX.Element {
-  const { skill, uses, hubConfig, busyNames, listBusy, duplicateNames, toggle, openDetail, requestDeleteSkill, reveal } = props
+  const { skill, uses, hubConfig, busyNames, listBusy, duplicateNames, openDetail, requestDeleteSkill, reveal } = props
   const stat = uses.get(skill.name)
   const count = stat?.count ?? 0
   const lastUsed = stat?.lastUsed
@@ -88,15 +86,7 @@ export function SkillRow(props: SkillRowProps): JSX.Element {
         <div className={css.rowDesc} title={skill.description}>{skill.shortDescription ?? skill.description}</div>
       </div>
       {skill.writable
-        ? <button
-            type='button'
-            role='switch'
-            aria-checked={true}
-            aria-label={tt('row.disable')}
-            className={css.switch + ' ' + css.switchOn}
-            disabled={busyNames.has(skill.name)}
-            onClick={(event) => { event.stopPropagation(); void toggle(skill, false) }}
-          ><span className={css.switchThumb} /></button>
+        ? null
         : <span className={css.badge + ' ' + css.badgeReadonly}>{tt('row.readonly')}</span>}
       <RowMenu
         label={tt('row.menu', { name: skill.name })}

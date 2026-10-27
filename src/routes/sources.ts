@@ -149,12 +149,14 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             const files = collectRepoSkillFiles(tree, entry.dir)
             if (files.length === 0) { failed.push({ name, error: 'skill missing upstream' }); continue }
             const targetDir = join(targetRoot, name)
-            const record = await deps.store.getDisabled(name)
             const occupancy = await occupancyOf(targetRoot, name)
+            // 旧版遗留的 .disabled 占位代表「用户此前不想启用」：同步写完新内容后
+            // 仍按原状态留在 discovery 之外，不擅自把它复活。
+            const wasDisabled = occupancy.disabled.length > 0
             // 落盘位置永远是目录包，所以本地无论是目录包还是扁平文件（启用或禁用）
             // 都得先让开，否则同名两形态会并存（issue #16 类）。
             const download = () => downloadRepoSkill(repo, latest.commitSha, entry, files, targetRoot)
-            // 1) 禁用件与空壳让位（顺带清掉 sidecar 禁用记录）。
+            // 1) 禁用件与空壳让位（移入回收站，可恢复）。
             await retireNamePlaceholders(deps, targetRoot, name)
             // 2) 启用件按「替换」语义处理：先挪到点前缀备份，下载失败则原样恢复。
             const enabled = occupancy.enabled[0]
@@ -163,16 +165,8 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             } else {
               await download()
             }
-            if (record !== undefined) {
-              // Preserve the disabled state: the fresh SKILL.md must not
-              // re-enter discovery. 记录必须**无条件写回** —— 上面的
-              // retireNamePlaceholders 已经把它删过一遍，只按「path 变了才写」
-              // 判断会让「同步一个已禁用的技能」丢掉禁用状态与记录（活体实测过）。
-              const disabledPath = join(targetDir, 'SKILL.md.disabled')
-              await rename(join(targetDir, 'SKILL.md'), disabledPath)
-              await deps.store.addDisabled({ ...record, path: disabledPath })
-            } else {
-              await deps.store.removeDisabled(name)
+            if (wasDisabled) {
+              await rename(join(targetDir, 'SKILL.md'), join(targetDir, 'SKILL.md.disabled'))
             }
             await deps.store.mergeSourceManifest(repo, skillManifest(tree, entry.dir), entry.dir)
             synced.push(name)
@@ -218,7 +212,7 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           }
           // Resolve the on-disk occupation instead of assuming a `<root>/<name>`
           // directory: the tracked skill can equally be a flat `<name>.md` file
-          // or a hub-disabled placeholder (issue #16 类).
+          // or a legacy `.disabled` placeholder (issue #16 类).
           const base = rootPath('user-dsh', home)
           const occupancy = await occupancyOf(base, name)
           const existing = occupancy.enabled[0] ?? occupancy.disabled[0] ?? occupancy.bareDir
@@ -240,7 +234,6 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
               sourcePath: trashSource,
               origin: { repo: source.repo, root: source.root, ...(source.ref !== undefined && source.ref !== '' ? { ref: source.ref } : {}), commitSha: source.commitSha },
             })
-            await deps.store.removeDisabled(name)
             trashed.push(name)
           } catch (error) {
             failed.push({ name, error: errorText(error) })

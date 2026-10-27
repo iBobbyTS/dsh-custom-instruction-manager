@@ -20,7 +20,7 @@ export interface FlowNotices {
   succeed: (message: string | null) => void
   /** 列表级忙碌开关（分组/市场/技能行共用）。 */
   setListBusy: (busy: boolean) => void
-  /** 整组操作忙碌开关（toggle-batch 与全部更新共用）。 */
+  /** 整组操作忙碌开关（全部更新等批量动作共用）。 */
   setBatchBusy: (busy: boolean) => void
 }
 

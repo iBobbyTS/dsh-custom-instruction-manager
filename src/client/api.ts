@@ -64,10 +64,6 @@ import {
   type TokenModelsResponse,
   type TokenSelectRequest,
   type TokenSelectResponse,
-  type ToggleBatchRequest,
-  type ToggleBatchResponse,
-  type ToggleRequest,
-  type ToggleResponse,
   type UpdateCheckResponse,
 } from '../protocol.ts'
 
@@ -198,24 +194,12 @@ export class SkillHubApi {
     return this.post<SkillRevealResponse>(SKILL_HUB_API.skillReveal, { name, ...(cwd !== undefined && cwd !== '' ? { cwd } : {}) } satisfies SkillRevealRequest)
   }
 
-  /** Toggle one skill; resolves with the fresh catalog from the route. */
-  async toggle(name: string, enabled: boolean): Promise<CatalogResponse> {
-    const body = await this.post<ToggleResponse>(SKILL_HUB_API.toggle, { name, enabled } satisfies ToggleRequest)
-    return body.catalog
-  }
-
   create(payload: CreateRequest): Promise<CreateResponse> {
     return this.post<CreateResponse>(SKILL_HUB_API.create, payload)
   }
 
   stats(): Promise<StatsResponse> {
     return this.get<StatsResponse>(SKILL_HUB_API.stats)
-  }
-
-  /** Toggle a whole group in one write; resolves with the fresh catalog + failures. */
-  toggleBatch(names: string[], enabled: boolean): Promise<ToggleBatchResponse> {
-    const payload: ToggleBatchRequest = { names, enabled }
-    return this.post<ToggleBatchResponse>(SKILL_HUB_API.toggleBatch, payload)
   }
 
   /** The user's added market sources. */

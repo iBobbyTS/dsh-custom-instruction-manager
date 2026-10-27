@@ -4,15 +4,9 @@
  *
  * The "分组" view groups a skill by its origin collection (sidecar sources →
  * backend-aggregated CollectionGroup).
- *
- * Switch semantics: a skill's enabled state is global (the file is renamed
- * once), so a group switch is derived from its members' actual states:
- * all members enabled → 'on', all disabled → 'off', otherwise 'mixed'.
- * Closing a group whose member is enabled in another group is a conflict the
- * GUI resolves with a dialog; the helpers below compute both sides.
  */
 
-import type { CatalogSkill, CollectionGroup, DisabledSkill } from '../protocol.ts'
+import type { CatalogSkill, CollectionGroup } from '../protocol.ts'
 import { isProjectSource } from '../protocol.ts'
 
 export { isProjectSource }
@@ -23,41 +17,6 @@ export { isProjectSource }
  */
 export function isFileSource(source: string): boolean {
   return source === 'user-dsh' || source === 'user-agents' || isProjectSource(source)
-}
-
-/** Grouped switch state derived from member enablement. */
-export type GroupSwitchState = 'on' | 'off' | 'mixed'
-
-/** The derived switch view of one group. */
-export interface GroupSwitchView {
-  state: GroupSwitchState
-  /** Writable members currently enabled. */
-  enabled: string[]
-  /** Writable members currently disabled. */
-  disabled: string[]
-}
-
-/**
- * Derive a group switch view from its member names and the set of currently
- * enabled skill names (catalog.skills). Members not in the enabled set count
- * as disabled (catalog.disabled or absent read-only rows).
- */
-export function groupSwitchView(members: readonly string[], enabledNames: ReadonlySet<string>): GroupSwitchView {
-  const enabled: string[] = []
-  const disabled: string[] = []
-  for (const name of members) {
-    if (enabledNames.has(name)) enabled.push(name)
-    else disabled.push(name)
-  }
-  const state: GroupSwitchState = disabled.length === 0 ? 'on' : enabled.length === 0 ? 'off' : 'mixed'
-  return { state, enabled, disabled }
-}
-
-/** Names of every source collection a skill belongs to. */
-export function groupNamesOf(name: string, collections: readonly CollectionGroup[]): string[] {
-  const names: string[] = []
-  for (const collection of collections) if (collection.skillNames.includes(name)) names.push(collection.name)
-  return names
 }
 
 /**
@@ -73,26 +32,6 @@ export function groupNamesOf(name: string, collections: readonly CollectionGroup
  */
 export function skillRowKey(skill: Pick<CatalogSkill, 'name' | 'source' | 'workspace'>): string {
   return 'skill\0' + skill.source + '\0' + (skill.workspace ?? '') + '\0' + skill.name
-}
-
-/** Stable React key for one disabled (`.disabled`) row: its root decides which row it is. */
-export function disabledRowKey(record: Pick<DisabledSkill, 'name' | 'root'>): string {
-  return 'disabled\0' + record.root + '\0' + record.name
-}
-
-/**
- * Members of a group that are currently enabled AND also belong to at least
- * one other group — the set a "close" action must ask about.
- */
-export function conflictsOnClose(
-  members: readonly string[],
-  enabledNames: ReadonlySet<string>,
-  otherGroups: ReadonlyArray<{ members: readonly string[] }>,
-): string[] {
-  return members.filter((name) => {
-    if (!enabledNames.has(name)) return false
-    return otherGroups.some((group) => group.members.includes(name))
-  })
 }
 
 /** Origin-repo filter value: skills with no source record (private skills). */
@@ -116,10 +55,8 @@ export function filterBySource(skills: readonly CatalogSkill[], source: string, 
 /** One origin collection with the members visible under the current filters. */
 export interface VisibleCollection {
   collection: CollectionGroup
-  /** Enabled, currently visible members. */
+  /** Currently visible members. */
   skills: CatalogSkill[]
-  /** Disabled records passing the current name/description filter. */
-  disabledMembers: DisabledSkill[]
 }
 
 /**
@@ -161,10 +98,8 @@ export interface ManagedBucket {
   /** 稳定键（`managed:<kind>[:<id>]`），与折叠状态共用。 */
   key: string
   managed: ManagedBy
-  /** 该管理方下、且通过当前筛选的已启用技能。 */
+  /** 该管理方下、且通过当前筛选的技能。 */
   skills: CatalogSkill[]
-  /** 该管理方下、且通过当前筛选的已禁用记录。 */
-  disabled: DisabledSkill[]
 }
 
 /**
@@ -173,14 +108,9 @@ export interface ManagedBucket {
  * `skill-hub` provider id; bundled / third-party providers keep their id.
  *
  * Bucket order follows first appearance in the incoming (already sorted)
- * list, so the chosen sort key still decides the subgroup order. Disabled
- * records only exist under the user roots, so they always belong to the
- * "User Managed" bucket (created even when no enabled user skill remains).
+ * list, so the chosen sort key still decides the subgroup order.
  */
-export function personalManagedBuckets(
-  skills: readonly CatalogSkill[],
-  disabled: readonly DisabledSkill[],
-): ManagedBucket[] {
+export function personalManagedBuckets(skills: readonly CatalogSkill[]): ManagedBucket[] {
   const buckets: ManagedBucket[] = []
   const byKey = new Map<string, ManagedBucket>()
   for (const skill of skills) {
@@ -188,50 +118,30 @@ export function personalManagedBuckets(
     const key = 'managed:' + managedKey(managed)
     let bucket = byKey.get(key)
     if (bucket === undefined) {
-      bucket = { key, managed, skills: [], disabled: [] }
+      bucket = { key, managed, skills: [] }
       byKey.set(key, bucket)
       buckets.push(bucket)
     }
     bucket.skills.push(skill)
   }
-  for (const record of disabled) {
-    // 禁用记录只存在于用户根（user-dsh / user-agents），没有 provider 字段。
-    const key = 'managed:user'
-    let bucket = byKey.get(key)
-    if (bucket === undefined) {
-      bucket = { key, managed: { kind: 'user' }, skills: [], disabled: [] }
-      byKey.set(key, bucket)
-      buckets.push(bucket)
-    }
-    bucket.disabled.push(record)
-  }
   return buckets
 }
 
 /**
- * Match origin collections against the currently visible enabled skills and
- * disabled records, dropping collections with no visible member. Without
- * this, a stale origin (skill deleted on disk, or a `.disabled` file whose
- * sidecar record was lost) renders a group header with zero rows — an empty
- * shell the sources tab otherwise never shows (project/personal groups
- * already disappear when they have nothing to display).
+ * Match origin collections against the currently visible skills, dropping
+ * collections with no visible member. Without this, a stale origin (skill
+ * deleted on disk) renders a group header with zero rows — an empty shell the
+ * sources tab otherwise never shows (project/personal groups already
+ * disappear when they have nothing to display).
  */
 export function visibleCollections(
   collections: readonly CollectionGroup[],
   visibleSkills: readonly CatalogSkill[],
-  disabledRecords: readonly DisabledSkill[],
-  normalized: string,
-  sourceFilter: string,
-  origins: Readonly<Record<string, string>>,
 ): VisibleCollection[] {
   const visible: VisibleCollection[] = []
   for (const collection of collections) {
     const skills = visibleSkills.filter((skill) => collection.skillNames.includes(skill.name))
-    const disabledMembers = disabledRecords.filter((record) =>
-      collection.skillNames.includes(record.name)
-      && (normalized.length === 0 || record.name.toLocaleLowerCase().includes(normalized) || record.description.toLocaleLowerCase().includes(normalized))
-      && (sourceFilter === 'all' || (origins[record.name] ?? PRIVATE_SOURCE) === sourceFilter))
-    if (skills.length > 0 || disabledMembers.length > 0) visible.push({ collection, skills, disabledMembers })
+    if (skills.length > 0) visible.push({ collection, skills })
   }
   return visible
 }

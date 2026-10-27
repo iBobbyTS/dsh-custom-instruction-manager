@@ -1,8 +1,8 @@
 /**
  * Plugin lifecycle: asynchronous work started from `apply()` must not touch the
- * context after the fiber unloaded. Issue #19 was a cold-start abort —
- * `cannot get required service "systemPrompt" in inactive context` — when the
- * stats wiring settled after a config-driven reload had torn the plugin down.
+ * context after the fiber unloaded. Issue #19 was a cold-start abort
+ * (`cannot get required service ... in inactive context`) when the stats
+ * wiring settled after a config-driven reload had torn the plugin down.
  */
 
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -14,9 +14,9 @@ import { MCP_CLIENT_MODULE } from './mcp.ts'
 
 /** Minimal context double: records what the plugin registers, exposes a controllable fiber. */
 function fakeHost(services: Record<string, unknown> = {}) {
-  const sections: string[] = []
   const routes: Array<{ path: string; handler: (req: unknown, res: unknown) => Promise<void> }> = []
   const injected: Array<(context: unknown) => void> = []
+  let effects = 0
   const fiber: { uid: number | null } = { uid: 1 }
   const context = {
     fiber,
@@ -28,12 +28,6 @@ function fakeHost(services: Record<string, unknown> = {}) {
       snapshot: async () => ({ skills: [], complete: true }),
       get: async () => undefined,
     },
-    systemPrompt: {
-      section: (spec: { name: string }) => {
-        sections.push(spec.name)
-        return () => {}
-      },
-    },
     webServer: {
       register: (route: { path: string; handler: (req: unknown, res: unknown) => Promise<void> }) => {
         routes.push(route)
@@ -41,6 +35,7 @@ function fakeHost(services: Record<string, unknown> = {}) {
       },
     },
     effect: (body: () => unknown) => {
+      effects += 1
       const produced = body()
       return () => {
         if (typeof produced === 'function') (produced as () => void)()
@@ -48,7 +43,7 @@ function fakeHost(services: Record<string, unknown> = {}) {
     },
     inject: (_names: unknown, run: (child: unknown) => void) => { injected.push(run) },
   }
-  return { context, sections, routes, fiber, injected }
+  return { context, routes, fiber, injected, get effects() { return effects } }
 }
 
 /** The session-query seam the stats wiring accepts. */
@@ -72,17 +67,17 @@ afterEach(async () => {
 })
 
 describe('plugin lifecycle (issue #19)', () => {
-  it('mounts the announced section and route family once for an active fiber', () => {
+  it('mounts the provider and route family once for an active fiber', () => {
     const host = fakeHost()
     apply(host.context as never, undefined)
-    expect(host.sections).toEqual(['plugin:dsh-skill-hub'])
+    expect(host.effects).toBe(2)
     expect(host.routes.map((route) => route.path)).toContain('/api/skill-hub/catalog')
   })
 
   it('drops a late stats continuation instead of syncing on an inactive context', async () => {
     const host = fakeHost()
     apply(host.context as never, undefined)
-    const beforeUnload = host.sections.length
+    const beforeUnload = host.effects
 
     // The session-query service arrives: wireStats() starts an async build that
     // first awaits the persisted scan checkpoint. The nested persistence probe
@@ -96,8 +91,8 @@ describe('plugin lifecycle (issue #19)', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
 
     // Without the guard the continuation called sync(), which re-registered the
-    // announcement on the dead context (and threw on a real host).
-    expect(host.sections).toHaveLength(beforeUnload)
+    // provider/routes on the dead context (and threw on a real host).
+    expect(host.effects).toBe(beforeUnload)
   })
 })
 
