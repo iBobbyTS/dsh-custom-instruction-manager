@@ -77,13 +77,8 @@ function MetaLine(props: { label: string; children: React.ReactNode }): React.JS
 }
 
 /** 展开后的配置摘要 + 工具清单。env/headers 的值默认遮掩。 */
-function McpDetail(props: {
-  server: McpServerInfo
-  busy: boolean
-  onEdit: (server: McpServerInfo) => void
-  onAskRemove: (server: McpServerInfo) => void
-}): React.JSX.Element {
-  const { server, busy } = props
+function McpDetail(props: { server: McpServerInfo }): React.JSX.Element {
+  const { server } = props
   const [revealed, setRevealed] = useState(false)
   const stdio = server.stdio
   const http = server.http
@@ -132,14 +127,6 @@ function McpDetail(props: {
             ))}
         </span>
       </MetaLine>
-      <div className={css.mcpActions}>
-        {server.editable
-          ? <button type='button' className={css.button} disabled={busy} onClick={() => { props.onEdit(server) }}>{tt('mcp.edit')}</button>
-          : <span className={css.mcpEditBlocked}>{tt(editBlockedKey(server.editBlockedReason))}</span>}
-        {server.removable
-          ? <button type='button' className={css.button + ' ' + css.danger} disabled={busy} onClick={() => { props.onAskRemove(server) }}>{tt('mcp.delete')}</button>
-          : null}
-      </div>
     </div>
   )
 }
@@ -164,6 +151,11 @@ function McpServerRow(props: {
       : server.readOnlyReason === 'no-manager' ? 'mcp.readonly.noManager' : 'mcp.readonly.unaddressable')
     : canManage ? undefined : tt('mcp.noManager')
   const disabled = busy || !canManage || readOnly
+  // 编辑按钮常驻在行上（不藏在展开的详情里）：能改的行直接给按钮，不能改的行
+  // 说明原因；已有行与开关原因重复时只留开关那句，避免同一行两行灰字。
+  const editReason = server.editable || reason !== undefined
+    ? undefined
+    : tt(editBlockedKey(server.editBlockedReason))
   const stdio = server.stdio
   const target = stdio !== undefined
     ? [stdio.command, ...stdio.args].filter((part) => part !== '').join(' ')
@@ -188,6 +180,28 @@ function McpServerRow(props: {
           </span>
         </button>
         <span className={css.mcpToolCount}>{tt('mcp.toolCount', { count: server.tools.length })}</span>
+        <span className={css.mcpRowActions}>
+          {server.editable
+            ? (
+              <button
+                type='button'
+                className={css.mcpRowAction}
+                disabled={busy}
+                onClick={() => { props.onEdit(server) }}
+              >{tt('mcp.edit')}</button>
+            )
+            : null}
+          {server.removable
+            ? (
+              <button
+                type='button'
+                className={css.mcpRowAction + ' ' + css.danger}
+                disabled={busy}
+                onClick={() => { props.onAskRemove(server) }}
+              >{tt('mcp.delete')}</button>
+            )
+            : null}
+        </span>
         <button
           type='button'
           role='switch'
@@ -204,16 +218,8 @@ function McpServerRow(props: {
       <div className={css.mcpTarget} title={target}>{target !== '' ? target : '—'}</div>
       {/* 只读/不可开关的原因写出来，不藏在 title 里：键盘与读屏都到不了 title。 */}
       {reason !== undefined ? <div className={css.mcpReason}>{reason}</div> : null}
-      {open
-        ? (
-          <McpDetail
-            server={server}
-            busy={busy}
-            onEdit={props.onEdit}
-            onAskRemove={props.onAskRemove}
-          />
-        )
-        : null}
+      {editReason !== undefined ? <div className={css.mcpReason}>{editReason}</div> : null}
+      {open ? <McpDetail server={server} /> : null}
     </div>
   )
 }

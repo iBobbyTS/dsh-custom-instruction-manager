@@ -122,9 +122,9 @@ describe('MCP page', () => {
 
   it('locks every switch while one toggle is in flight', () => {
     const html = render({ busyEntry: 'mcp-codegraph' })
-    // 4 台服务器 → 4 个开关，外加「新增服务器」按钮；飞行中全部禁用，
-    // 避免并发响应互相覆盖。
-    expect(html.match(/disabled=""/g)).toHaveLength(5)
+    // 4 台服务器 → 4 个开关 + 「新增服务器」+ 3 个「编辑」+ 1 个「删除」；
+    // 飞行中这些按钮全部禁用，避免并发响应互相覆盖。
+    expect(html.match(/disabled=""/g)).toHaveLength(9)
   })
 
   it('expands a server into its tool list', () => {
@@ -168,15 +168,30 @@ describe('MCP page', () => {
     expect(toggleFailed).toContain('开关失败：row has no id')
   })
 
-  it('offers edit for editable rows and delete only for rows managed here', () => {
+  it('offers edit on the row itself, without expanding the row first', () => {
     const collapsed = render()
-    expect(collapsed).not.toContain('>删除<')
+    // 3 台可编辑的行（codegraph / playwright / remote）直接有「编辑」，
+    // 只有本页建的行才有「删除」。
+    expect(collapsed.match(/>编辑</g)).toHaveLength(3)
+    expect(collapsed.match(/>删除</g)).toHaveLength(1)
+    // 不可寻址的行不给编辑按钮，只在行上说明原因。
+    expect(collapsed).toContain('这一行在补丁里没有 id')
+    // 展开只是看配置与工具清单，不再额外长出动作按钮。
+    const expanded = render({ expanded: new Set(['mcp-codegraph', 'mcp-pw', 'mcp-sub']) })
+    expect(expanded.match(/>编辑</g)).toHaveLength(3)
+  })
 
-    const html = render({ expanded: new Set(['mcp-codegraph', 'mcp-pw', 'mcp-sub']) })
-    expect(html).toContain('>编辑<')
-    expect(html).toContain('>删除<')
-    // 不可寻址的行只说明原因，不给编辑按钮。
-    expect(html).toContain('这一行在补丁里没有唯一 id')
+  it('states why a row cannot be edited when the toggle itself is fine', () => {
+    const noEditor = render({
+      data: { ...data, servers: [server({ entryId: 'mcp-x', serverName: 'x', editable: false, editBlockedReason: 'no-editor' })] },
+    })
+    expect(noEditor).not.toContain('>编辑<')
+    expect(noEditor).toContain('当前部署没有提供 dsh 的配置编辑服务')
+
+    const invalid = render({
+      data: { ...data, servers: [server({ entryId: 'mcp-y', serverName: 'y', editable: false, editBlockedReason: 'invalid-config' })] },
+    })
+    expect(invalid).toContain('面板无法安全重写的形状')
   })
 
   it('marks managed rows with a badge', () => {

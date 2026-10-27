@@ -578,9 +578,11 @@
 .mcpToolParams { color: var(--hub-text-3); font-size: 11.5px; line-height: 16px; }
 .mcpToolEmpty { color: var(--hub-text-4); font-size: 12px; line-height: 18px; }
 .mcpOrphans { display: flex; flex-direction: column; gap: 4px; }
-/* 行内动作：只有展开时才出现，右对齐。 */
-.mcpActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 2px; }
-.mcpEditBlocked { margin-right: auto; color: var(--hub-text-3); font-size: 12px; line-height: 18px; }
+/* 行内动作：编辑/删除常驻行头（不等展开），点击区域比主按钮小一圈。 */
+.mcpRowActions { display: flex; align-items: center; gap: 4px; flex: none; }
+.mcpRowAction { height: 24px; padding: 0 8px; border: .5px solid transparent; border-radius: var(--dsw-radius-sm, 8px); background: transparent; color: var(--hub-text-2); font: inherit; font-size: 12px; line-height: 22px; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.mcpRowAction:hover:not(:disabled) { background: var(--hub-surface); color: var(--hub-text); }
+.mcpRowAction:disabled { opacity: .45; cursor: default; }
 
 /* MCP 服务器表单（对话框）。 */
 .mcpForm { display: flex; flex-direction: column; gap: 10px; }
