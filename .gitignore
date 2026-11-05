@@ -6,3 +6,4 @@ lib/
 docs/
 .workbuddy/
 index.js
+.build
