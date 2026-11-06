@@ -1,3 +1,4 @@
+import { skillInvocations } from './stats/scan.ts'
 import { describe, expect, it } from 'vitest'
 import { asPersistenceSeam, countSkillInvocations, createSkillStatsReader, readColdSkillStats, readSkillStats, STATS_FREEZE_AFTER_MS, type SessionPersistenceLike, type SessionQueryLike } from './stats.ts'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
@@ -242,7 +243,7 @@ describe('frozen-bucket incremental scans', () => {
       checkpoint: {
         windowDays: 0,
         frozenBefore: NOW - 10 * DAY,
-        frozenSessions: { 'frozen-skill': { createdAt: NOW - 30 * DAY, counts: { oldskill: { count: 5, lastUsed: NOW - 20 * DAY } } } },
+        frozenSessions: { 'frozen-skill': { createdAt: NOW - 30 * DAY, invocations: skillInvocations({ events: Array.from({ length: 5 }, (_, i) => invocationEvent('oldskill', i, NOW - 20 * DAY)) }) } },
         lastFullReconcile: NOW - 3_600_000, // 1h ago → incremental path
       },
       onCheckpoint: () => { checkpoints += 1 },
@@ -287,7 +288,7 @@ describe('frozen-bucket incremental scans', () => {
       windowDays: 0,
       frozenBefore: NOW - STATS_FREEZE_AFTER_MS,
       // 全历史模式（windowDays=0）：冻结会话进缓存且仍计入总数。
-      frozenSessions: { ancient: { createdAt: NOW - 30 * DAY, counts: { a: { count: 1, lastUsed: 5 } } } },
+      frozenSessions: { ancient: { createdAt: NOW - 30 * DAY, invocations: skillInvocations({ events: [invocationEvent('a', 1, 5)] }) } },
       lastFullReconcile: NOW,
       lastTotals: [
         { name: 'a', count: 1, lastUsed: 5 },
@@ -349,7 +350,7 @@ describe('frozen-bucket incremental scans', () => {
   it('skips unreadable recent sessions on incremental scans without failing', async () => {
     const reads: string[] = []
     const query = fakeQuery(
-      [record('bad', NOW - 2 * DAY), record('good', NOW - 1 * DAY)],
+      [record('cached', NOW - 30 * DAY), record('bad', NOW - 2 * DAY), record('good', NOW - 1 * DAY)],
       { bad: 'corrupt', good: [invocationEvent('tdd', 1)] },
       reads,
     )
@@ -358,7 +359,7 @@ describe('frozen-bucket incremental scans', () => {
       checkpoint: {
         windowDays: 0,
         frozenBefore: NOW - 10 * DAY,
-        frozenSessions: { cached: { createdAt: NOW - 30 * DAY, counts: { oldskill: { count: 3, lastUsed: 0 } } } },
+        frozenSessions: { cached: { createdAt: NOW - 30 * DAY, invocations: skillInvocations({ events: Array.from({ length: 3 }, (_, i) => invocationEvent('oldskill', i, 0)) }) } },
         lastFullReconcile: NOW - 3_600_000,
       },
     })
@@ -483,7 +484,7 @@ describe('rolling stats window (configurable days)', () => {
       windowDays: 7,
       frozenBefore: NOW - 7 * DAY,
       frozenSessions: {
-        'stale-entry': { createdAt: NOW - 10 * DAY, counts: { oldskill: { count: 9, lastUsed: NOW - 10 * DAY } } },
+        'stale-entry': { createdAt: NOW - 10 * DAY, invocations: skillInvocations({ events: Array.from({ length: 9 }, (_, i) => invocationEvent('oldskill', i, NOW - 10 * DAY)) }) },
       },
       lastFullReconcile: NOW - 1000, // 对账未到期 → 增量路径
     }

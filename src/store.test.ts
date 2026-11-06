@@ -317,9 +317,10 @@ describe('SkillHubStore', () => {
     }), 'utf8')
     expect(await store.getSkillStatsState()).toBeUndefined()
     const checkpoint = {
+      identityVersion: 1 as const,
       windowDays: 0,
       frozenBefore: 1000,
-      frozenSessions: { 'session-a': { createdAt: 900, counts: { tdd: { count: 7, lastUsed: 900 }, 'code-review': { count: 2, lastUsed: 800 } } } },
+      frozenSessions: { 'session-a': { createdAt: 900, invocations: [{ key: 'call-a', name: 'tdd', time: 900, inherited: false }] } },
       lastFullReconcile: 1234,
     }
     await store.saveSkillStatsState(checkpoint)
@@ -329,6 +330,15 @@ describe('SkillHubStore', () => {
     const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; skillStats?: unknown }
     expect(raw.version).toBe(6)
     expect(raw.skillStats).toEqual(checkpoint)
+  })
+
+  it('invalidates aggregate-only stats instead of migrating fork-ambiguous counts', async () => {
+    await writeFile(file, JSON.stringify({ version: 6, disabled: [], skillStats: {
+      windowDays: 0, frozenBefore: 1, frozenSessions: {}, lastFullReconcile: 100,
+      lastTotals: [{ name: 'tdd', count: 2 }],
+      coldRevisions: { source: { rev: 'r1', createdAt: 1, counts: { tdd: { count: 2, lastUsed: 1 } } } },
+    } }), 'utf8')
+    expect(await store.getSkillStatsState()).toBeUndefined()
   })
 
   it('drops a corrupt skillStats bucket instead of trusting bad counts', async () => {
@@ -345,26 +355,27 @@ describe('SkillHubStore', () => {
       version: 4,
       disabled: [],
       skillStats: {
+        identityVersion: 1,
         windowDays: 14,
         frozenBefore: 1000,
         frozenSessions: {},
         lastFullReconcile: 1234,
         coldRevisions: {
-          good: { rev: 'r1', createdAt: 900, counts: { tdd: { count: 3, lastUsed: 900 } } },
-          'bad-rev': { rev: 42, createdAt: 900, counts: {} },
-          'bad-counts': { rev: 'r1', createdAt: 900, counts: { tdd: { count: 'many', lastUsed: 1 } } },
+          good: { rev: 'r1', createdAt: 900, invocations: [{ key: 'call-a', name: 'tdd', time: 900, inherited: true }] },
+          'bad-rev': { rev: 42, createdAt: 900, invocations: [] },
+          'bad-counts': { rev: 'r1', createdAt: 900, invocations: [{ key: 'bad', name: 'tdd', time: 'yesterday', inherited: true }] },
         },
       },
     }), 'utf8')
     // 好条目保留并写盘回读一致；坏条目被清洗（重读一次即可恢复）。
     expect(await store.getSkillStatsState()).toEqual({
+      identityVersion: 1,
       windowDays: 14,
       frozenBefore: 1000,
       frozenSessions: {},
       lastFullReconcile: 1234,
       coldRevisions: {
-        good: { rev: 'r1', createdAt: 900, counts: { tdd: { count: 3, lastUsed: 900 } } },
-        'bad-counts': { rev: 'r1', createdAt: 900, counts: {} },
+        good: { rev: 'r1', createdAt: 900, invocations: [{ key: 'call-a', name: 'tdd', time: 900, inherited: true }] },
       },
     })
   })

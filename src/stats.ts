@@ -10,6 +10,10 @@
  *    'skill-invocation'` (the MessageSourceMap augmentation from
  *    @deepseek-ai/dsh-skill).
  *
+ * Fork copies share invocation identity and count once across retained logs.
+ * Deleting the original keeps a surviving copy; independent own calls stay distinct.
+ * Only identity hashes, names and timestamps enter the derived scan cache.
+ *
  * Counting is per-skill-name, not per-source: a name may resolve to different
  * files across projects, but the model-facing identity is the kebab-case name.
  *
@@ -28,7 +32,7 @@
  *    repeat cost to the recent window: a full scan decompresses every session
  *    log, which grows linearly with total history. Sessions older than the
  *    effective watermark are therefore treated as finalized — their
- *    per-session counts live in the checkpoint (persisted by the host via the
+ *    per-session invocation identities live in the checkpoint (persisted by the host via the
  *    sidecar) and are skipped on incremental scans; only the recent window is
  *    re-read. A daily full reconciliation rebuilds the cache and advances the
  *    watermark, so a resumed old session is eventually re-counted. On top of
@@ -44,9 +48,9 @@
  * instead of up to a day later.
  */
 
-import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SkillStat, SkillStatsCheckpoint } from './protocol.ts'
-import type { SessionPersistenceLike, SessionQueryLike } from './stats/persistence.ts'
+import type { SessionPersistenceLike, SessionQueryLike, SkillStatsLog } from './stats/persistence.ts'
 import { scan, scanCold, STATS_TTL_SCAN_FACTOR } from './stats/scan.ts'
 
 export { asPersistenceSeam } from './stats/persistence.ts'
@@ -92,7 +96,7 @@ export interface SkillStatsReaderOptions {
   /** Live session ids (usually 0-2) read through the query seam, not the cache. */
   listLiveIds?: () => Promise<readonly SessionId[]>
   /** Full current log of one live session; undefined skips it for this scan. */
-  readLiveSession?: (id: SessionId) => Promise<{ events: SessionEvent[] } | undefined>
+  readLiveSession?: (id: SessionId) => Promise<SkillStatsLog | undefined>
 }
 
 /**
@@ -138,7 +142,7 @@ export function createSkillStatsReader(query: SessionQueryLike, ttlMs: number | 
             }
             return scanCold(options.persistence as SessionPersistenceLike, checkpoint, startedAt, windowDays, liveIds, async (id) => {
               const snapshot = await options.readLiveSession?.(id)
-              return snapshot?.events
+              return snapshot
             })
           })()
         : scan(query, checkpoint, startedAt, windowDays).then(({ stats }) => stats)

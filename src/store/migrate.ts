@@ -1,3 +1,4 @@
+import type { SkillInvocation } from '../protocol/stats.ts'
 import type { HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SourceRecord, TrashEntry } from '../protocol.ts'
 import { isValidRepoRoot } from '../protocol/repo.ts'
 import { STORE_VERSION } from './paths.ts'
@@ -172,70 +173,58 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
     }
   }
 
-  /**
-   * Validate the cold-path revision bucket: corrupt entries degrade to a
-   * re-read (the revision simply misses), never to bad counts.
-   */
-  function cleanColdRevisions(raw: unknown): { coldRevisions?: SkillStatsCheckpoint['coldRevisions'] } {
-    if (raw === null || typeof raw !== 'object') return {}
-    const revisions: NonNullable<SkillStatsCheckpoint['coldRevisions']> = {}
-    for (const [id, entry] of Object.entries(raw as Record<string, unknown>)) {
-      if (entry === null || typeof entry !== 'object') continue
-      const { rev, createdAt, counts } = entry as { rev?: unknown; createdAt?: unknown; counts?: unknown }
-      if (typeof rev !== 'string' || typeof createdAt !== 'number' || counts === null || typeof counts !== 'object') continue
-      const clean: Record<string, { count: number; lastUsed: number }> = {}
-      for (const [name, stat] of Object.entries(counts as Record<string, unknown>)) {
-        if (stat !== null && typeof stat === 'object'
-          && typeof (stat as { count?: unknown }).count === 'number'
-          && typeof (stat as { lastUsed?: unknown }).lastUsed === 'number') {
-          clean[name] = { count: (stat as { count: number }).count, lastUsed: (stat as { lastUsed: number }).lastUsed }
-        }
-      }
-      revisions[id] = { rev, createdAt, counts: clean }
+  /** Invalid derived invocation identities trigger a re-read, never a guessed count. */
+  function cleanInvocations(raw: unknown): SkillInvocation[] | undefined {
+    if (!Array.isArray(raw)) return undefined
+    const calls: SkillInvocation[] = []
+    for (const item of raw) {
+      if (item === null || typeof item !== 'object') return undefined
+      const { key, name, time, inherited } = item as Record<string, unknown>
+      if (typeof key !== 'string' || typeof name !== 'string' || typeof time !== 'number'
+        || !Number.isFinite(time) || typeof inherited !== 'boolean') return undefined
+      calls.push({ key, name, time, inherited })
     }
-    return { coldRevisions: revisions }
+    return calls
   }
 
-  let skillStats: SkillStatsCheckpoint | undefined = undefined
+  let skillStats: SkillStatsCheckpoint | undefined
   const savedStats = migrated.skillStats as Partial<SkillStatsCheckpoint> | null | undefined
-  if (savedStats !== null && typeof savedStats === 'object'
+  if (savedStats !== null && typeof savedStats === 'object' && savedStats.identityVersion === 1
     && typeof savedStats.frozenBefore === 'number' && typeof savedStats.lastFullReconcile === 'number'
     && typeof savedStats.windowDays === 'number'
     && typeof savedStats.frozenSessions === 'object' && savedStats.frozenSessions !== null) {
-    // Validate entry shapes too: a corrupt bucket degrades to a fresh
-    // checkpoint (one extra full reconciliation), never to bad counts.
     const sessions: SkillStatsCheckpoint['frozenSessions'] = {}
+    const revisions: NonNullable<SkillStatsCheckpoint['coldRevisions']> = {}
+    // Older aggregate-only caches carry no identityVersion and are rebuilt.
     for (const [id, entry] of Object.entries(savedStats.frozenSessions)) {
-      if (entry === null || typeof entry !== 'object' || typeof entry.createdAt !== 'number'
-        || typeof entry.counts !== 'object' || entry.counts === null) continue
-      const counts: Record<string, { count: number; lastUsed: number }> = {}
-      for (const [name, stat] of Object.entries(entry.counts)) {
-        if (stat !== null && typeof stat === 'object'
-          && typeof (stat as { count?: unknown }).count === 'number'
-          && typeof (stat as { lastUsed?: unknown }).lastUsed === 'number') {
-          counts[name] = { count: (stat as { count: number }).count, lastUsed: (stat as { lastUsed: number }).lastUsed }
-        }
+      if (entry === null || typeof entry !== 'object') continue
+      const invocations = cleanInvocations(entry.invocations)
+      if (typeof entry.createdAt === 'number' && invocations !== undefined) {
+        sessions[id] = { createdAt: entry.createdAt, invocations }
       }
-      sessions[id] = { createdAt: entry.createdAt, counts }
     }
-    const rawTotals = (savedStats as { lastTotals?: unknown }).lastTotals
+    for (const [id, entry] of Object.entries(savedStats.coldRevisions ?? {})) {
+      if (entry === null || typeof entry !== 'object') continue
+      const invocations = cleanInvocations(entry.invocations)
+      if (typeof entry.rev === 'string' && typeof entry.createdAt === 'number' && invocations !== undefined) {
+        revisions[id] = { rev: entry.rev, createdAt: entry.createdAt, invocations }
+      }
+    }
+    const rawTotals = savedStats.lastTotals
     const lastTotals = Array.isArray(rawTotals)
-      ? rawTotals.filter((entry): entry is { name: string; count: number; lastUsed?: number } =>
-          entry !== null && typeof entry === 'object'
-          && typeof (entry as { name?: unknown }).name === 'string'
-          && typeof (entry as { count?: unknown }).count === 'number').map((entry) => ({
-            name: (entry as { name: string }).name,
-            count: (entry as { count: number }).count,
-            ...(typeof (entry as { lastUsed?: unknown }).lastUsed === 'number' ? { lastUsed: (entry as { lastUsed: number }).lastUsed } : {}),
-          }))
-      : undefined
+      ? rawTotals.filter(entry => entry !== null && typeof entry === 'object'
+        && typeof entry.name === 'string' && typeof entry.count === 'number')
+        .map(({ name, count, lastUsed }) => ({ name, count,
+          ...(typeof lastUsed === 'number' ? { lastUsed } : {}),
+        })) : undefined
     skillStats = {
+      identityVersion: 1,
       windowDays: savedStats.windowDays,
       frozenBefore: savedStats.frozenBefore,
       frozenSessions: sessions,
       lastFullReconcile: savedStats.lastFullReconcile,
-      ...(lastTotals !== undefined ? { lastTotals } : {}),
-      ...cleanColdRevisions((savedStats as { coldRevisions?: unknown }).coldRevisions),
+      ...(lastTotals === undefined ? {} : { lastTotals }),
+      ...(savedStats.coldRevisions === undefined ? {} : { coldRevisions: revisions }),
     }
   }
 

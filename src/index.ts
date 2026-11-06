@@ -416,7 +416,7 @@ export function apply(ctx: Context, config?: Config): void {
           },
           readLiveSession: async (id) => {
             try {
-              return { events: (await query.readSession(id)).events }
+              return await query.readSession(id)
             } catch {
               return undefined
             }

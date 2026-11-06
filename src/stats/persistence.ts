@@ -1,9 +1,15 @@
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 
+/** Session log plus its exact fork-inherited prefix length. */
+export interface SkillStatsLog {
+  events: readonly SessionEvent[]
+  inheritedEventCount?: number
+}
+
 /** Narrow structural view of the session-query service (kept loose for tests). */
 export interface SessionQueryLike {
   listSessions(signal?: AbortSignal): Promise<Array<{ header: { id: SessionId; createdAt?: number } }>>
-  readSession(id: SessionId): Promise<{ events: SessionEvent[] }>
+  readSession(id: SessionId): Promise<SkillStatsLog>
 }
 
 /**
@@ -20,7 +26,7 @@ export interface ColdSessionSnapshot {
 
 /** One read handle over a stored session log (always closed after counting). */
 export interface ColdSessionHandle {
-  read(): Promise<{ events: SessionEvent[] }>
+  read(): Promise<SkillStatsLog>
   close(): Promise<void> | void
 }
 
@@ -67,7 +73,7 @@ export function asPersistenceSeam(service: unknown): SessionPersistenceLike | un
     open: async (id, access) => {
       const raw = await openFn(id, access)
       if (raw === null || typeof raw !== 'object') throw new Error('persistence handle shape mismatch')
-      const { read, close } = raw as { read?: unknown; close?: unknown }
+      const { read, close, inheritedEventCount } = raw as { read?: unknown; close?: unknown; inheritedEventCount?: unknown }
       if (typeof read !== 'function' || typeof close !== 'function') throw new Error('persistence handle shape mismatch')
       const readFn = (read as (offset: number, length: undefined) => Promise<unknown>).bind(raw)
       const closeFn = (close as () => Promise<void> | void).bind(raw)
@@ -76,7 +82,10 @@ export function asPersistenceSeam(service: unknown): SessionPersistenceLike | un
           const out = await readFn(0, undefined)
           const events = (out as { events?: unknown } | null)?.events
           if (!Array.isArray(events)) throw new Error('persistence read shape mismatch')
-          return { events: events as SessionEvent[] }
+          return { events: events as SessionEvent[],
+            ...(Number.isSafeInteger(inheritedEventCount) && (inheritedEventCount as number) >= 0
+              ? { inheritedEventCount: inheritedEventCount as number } : {}),
+          }
         },
         close: () => closeFn(),
       }

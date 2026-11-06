@@ -354,6 +354,7 @@ export class SkillHubStore {
   async saveSkillStatsState(state: SkillStatsCheckpoint): Promise<void> {
     await this.ensureLoaded()
     this.skillStats = {
+      identityVersion: 1,
       windowDays: state.windowDays,
       frozenBefore: state.frozenBefore,
       frozenSessions: { ...state.frozenSessions },

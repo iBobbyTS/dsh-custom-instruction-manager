@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: pulls the 'skill-invocation' MessageSourceMap augmentation.
 import type {} from '@deepseek-ai/dsh-skill'
 import { mapConcurrent } from '../concurrency.ts'
 import type { SkillStat, SkillStatsCheckpoint } from '../protocol.ts'
-import type { SessionPersistenceLike, SessionQueryLike } from './persistence.ts'
+import type { SkillInvocation } from '../protocol/stats.ts'
+import type { SessionPersistenceLike, SessionQueryLike, SkillStatsLog } from './persistence.ts'
 
 /** Fallback freeze horizon when no rolling window is configured (14 days). */
 export const STATS_FREEZE_AFTER_MS = 14 * 24 * 60 * 60 * 1000
@@ -21,37 +23,59 @@ export interface InvocationStat {
   lastUsed: number
 }
 
+/** Extract only invocation identity, skill name and time; never cache message bodies. */
+export function skillInvocations(log: SkillStatsLog): SkillInvocation[] {
+  const invocations: SkillInvocation[] = []
+  for (const event of log.events) {
+    let name: string | undefined
+    let identity: unknown
+    if (event.type === 'user/message' && event.data.source.kind === 'skill-invocation') {
+      name = event.data.source.name
+      identity = event.data.id
+    } else if (event.type === 'tool/call' && event.data.name === 'skill') {
+      try {
+        const parsed: unknown = JSON.parse(event.data.arguments)
+        if (parsed !== null && typeof parsed === 'object' && typeof (parsed as { name?: unknown }).name === 'string') {
+          name = (parsed as { name: string }).name
+          identity = event.data.callId
+        }
+      } catch { /* malformed tool arguments contain no usable invocation */ }
+    }
+    if (!name) continue
+    invocations.push({
+      key: createHash('sha256').update(JSON.stringify([event.type, identity, event.seq, event.time, name])).digest('hex'),
+      name, time: event.time, inherited: event.seq < (log.inheritedEventCount ?? 0),
+    })
+  }
+  return invocations
+}
+
 /** Collect per-skill invocation counts and last-used times from one session. */
 export function countSkillInvocations(events: readonly SessionEvent[]): Map<string, InvocationStat> {
-  const stats = new Map<string, InvocationStat>()
-  const bump = (name: string, time: number): void => {
-    if (name === '') return
-    const current = stats.get(name)
-    if (current === undefined) stats.set(name, { count: 1, lastUsed: time })
-    else {
-      current.count += 1
-      if (time > current.lastUsed) current.lastUsed = time
-    }
-  }
-  for (const event of events) {
-    if (event.type === 'user/message') {
-      const source = event.data.source
-      if (source.kind === 'skill-invocation') bump(source.name, event.time)
-    } else if (event.type === 'tool/call') {
-      const call = event.data
-      if (call.name === 'skill') {
-        // arguments is the raw JSON string; extract the requested skill name.
-        try {
-          const parsed: unknown = JSON.parse(call.arguments)
-          if (typeof parsed === 'object' && parsed !== null) {
-            const name = (parsed as { name?: unknown }).name
-            if (typeof name === 'string') bump(name, event.time)
-          }
-        } catch { /* unparseable arguments skip */ }
+  return new Map(aggregateInvocations([{ id: '', invocations: skillInvocations({ events }) }])
+    .map(({ name, count, lastUsed }) => [name, { count, lastUsed: lastUsed ?? 0 }]))
+}
+
+/** Copies share an event identity, but independent own calls remain separate. */
+function aggregateInvocations(sessions: readonly { id: string; invocations: readonly SkillInvocation[] }[]): SkillStat[] {
+  const groups = new Map<string, { name: string; time: number; own: Set<string> }>()
+  for (const { id, invocations } of sessions) {
+    for (const call of invocations) {
+      let group = groups.get(call.key)
+      if (group === undefined) {
+        group = { name: call.name, time: call.time, own: new Set() }
+        groups.set(call.key, group)
       }
+      if (!call.inherited) group.own.add(id)
     }
   }
-  return stats
+  const totals: Totals = {}
+  for (const group of groups.values()) {
+    const stat = totals[group.name] ??= { count: 0, lastUsed: group.time }
+    stat.count += Math.max(1, group.own.size)
+    stat.lastUsed = Math.max(stat.lastUsed, group.time)
+  }
+  return toSorted(totals)
 }
 
 /** Aggregated totals bucket keyed by skill name. */
@@ -70,17 +94,6 @@ function isFrozen(record: { header: { createdAt?: number } }, watermark: number)
  * this stays 1: at most one restored log is resident and a heavy corpus costs
  * wall time, never a memory spike. The cold path reads sequentially anyway. */
 const SCAN_READ_CONCURRENCY = 1
-
-function mergeInto(totals: Totals, counted: Map<string, InvocationStat>): void {
-  for (const [name, stat] of counted) {
-    const total = totals[name]
-    if (total === undefined) totals[name] = { ...stat }
-    else {
-      total.count += stat.count
-      if (stat.lastUsed > total.lastUsed) total.lastUsed = stat.lastUsed
-    }
-  }
-}
 
 function toSorted(totals: Totals): SkillStat[] {
   return Object.entries(totals)
@@ -117,66 +130,39 @@ export async function scan(query: SessionQueryLike, checkpoint: SkillStatsCheckp
   const cutoff = watermarkFor(windowDays, nowMs)
   const dueFullScan = nowMs - checkpoint.lastFullReconcile >= STATS_FULL_RECONCILE_MS
     || checkpoint.windowDays !== windowDays
-
+  if (dueFullScan) checkpoint.frozenSessions = {}
+  const included: Array<{ id: string; invocations: SkillInvocation[] }> = []
+  const seen = new Set(sessions.map(record => String(record.header.id)))
+  for (const id of Object.keys(checkpoint.frozenSessions)) {
+    if (!seen.has(id)) delete checkpoint.frozenSessions[id]
+  }
+  await mapConcurrent(sessions, SCAN_READ_CONCURRENCY, async (record) => {
+    const id = String(record.header.id)
+    const created = record.header.createdAt
+    if (!inWindow(created, windowDays, nowMs)) {
+      delete checkpoint.frozenSessions[id]
+      return
+    }
+    const cached = checkpoint.frozenSessions[id]
+    if (!dueFullScan && cached !== undefined) {
+      included.push({ id, invocations: cached.invocations })
+      return
+    }
+    if (!dueFullScan && isFrozen(record, checkpoint.frozenBefore)) return
+    try {
+      const invocations = skillInvocations(await query.readSession(record.header.id))
+      if (dueFullScan && invocations.length > 0 && (isFrozen(record, cutoff) || !(typeof created === 'number' && created > 0))) {
+        checkpoint.frozenSessions[id] = { createdAt: created ?? 0, invocations }
+      }
+      included.push({ id, invocations })
+    } catch { /* unreadable sessions are skipped, never fatal */ }
+  })
   if (dueFullScan) {
-    const cache: SkillStatsCheckpoint['frozenSessions'] = {}
-    const totals: Totals = {}
-    const countedList = await mapConcurrent(sessions, SCAN_READ_CONCURRENCY, async (record) => {
-      try {
-        return countSkillInvocations((await query.readSession(record.header.id)).events)
-      } catch {
-        return undefined // unreadable sessions are skipped, never fatal
-      }
-    })
-    sessions.forEach((record, index) => {
-      const counted = countedList[index]
-      if (counted === undefined) return
-      const created = record.header.createdAt
-      const id = record.header.id as unknown as string
-      // Sessions without a usable timestamp never freeze by time, so cache
-      // them explicitly once read — otherwise they are re-read on every
-      // incremental scan forever.
-      if (counted.size > 0 && (isFrozen(record, cutoff) || !(typeof created === 'number' && created > 0))) {
-        cache[id] = { createdAt: typeof created === 'number' ? created : 0, counts: Object.fromEntries(counted) }
-      }
-      if (inWindow(created, windowDays, nowMs)) mergeInto(totals, counted)
-    })
-    checkpoint.frozenSessions = cache
     checkpoint.frozenBefore = cutoff
     checkpoint.windowDays = windowDays
     checkpoint.lastFullReconcile = nowMs
-    return { stats: toSorted(totals), mutated: true }
   }
-
-  const recent: Totals = {}
-  const frozenIds = checkpoint.frozenSessions
-  const unfrozen = sessions.filter((record) =>
-    !Object.prototype.hasOwnProperty.call(frozenIds, record.header.id as unknown as string)
-    && !isFrozen(record, checkpoint.frozenBefore))
-  const recentList = await mapConcurrent(unfrozen, SCAN_READ_CONCURRENCY, async (record) => {
-    try {
-      return countSkillInvocations((await query.readSession(record.header.id)).events)
-    } catch {
-      return undefined // unreadable sessions are skipped, never fatal
-    }
-  })
-  // 窗口过滤在增量路径同样生效：unfrozen 只代表"水位之后"，不等于"窗口之内"
-  // （时间推进会把它挤出去），否则滑出窗口的会话会被多算到下一次全量对账。
-  unfrozen.forEach((record, index) => {
-    const counted = recentList[index]
-    if (counted === undefined) return
-    if (inWindow(record.header.createdAt, windowDays, nowMs)) mergeInto(recent, counted)
-  })
-  const totals: Totals = {}
-  for (const [id, entry] of Object.entries(checkpoint.frozenSessions)) {
-    if (entry.createdAt > 0 && !inWindow(entry.createdAt, windowDays, nowMs)) {
-      delete checkpoint.frozenSessions[id] // lazily prune entries provably outside the window
-      continue
-    }
-    mergeInto(totals, new Map(Object.entries(entry.counts)))
-  }
-  mergeInto(totals, new Map(Object.entries(recent)))
-  return { stats: toSorted(totals), mutated: false }
+  return { stats: aggregateInvocations(included), mutated: dueFullScan }
 }
 
 /**
@@ -197,10 +183,10 @@ export async function scanCold(
   nowMs: number,
   windowDays: number,
   liveIds: ReadonlySet<string> = new Set(),
-  readLive: (id: SessionId) => Promise<readonly SessionEvent[] | undefined> = async () => undefined,
+  readLive: (id: SessionId) => Promise<SkillStatsLog | undefined> = async () => undefined,
 ): Promise<SkillStat[]> {
   const revisions = checkpoint.coldRevisions ?? (checkpoint.coldRevisions = {})
-  const totals: Totals = {}
+  const included: Array<{ id: string; invocations: SkillInvocation[] }> = []
   const snapshots = await persistence.list()
   const seen = new Set<string>()
   for (const snapshot of snapshots) {
@@ -215,14 +201,14 @@ export async function scanCold(
     const rev = snapshot.revision
     const cached = revisions[id]
     if (cached !== undefined && cached.rev === rev) {
-      mergeInto(totals, new Map(Object.entries(cached.counts)))
+      included.push({ id, invocations: cached.invocations })
       continue
     }
-    let counted: Map<string, InvocationStat> | undefined
+    let invocations: SkillInvocation[]
     try {
       const handle = await persistence.open(snapshot.header.id, 'read')
       try {
-        counted = countSkillInvocations((await handle.read()).events)
+        invocations = skillInvocations(await handle.read())
       } finally {
         await handle.close()
       }
@@ -232,24 +218,24 @@ export async function scanCold(
     revisions[id] = {
       rev,
       createdAt: typeof created === 'number' ? created : 0,
-      counts: Object.fromEntries(counted),
+      invocations,
     }
-    mergeInto(totals, counted)
+    included.push({ id, invocations })
   }
   for (const id of Object.keys(revisions)) {
     if (!seen.has(id)) delete revisions[id] // sessions gone from the listing leave the cache
   }
   for (const id of liveIds) {
-    let events: readonly SessionEvent[] | undefined
+    let log: SkillStatsLog | undefined
     try {
-      events = await readLive(id as unknown as SessionId)
+      log = await readLive(id as unknown as SessionId)
     } catch {
       continue
     }
-    if (events === undefined) continue
-    mergeInto(totals, countSkillInvocations(events))
+    if (log === undefined) continue
+    included.push({ id, invocations: skillInvocations(log) })
   }
-  return toSorted(totals)
+  return aggregateInvocations(included)
 }
 
 /**
