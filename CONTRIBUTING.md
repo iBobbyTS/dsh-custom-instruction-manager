@@ -7,7 +7,7 @@ Thanks for considering a contribution to **dsh-skill-hub**. This project is a
   dsh SDKs, and
 - the **browser half** (`src/client/`) renders inside the web GUI through official slots.
 
-Please keep both halves on official APIs — no dsh source patches.
+Development boundaries are owned by [AGENTS.md](https://github.com/iBobbyTS/dsh-custom-instruction-manager/blob/main/AGENTS.md).
 
 ## Layout
 
@@ -39,27 +39,24 @@ src/client/locales/     dictionaries by view (common/skills/market/sources/detai
 ```bash
 npm install
 npm run typecheck   # tsc --noEmit
-npm test            # vitest (306 tests across 16 suites)
+npm test            # vitest
 npm run build       # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
 ```
 
 ## Before opening a pull request
 
-1. **Typecheck** — `npm run typecheck` must pass.
-2. **Tests** — `npm test` must pass; add/adjust tests for any behavior change. Suites sit next to the
-   code they cover (`src/*.test.ts`, `src/routes/*.test.ts`) and mirror the real
-   route/store/filesystem/provider behavior. The browser half has no component-test harness
-   (vitest runs in the node environment); keep browser changes mechanical and verify them in the
-   live GUI.
-3. **Build** — `npm run build` must produce `lib/index.js` and `lib/client.js`.
+Choose validation for the affected surface:
+
+1. **Typecheck** — run `npm run typecheck` for TypeScript changes.
+2. **Tests** — run the relevant existing Vitest suites for changed behavior; add or adjust a distinguishing regression when needed. `npm test -- <test-file>` selects a suite. The Client includes SSR component checks, such as `McpView.test.ts` and `TokenTable.test.ts`, which verify rendered markup. They do not cover real browser interaction or layout; check those affected paths in the live GUI.
+3. **Build** — after implementation or build-configuration changes, run `npm run build` to refresh `lib/index.js` and `lib/client.js`.
 4. **Keep the diff focused** — one logical change per PR, with a clear title and description.
-5. **Documentation** — update `README.md` **and** `README.zh.md` (both ship with the package and are
-   kept in sync) when behavior or the API surface changes.
+5. **Documentation** — check changed instructions, links and examples; keep both language entry points consistent. Detailed user/API behavior belongs in `docs/guide.md` and `docs/guide.zh.md`.
 
 ## Code style
 
 - TypeScript, strict mode. ESM (`"type": "module"`).
-- Host routes reuse dsh's own `/api` trust fence (loopback ∪ the listener's bind address ∪ `--trusted-host` authorities ∪ the browser session) — never add a second, stricter check. Issue #17 (every route 403s behind a reverse proxy) came from exactly such a duplicate.
+- Host route trust comes from dsh's `/api` fence; see the boundary in [AGENTS.md](https://github.com/iBobbyTS/dsh-custom-instruction-manager/blob/main/AGENTS.md).
 - The browser half uses CSS Modules; keep the settings-card chrome family-bucket-compatible.
 - Comments explain *why* (routing decisions, dsh host behaviors) more than *what*.
 
@@ -69,7 +66,7 @@ npm run build       # tsc declarations + tsdown bundles (lib/index.js + lib/clie
 # after a change:
 npm run build
 # restart the dsh web process, then verify both surfaces:
-#   Settings → 技能              — the skill hub panel
+#   sidebar → Other Plugins     — the hub panel
 #   sidebar 插件 → dsh-skill-hub  — the plugin's settings card
 ```
 

@@ -159,7 +159,8 @@
     "README.zh.md",
     "LICENSE",
     "CONTRIBUTING.md",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "docs/*.md"
   ],
   "keywords": [
     "dsh-plugin",

@@ -13,7 +13,7 @@ import { apiHeaders, rateLimitResetAt } from './repo.ts'
 import type { UpdateCheckResponse } from './protocol.ts'
 
 /** Repository checked for releases. Keep in sync with package.json. */
-export const UPDATE_REPO = 'cheshireez/dsh-skill-hub'
+export const UPDATE_REPO = 'iBobbyTS/dsh-custom-instruction-manager'
 
 /** Installed plugin version, read from the package manifest. */
 const require = createRequire(import.meta.url)

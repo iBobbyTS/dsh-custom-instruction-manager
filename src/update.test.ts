@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { checkLatestRelease, compareVersions, CURRENT_VERSION, isUpdateAvailable, parseVersion } from './update.ts'
+import { checkLatestRelease, compareVersions, CURRENT_VERSION, UPDATE_REPO, isUpdateAvailable, parseVersion } from './update.ts'
 
 describe('CURRENT_VERSION', () => {
   it('matches the package manifest version', () => {
@@ -40,25 +40,38 @@ describe('isUpdateAvailable', () => {
 })
 
 describe('checkLatestRelease', () => {
+  it('uses the fork repository by default and preserves missing-release behavior', async () => {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { repository: { url: string } }
+    expect(pkg.repository.url).toBe(`git+https://github.com/${UPDATE_REPO}.git`)
+    const urls: string[] = []
+    const fetchImpl = async (url: string | URL | Request) => {
+      urls.push(String(url))
+      return new Response('', { status: 404 })
+    }
+    const result = await checkLatestRelease(undefined, fetchImpl as typeof fetch)
+    expect(urls).toEqual(['https://api.github.com/repos/iBobbyTS/dsh-custom-instruction-manager/releases/latest'])
+    expect(result).toMatchObject({ ok: true, latestVersion: null, updateAvailable: false, error: 'no release published yet' })
+  })
+
   it('reports an available update for a newer release', async () => {
-    const fetchImpl = async () => new Response(JSON.stringify({ tag_name: 'v9.9.9', html_url: 'https://github.com/cheshireez/dsh-skill-hub/releases/tag/v9.9.9' }), { status: 200 })
-    const result = await checkLatestRelease('cheshireez/dsh-skill-hub', fetchImpl as typeof fetch)
+    const fetchImpl = async () => new Response(JSON.stringify({ tag_name: 'v9.9.9', html_url: 'https://github.com/iBobbyTS/dsh-custom-instruction-manager/releases/tag/v9.9.9' }), { status: 200 })
+    const result = await checkLatestRelease(UPDATE_REPO, fetchImpl as typeof fetch)
     expect(result.ok).toBe(true)
     expect(result.latestVersion).toBe('9.9.9')
     expect(result.updateAvailable).toBe(true)
-    expect(result.url).toBe('https://github.com/cheshireez/dsh-skill-hub/releases/tag/v9.9.9')
+    expect(result.url).toBe('https://github.com/iBobbyTS/dsh-custom-instruction-manager/releases/tag/v9.9.9')
   })
 
   it('reports up to date when the latest release matches', async () => {
     const fetchImpl = async () => new Response(JSON.stringify({ tag_name: 'v' + CURRENT_VERSION }), { status: 200 })
-    const result = await checkLatestRelease('cheshireez/dsh-skill-hub', fetchImpl as typeof fetch)
+    const result = await checkLatestRelease(UPDATE_REPO, fetchImpl as typeof fetch)
     expect(result.updateAvailable).toBe(false)
     expect(result.latestVersion).toBe(CURRENT_VERSION)
   })
 
   it('treats 404 as no release', async () => {
     const fetchImpl = async () => new Response('', { status: 404 })
-    const result = await checkLatestRelease('cheshireez/dsh-skill-hub', fetchImpl as typeof fetch)
+    const result = await checkLatestRelease(UPDATE_REPO, fetchImpl as typeof fetch)
     expect(result.latestVersion).toBeNull()
     expect(result.updateAvailable).toBe(false)
     expect(result.error).toBe('no release published yet')
@@ -66,7 +79,7 @@ describe('checkLatestRelease', () => {
 
   it('surfaces fetch failures without throwing', async () => {
     const fetchImpl = async () => { throw new Error('network down') }
-    const result = await checkLatestRelease('cheshireez/dsh-skill-hub', fetchImpl as typeof fetch)
+    const result = await checkLatestRelease(UPDATE_REPO, fetchImpl as typeof fetch)
     expect(result.latestVersion).toBeNull()
     expect(result.error).toBe('network down')
   })
