@@ -6,9 +6,13 @@
 
 本项目 Fork 自 [cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-skill-hub)。**本 Fork 通过 GitHub 分发；npm 上的 `dsh-skill-hub` 是上游版本。**
 
+## 兼容性
+
+已验证：DSH 0.2.2-rc.1（源码与自动化检查）；尚未完成 Desktop 实测。
+
 ## 安装
 
-要求 Node `^22.19 || >=24` 和 DSH web `>=0.1.7-alpha.1 <0.3`。
+要求 Node `^22.19 || >=24`。
 
 在 DSH Desktop 打开 **插件 → 添加 → Git 仓库**：
 

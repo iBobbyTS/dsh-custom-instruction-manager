@@ -6,9 +6,13 @@ A GUI hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness
 
 This is a fork of [cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-skill-hub). **This fork is distributed from GitHub; the npm package `dsh-skill-hub` is the upstream release.**
 
+## Compatibility
+
+Verified: DSH 0.2.2-rc.1 (source review and automated checks); Desktop testing has not been completed.
+
 ## Install
 
-Requires Node `^22.19 || >=24` and DSH web `>=0.1.7-alpha.1 <0.3`.
+Requires Node `^22.19 || >=24`.
 
 In DSH Desktop, open **Plugins → Add → Git repository**:
 
