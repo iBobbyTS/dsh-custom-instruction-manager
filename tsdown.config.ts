@@ -15,7 +15,7 @@
  *    <style data-plugin> tag at factory execution.
  */
 import { readFile } from 'node:fs/promises'
-import { basename, dirname, resolve as resolvePath, sep } from 'node:path'
+import { basename, dirname, relative, resolve as resolvePath, sep } from 'node:path'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
 
@@ -23,23 +23,11 @@ import { transform } from 'lightningcss'
 const ID = 'dsh-skill-hub'
 
 /**
- * The shell's shared module table (vendored from dsh-web-ui's
- * shared/web-platform.ts): the only specifiers the browser loader can
- * answer. Everything else must inline.
- *
- * `@deepseek-ai/dsh-client-store` is deliberately NOT in this table: the
- * loader does not answer it, so the client bundle inlines it (see noExternal
- * below) rather than requiring it at runtime.
+ * Modules this Client consumes from DSH 0.2.2-rc.1's browser platform table.
+ * The store remains bundled to preserve the existing Client build behavior;
+ * availability in the shell does not require externalizing every dependency.
  */
-const PLATFORM_MODULES = [
-  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis',
-  '@deepseek-ai/dsh-client-ui-slots',
-  '@deepseek-ai/dsh-client-web-react',
-  '@deepseek-ai/dsh-client-schema-form',
-] as const
-
-/** Externals resolved from the loader module table. */
-const CLIENT_EXTERNALS: readonly string[] = [...PLATFORM_MODULES]
+const CLIENT_EXTERNALS: readonly string[] = ['react', 'react/jsx-runtime', 'react-dom']
 
 /**
  * Virtual-id wrapper keeping module CSS away from tsdown's own css pipeline
@@ -59,10 +47,11 @@ function libConfig(): UserConfig {
     // Emit lib/index.js (not .mjs) to match the package exports map.
     fixedExtension: false,
     platform: 'node',
-    target: 'es2024',
+    target: 'node22',
+    sourcemap: true,
     dts: false,
     // clean must stay off: a default clean would wipe the lib/types
-    // declarations tsc emitted before tsdown runs (see package.json prebuild).
+    // declarations tsc emitted before tsdown runs (see scripts/build-runtime.mjs).
     clean: false,
     // The cordis framework and the host SDK resolve at runtime from the dsh
     // profile tree, never from this package; their built declarations carry
@@ -85,6 +74,7 @@ function clientConfig(): UserConfig {
     outDir: 'lib',
     format: 'cjs',
     platform: 'browser',
+    target: 'es2022',
     dts: false,
     sourcemap: true,
     clean: false,
@@ -107,16 +97,16 @@ function clientConfig(): UserConfig {
         resolveId(source: string, importer: string | undefined) {
           if (!source.endsWith('.module.css')) return null
           const abs = importer !== undefined ? resolvePath(dirname(importer), source) : source
-          return CSS_VIRTUAL_PREFIX + abs + CSS_VIRTUAL_SUFFIX
+          return CSS_VIRTUAL_PREFIX + relative(process.cwd(), abs).split(sep).join('/') + CSS_VIRTUAL_SUFFIX
         },
         async load(virtualId: string) {
           if (!virtualId.startsWith(CSS_VIRTUAL_PREFIX)) return null
-          const fileId = virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+          const fileId = resolvePath(virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length))
           // The virtual id otherwise hides the physical stylesheet from Rolldown's watch graph.
           this.addWatchFile(fileId)
           const source = await readFile(fileId)
           const { code, exports: cssExports } = transform({
-            filename: fileId,
+            filename: relative(process.cwd(), fileId).split(sep).join('/'),
             code: source,
             cssModules: { pattern: '[hash]_[local]' },
             minify: true,

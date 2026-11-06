@@ -20,7 +20,7 @@ In DSH Desktop, open **Plugins → Add → Git repository**:
 https://github.com/iBobbyTS/dsh-custom-instruction-manager.git
 ```
 
-Git installation runs this repository's `prepare` script to build `lib/`. Restart the corresponding Host when prompted, then open **sidebar → Other Plugins**. Configuration is on this plugin's page in **Plugins**. Keep one installation to avoid duplicate registration.
+Git installation uses the checked-in prebuilt `lib/`; installation does not compile the plugin. Restart the corresponding Host when prompted, then open **sidebar → Other Plugins**. Configuration is on this plugin's page in **Plugins**. Keep one installation to avoid duplicate registration.
 
 ## Use and documentation
 

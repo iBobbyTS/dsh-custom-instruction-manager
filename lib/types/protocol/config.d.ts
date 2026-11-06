@@ -1,0 +1,164 @@
+/** JSON error body shared by every route. */
+export interface ErrorResponse {
+    error: string;
+}
+/** The skill hub's own runtime configuration, edited from the settings card. */
+export interface HubConfig {
+    /** Master switch: routes and provider go live with this. */
+    enabled: boolean;
+    /** Model-invocable dot color (#rrggbb); absent means the panel default. */
+    dotModelColor?: string;
+    /** User-invocable dot color (#rrggbb); absent means the panel default. */
+    dotUserColor?: string;
+    /** Show per-skill invocation count chip. Default true. */
+    showUseCount?: boolean;
+    /** Show per-skill last-used relative time. Default true. */
+    showUseTime?: boolean;
+    /** Show group-header usage summaries (count + last used). Default true. */
+    showGroupSummary?: boolean;
+    /** 统计滚动窗口天数：只统计最近 N 天的使用；0 = 全部历史。默认 0。 */
+    statsWindowDays?: number;
+    /** 自动统计扫描间隔（分钟，最小 1）。默认 5。 */
+    statsScanMinutes?: number;
+    /**
+     * AGENTS.md 页扫描项目时跳过的目录名（任意层级、精确匹配）。
+     * 默认 `['.agent-work']`；显式空数组表示不跳过任何目录。
+     */
+    excludeDirs?: string[];
+    /**
+     * GitHub personal access token for market/source API calls (anonymous quota
+     * is 60 req/h, authed 5000/hr). Stored in the local settings doc; absent
+     * means anonymous. Never logged.
+     */
+    githubToken?: string;
+}
+/**
+ * HubConfig minus the GitHub token: the shape of every config payload that
+ * leaves the host over HTTP. The token is write-only there — a response
+ * pasted into an issue or a screenshot would otherwise hand the credential
+ * over, so callers read `ConfigResponse.githubTokenSet` when they only need
+ * to know whether one is in effect.
+ */
+export type RedactedHubConfig = Omit<HubConfig, 'githubToken'>;
+/**
+ * The resolved shape of the hub's settings namespace (schema defaults, then
+ * the composition base, then the user layer). Kept as a type alias so the
+ * browser-side settings scope snapshot is index-compatible with the card
+ * form's record shape.
+ */
+export type HubSettingsValue = {
+    enabled: boolean;
+    showUseCount: boolean;
+    showUseTime: boolean;
+    showGroupSummary: boolean;
+    /** Model-invocable dot color (#rrggbb); absent means the panel default. */
+    dotModelColor?: string;
+    /** User-invocable dot color (#rrggbb); absent means the panel default. */
+    dotUserColor?: string;
+    /** 统计滚动窗口天数（0 = 全部历史）。 */
+    statsWindowDays?: number;
+    /** 自动统计扫描间隔（分钟）。 */
+    statsScanMinutes?: number;
+    /** AGENTS.md 页扫描时跳过的目录名（默认 `.agent-work`；只在面板内编辑）。 */
+    excludeDirs?: string[];
+    /** GitHub token（明文存本地设置文档，仅经 dsh 的 /api 信任栅栏可读；缺省为匿名）。 */
+    githubToken?: string;
+};
+/**
+ * This plugin's Loader entry id — the settings namespace dsh serves its config
+ * under. It is cordis.patch.yml's insert id, NOT the package name, and it is
+ * shared by contract because the browser half addresses the same form through
+ * `ctx.configForms.get(HUB_ENTRY_ID)` while the host half writes through
+ * `ctx.settings.update(HUB_ENTRY_ID, …)`.
+ */
+export declare const HUB_ENTRY_ID = "skill-hub";
+/**
+ * Hub config defaults — the single source every layer reads: the cordis
+ * schema (index.ts), the host's saved-override merge, and the routes'
+ * fallback view. Changing a default here changes all three.
+ */
+export declare const HUB_CONFIG_DEFAULTS: {
+    readonly enabled: true;
+    readonly showUseCount: true;
+    readonly showUseTime: true;
+    readonly showGroupSummary: true;
+    readonly statsWindowDays: 14;
+    readonly statsScanMinutes: 5;
+    /** AGENTS.md 页默认跳过的目录名；工作产物目录不属于任何项目。 */
+    readonly excludeDirs: readonly string[];
+};
+/**
+ * Normalize one exclude-directory list: trim, drop empties/duplicates, preserve
+ * order. The values are matched as directory names at any depth, so a path with
+ * a separator in it simply never matches — validation stays permissive here and
+ * the panel rejects separators at the input.
+ * @param value - candidate list from any config layer.
+ * @param fallback - list used when the value is absent (defaults).
+ * @returns a fresh array safe to hand to callers.
+ */
+export declare function resolveExcludeDirs(value: unknown, fallback?: readonly string[]): string[];
+/**
+ * Fill a raw settings value into the effective hub config: schema defaults for
+ * anything missing, and the numeric stats knobs clamped to sane ranges
+ * (window ≥ 0, scan interval ≥ 1 minute).
+ *
+ * There is deliberately no "saved sidecar layer" parameter. Until dsh 0.1.7 the
+ * hub kept its own runtime overrides in the sidecar and merged them here; the
+ * settings namespace is now the only user layer (`updateConfig` writes through
+ * `ctx.settings.mutate`), so a merge against a sidecar layer could never
+ * observe anything but `{}` — see the git history of `resolveHubConfig`.
+ */
+export declare function resolveHubConfig(base?: Partial<HubConfig>): HubConfig;
+/**
+ * Drop the GitHub token from a config-shaped object. Returns a copy, so the
+ * caller's own config layer keeps the token. Shared by the config route's GET
+ * and POST responses — neither may echo it back.
+ */
+export declare function redactGithubToken<T extends {
+    githubToken?: string;
+}>(value: T): Omit<T, 'githubToken'>;
+/** HEX color validation shared by host routes and the settings card. */
+export declare const HEX_COLOR_RE: RegExp;
+/** GET /api/skill-hub/config */
+export interface ConfigResponse {
+    ok: true;
+    /** 已安装插件自身的版本号（package.json version），设置卡标题旁显示。 */
+    pluginVersion: string;
+    /** Effective configuration (saved overrides merged over the defaults), token stripped. */
+    config: RedactedHubConfig;
+    /** Raw user overrides persisted in the sidecar (absent fields inherit defaults), token stripped. */
+    saved: Partial<RedactedHubConfig>;
+    /** True when a GitHub token is in effect (saved override or the base/env layer). */
+    githubTokenSet: boolean;
+}
+/**
+ * POST /api/skill-hub/config — a partial patch; omitted fields keep their values.
+ *
+ * Only the fields the handler actually parses belong here: the stats knobs are
+ * owned by the settings namespace (`statsWindowDays` / `statsScanMinutes` are
+ * still part of {@link HubSettingsValue}), not by this route.
+ */
+export interface ConfigRequest {
+    /** Set the field; null clears the saved override so it re-inherits the default. */
+    enabled?: boolean | null;
+    /** Set the field; null clears the saved override so it re-inherits the default. */
+    showUseCount?: boolean | null;
+    /** Set the field; null clears the saved override so it re-inherits the default. */
+    showUseTime?: boolean | null;
+    /** Set the field; null clears the saved override so it re-inherits the default. */
+    showGroupSummary?: boolean | null;
+    /** Set the dot color; null clears the saved override so it re-inherits the default. */
+    dotModelColor?: string | null;
+    /** Set the dot color; null clears the saved override so it re-inherits the default. */
+    dotUserColor?: string | null;
+    /** Set the GitHub token; null/empty clears it back to anonymous. */
+    githubToken?: string | null;
+    /**
+     * 覆盖 AGENTS.md 页的排除目录（[] = 不排除任何目录）；
+     * null 清除覆盖，回落到默认清单。
+     */
+    excludeDirs?: string[] | null;
+}
+/** GitHub token validation shared by host routes and the settings card. */
+export declare const GITHUB_TOKEN_RE: RegExp;
+//# sourceMappingURL=config.d.ts.map

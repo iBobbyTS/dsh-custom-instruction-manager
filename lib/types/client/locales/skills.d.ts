@@ -1,0 +1,48 @@
+/** 技能浏览：行徽章/分组/过滤排序/相对时间。从 locales.ts 按前缀拆出，键集合不变。 */
+export declare const zhSkills: {
+    readonly 'groups.collapseAll': "全部折叠";
+    readonly 'groups.expandAll': "全部展开";
+    readonly 'groups.noCollections': "暂无来源组。从市场导入技能后自动按来源聚合。";
+    readonly 'groups.personal': "用户级";
+    readonly 'groups.project': "项目级";
+    readonly 'groups.managedBy': "管理方";
+    readonly 'groups.subdivide': "细分";
+    readonly 'groups.merge': "合并";
+    readonly 'filter.allSources': "全部来源";
+    readonly 'filter.title': "筛选";
+    readonly 'filter.source': "来源";
+    readonly 'filter.invocation': "调用方式";
+    readonly 'filter.clear': "清除筛选";
+    readonly 'filter.private': "个人";
+    readonly 'sort.name': "按名称";
+    readonly 'sort.added': "按添加时间";
+    readonly 'sort.uses': "按调用次数";
+    readonly 'time.justNow': "刚刚";
+    readonly 'time.minutesAgo': "{value} 分钟前";
+    readonly 'time.hoursAgo': "{value} 小时前";
+    readonly 'time.daysAgo': "{value} 天前";
+    readonly 'time.weeksAgo': "{value} 周前";
+    readonly 'badge.source.project-dsh': "项目 .dsh";
+    readonly 'badge.source.project-agents': "项目 .agents";
+    readonly 'badge.source.custom': "自定义";
+    readonly 'badge.source.runtime': "运行时";
+    readonly 'badge.source.user-dsh': "用户 .dsh";
+    readonly 'badge.source.user-agents': "用户 .agents";
+    readonly 'badge.source.bundled': "内置";
+    readonly 'row.readonly': "只读";
+    readonly 'row.delete': "删除";
+    readonly 'row.reveal': "在 Finder 中显示";
+    readonly 'row.revealUnavailable': "内置技能位于应用包内，无法在 Finder 中显示";
+    readonly 'row.menu': "{name} 的更多操作";
+    readonly 'row.open': "查看 {name} 详情（回车）";
+    readonly 'row.duplicate': "重名";
+    readonly 'row.duplicateHint': "同名技能存在多个来源，当前显示为优先级最高的版本";
+    readonly 'filter.invocationAll': "全部调用";
+    readonly 'filter.modelOnly': "模型可调";
+    readonly 'filter.userOnly': "用户可调";
+    readonly 'filter.showing': "显示 {shown}/{total}{filtered}";
+    readonly 'filter.filteredSuffix': " · 已筛选";
+    readonly 'filter.shortened': "短描述 {count} 条，悬浮看全文";
+};
+export declare const enSkills: Record<keyof typeof zhSkills, string>;
+//# sourceMappingURL=skills.d.ts.map

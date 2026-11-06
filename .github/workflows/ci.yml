@@ -1,27 +1,20 @@
-name: CI
-
+name: Checks
 on:
   push:
     branches: [main]
   pull_request:
-
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-      - name: Check Git dependency package contents
-        run: |
-          npm pack --dry-run --json > /tmp/dsh-skill-hub-package.json
-          node -e "const fs = require('node:fs'); const files = JSON.parse(fs.readFileSync('/tmp/dsh-skill-hub-package.json', 'utf8'))[0].files.map(f => f.path); for (const p of ['lib/index.js', 'lib/client.js']) { if (!files.includes(p)) throw new Error('Missing packaged entry: ' + p) }"
+          node-version: '24.11.0'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check

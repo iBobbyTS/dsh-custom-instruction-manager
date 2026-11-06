@@ -1,0 +1,2 @@
+# Preserve compiler-emitted declaration formatting; source keeps default whitespace checks.
+lib/types/**/*.d.ts whitespace=-blank-at-eol

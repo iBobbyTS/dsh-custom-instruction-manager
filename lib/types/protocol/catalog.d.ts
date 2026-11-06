@@ -1,0 +1,228 @@
+/** User-level roots the hub may write to (matches dsh-skill-filesystem ranks 400/500). */
+export type WritableRoot = 'user-dsh' | 'user-agents';
+/** Invocation policy resolved by the registry, re-spelled for the wire. */
+export interface HubInvocation {
+    /** Whether model-facing catalogs may load this skill. */
+    modelInvocable: boolean;
+    /** Whether human-facing command catalogs may load this skill. */
+    userInvocable: boolean;
+}
+/** One skill row in the catalog. */
+export interface CatalogSkill {
+    name: string;
+    description: string;
+    whenToUse?: string;
+    invocation: HubInvocation;
+    provider: string;
+    /** Whether the hub may edit or delete this skill's files (user-level filesystem skills only). */
+    writable: boolean;
+    /** 技能来源标识（user-dsh/user-agents/project-dsh/project-agents/...）。 */
+    source: string;
+    /** SKILL.md creation time (epoch ms); used for "added" sorting. Absent when unknown. */
+    addedAt?: number;
+    /** SKILL.md last-modified time (epoch ms); used for "updated" display. Absent when unknown. */
+    updatedAt?: number;
+    /** 项目技能的所属工作区路径（仅 project-dsh/project-agents 来源携带）。 */
+    workspace?: string;
+    /** 工作区显示标题（来自 workspace.json；无则回退为路径）。 */
+    workspaceTitle?: string;
+    /** UI metadata from agents/openai.yaml (mirrors codex SkillInterface). */
+    displayName?: string;
+    shortDescription?: string;
+    brandColor?: string;
+    iconSmall?: string;
+    iconLarge?: string;
+    defaultPrompt?: string;
+}
+/** One discovery diagnostic: a file the filesystem provider skips, with the reason. */
+export interface DiagnosticEntry {
+    path: string;
+    root: string;
+    reason: string;
+    /** Whether this diagnostic can be auto-fixed (e.g. unquoted colon). */
+    fixable?: boolean;
+}
+/** POST /api/skill-hub/diagnostic/fix — repair a fixable diagnostic in place. */
+export interface DiagnosticFixRequest {
+    path: string;
+}
+export interface DiagnosticFixResponse {
+    ok: true;
+    path: string;
+}
+/** GET /api/skill-hub/catalog */
+export interface CatalogResponse {
+    ok: true;
+    /** 已安装插件自身的版本号（package.json version），面板标题旁显示。 */
+    pluginVersion: string;
+    /** Whether discovery completed within a stable catalog revision. */
+    complete: boolean;
+    /** Sorted winning summaries of every enabled skill (all roots + providers). */
+    skills: CatalogSkill[];
+    /** Files in the writable roots the provider ignores, with reasons. */
+    diagnostics: DiagnosticEntry[];
+    /** Skill names that appeared in multiple roots (first wins, others hidden). Mirrors codex name_counts. */
+    duplicateNames?: string[];
+    /**
+     * 已知工作区，按 dsh 侧面栏的显示顺序（workspace.json 的
+     * `global.workspaceIds`）排列；面板据此排项目级分组。默认视图才带此字段
+     * （显式 cwd 时只有一个临时工作区）。
+     */
+    workspaces?: WorkspaceRef[];
+}
+/** 一个已知工作区的路径与显示标题（目录响应的排序轴）。 */
+export interface WorkspaceRef {
+    path: string;
+    title: string;
+}
+/** GET /api/skill-hub/skill */
+export interface SkillDetail {
+    name: string;
+    description: string;
+    whenToUse?: string;
+    invocation: HubInvocation;
+    provider: string;
+    /** 技能来源标识（user-dsh/user-agents/project-dsh/project-agents/...）。 */
+    source: string;
+    /** Absolute file path when the skill came from disk. */
+    path?: string;
+    /** SKILL.md creation time (epoch ms); absent when the file is unreadable. */
+    addedAt?: number;
+    /** SKILL.md last-modified time (epoch ms); absent when the file is unreadable. */
+    updatedAt?: number;
+    /** SKILL.md 字节大小；编辑保存的冲突指纹之一（不可读时缺省）。 */
+    size?: number;
+    /** Markdown instruction body. */
+    content: string;
+    /**
+     * 是否可改调用方式：用户根（~/.dsh, ~/.agents）与项目根（<ws>/.dsh|.agents/skills）
+     * 的 SKILL.md 可改；内置/插件 provider 注册的技能没有可写文件，为 false。
+     */
+    editable?: boolean;
+    displayName?: string;
+    shortDescription?: string;
+    brandColor?: string;
+    iconSmall?: string;
+    iconLarge?: string;
+    defaultPrompt?: string;
+}
+export interface SkillDetailResponse {
+    ok: true;
+    skill: SkillDetail;
+}
+/**
+ * POST /api/skill-hub/skill/delete — 把单个技能移入系统废纸篓（~/.Trash，
+ * 可在 Finder 中恢复；重名时追加时间戳，不直接删除）。
+ */
+export interface SkillDeleteRequest {
+    name: string;
+    /** 项目技能所属工作区（用户级技能可省略）。 */
+    cwd?: string;
+}
+/**
+ * POST /api/skill-hub/skill/reveal — 在 Finder 中显示技能文件。
+ * 只受理真实磁盘文件（bundled / 插件 provider 技能在应用包内，拒绝）。
+ */
+export interface SkillRevealRequest {
+    name: string;
+    /** 项目技能所属工作区；缺省按详情页同样的顺序解析（已知工作区 → 用户根）。 */
+    cwd?: string;
+}
+export interface SkillRevealResponse {
+    ok: true;
+    name: string;
+    /** 被显示的文件（目录包为 SKILL.md，平面技能为 .md）。 */
+    path: string;
+}
+/**
+ * POST /api/skill-hub/skill/invocation — 写 SKILL.md 的调用方式。
+ *
+ * dsh 的注册表没有写入口，调用方式只能落在技能文件的 frontmatter 上：
+ *  - 模型不可调 → `disable-model-invocation: true`（缺键 = 可调）
+ *  - 用户不可调 → `user-invocable: false`（缺键 = 可调）
+ * 请求里给的是「可调」语义，反向映射由 host 完成。
+ */
+export interface SkillInvocationRequest {
+    name: string;
+    modelInvocable: boolean;
+    userInvocable: boolean;
+    /** 项目技能所属工作区；缺省按详情页同样的顺序解析（已知工作区 → 用户根）。 */
+    cwd?: string;
+}
+export interface SkillInvocationResponse {
+    ok: true;
+    name: string;
+    /** 被改写的发现文件（目录包的 SKILL.md 或扁平 .md）。 */
+    path: string;
+    /** 写入后的调用方式（回读校验过的值）。 */
+    invocation: HubInvocation;
+}
+/** POST /api/skill-hub/skill/delete */
+export interface SkillDeleteResponse {
+    ok: true;
+    name: string;
+    /** 移入系统废纸篓后的路径（目录或文件；重名时带时间戳后缀）。 */
+    path: string;
+}
+/**
+ * 编辑保存后的文件状态。客户端拿它更新页面，不必为了新内容再读一次磁盘。
+ * 技能给的是 frontmatter 之后的正文（与详情页显示的一致），指令文件给整份原文。
+ */
+export interface EditSnapshot {
+    content: string;
+    /** 文件 mtime（epoch ms）。 */
+    modifiedAt: number;
+    /** 文件字节大小。 */
+    size: number;
+}
+/**
+ * 409 冲突体：编辑期间磁盘上的文件被别处改过（agent、别的编辑器、同步）。
+ * `latest` 是最新状态，客户端用它实现「复制并重新加载」与「仍然覆盖」。
+ */
+export interface EditConflictResponse {
+    error: string;
+    code: 'stale';
+    latest: EditSnapshot;
+}
+/**
+ * POST /api/skill-hub/skill/content — 写回技能正文。
+ *
+ * frontmatter 原样保留（客户端看不到它，也不该重写它）：host 只替换
+ * frontmatter 之后的那一段，name/description/调用键都不动。
+ */
+export interface SkillContentRequest {
+    name: string;
+    /** 项目技能所属工作区（用户级技能可省略）。 */
+    cwd?: string;
+    /** 新的正文（编辑器里的原文，不需要自带尾部换行）。 */
+    content: string;
+    /** 载入详情时的 mtime/size；与磁盘不一致 = 期间被改过，409 并回最新内容。 */
+    expectedMtime?: number;
+    expectedSize?: number;
+}
+export interface SkillContentResponse {
+    ok: true;
+    name: string;
+    /** 被写入的发现文件（目录包的 SKILL.md 或扁平 .md）。 */
+    path: string;
+    /** 实际落盘的正文（行尾已 trim、换行已按原文件统一）；页面据此刷新。 */
+    content: string;
+    /** 写回后的文件大小与 mtime。 */
+    modifiedAt: number;
+    size: number;
+}
+/** POST /api/skill-hub/create */
+export interface CreateRequest {
+    /** Kebab-case skill name (validated with the official isSkillName grammar). */
+    name: string;
+    /** Optional one-line routing description for the frontmatter. */
+    description?: string;
+    /** Target user root; defaults to user-dsh (~/.dsh/skills). */
+    root?: WritableRoot;
+}
+export interface CreateResponse {
+    ok: true;
+    path: string;
+    root: WritableRoot;
+}
+//# sourceMappingURL=catalog.d.ts.map

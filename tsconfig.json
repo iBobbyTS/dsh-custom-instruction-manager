@@ -4,11 +4,6 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "lib": [
-      "ES2023",
-      "DOM",
-      "DOM.Iterable"
-    ],
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
@@ -16,11 +11,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "types": [
-      "node"
-    ]
+    "types": []
   },
-  "include": [
-    "src"
-  ]
+  "include": []
 }

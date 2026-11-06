@@ -106,8 +106,7 @@ The skill catalog reads `ctx.skills.snapshot/get`; the Host registers its HTTP h
 
 ## Troubleshooting
 
-- `ERR_MODULE_NOT_FOUND` for `dsh-skill-hub/lib/index.js` after installing from Git — older commits omitted built files. Remove the old installation and install the latest commit: Git preparation now runs `npm run build` before packaging.
-- `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` — pnpm requires explicit approval before executing a Git dependency's build scripts. Review this repository's `prepare` / `build` commands first. Then, in `~/.dsh/profiles/desktop/pnpm-workspace.yaml`, set **the exact Git-dependency key printed by pnpm** under `allowBuilds` to `true` and retry the installation (or use `pnpm approve-builds` for the relevant profile). Do not enable all dependency builds indiscriminately.
+- `ERR_MODULE_NOT_FOUND` for `dsh-skill-hub/lib/index.js` after installing from Git — older commits omitted built files. Remove the old installation and install the latest commit: Current commits include prebuilt `lib/`; installation requires no build approval.
 
 - `duplicate loader entry id: skill-hub` — remove the duplicate install (keep one `dsh plugin add` method).
 - Skill missing — check the diagnostics section (frontmatter / name mismatch / short description / two discovery forms claiming the same name: a `<name>/SKILL.md` bundle and a `<name>.md` file can coexist on disk, and the registry keeps only one of them). A `.disabled` file left by an older version is not listed and not managed: rename it back manually to re-enable the skill.

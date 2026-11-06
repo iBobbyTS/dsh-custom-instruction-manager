@@ -109,8 +109,7 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 
 ## 故障排查
 
-- Git 安装后出现 `ERR_MODULE_NOT_FOUND`，提示缺少 `dsh-skill-hub/lib/index.js` — 旧提交没有随 Git 提供构建产物。卸载旧版本并安装最新提交；现在 Git 依赖打包前会运行 `npm run build`。
-- 出现 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` — pnpm 阻止未经批准的 Git 依赖构建脚本。先审查本仓库的 `prepare` / `build` 命令，再根据 pnpm 错误中**提供的完整 Git 依赖键**，在 `~/.dsh/profiles/desktop/pnpm-workspace.yaml` 的 `allowBuilds` 下设为 `true`，然后重试安装（也可在对应 profile 使用 `pnpm approve-builds`）。不要全局放开所有依赖构建。
+- Git 安装后出现 `ERR_MODULE_NOT_FOUND`，提示缺少 `dsh-skill-hub/lib/index.js` — 旧提交没有随 Git 提供构建产物。卸载旧版本并安装最新提交；当前提交已包含预构建 `lib/`，安装不需要批准构建。
 
 - `duplicate loader entry id: skill-hub` — 删掉重复安装（只留一种 `dsh plugin add`）。
 - 技能不出现 — 看诊断区（缺 frontmatter / 名称不一致 / 描述过短 / 两种发现形态抢同一个名字：`<name>/SKILL.md` 目录包与 `<name>.md` 扁平文件可以并存，注册表只会留一个）。旧版本留下的 `.disabled` 文件不再显示、也不再由本插件管理；要恢复请手动改回原名。

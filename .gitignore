@@ -1,8 +1,10 @@
 node_modules/
-lib/
 *.tgz
 .DS_Store
 .dsh/
 .workbuddy/
-index.js
+/index.js
 .build
+
+.build/
+*.tgz

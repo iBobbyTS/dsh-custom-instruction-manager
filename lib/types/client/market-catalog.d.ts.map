@@ -1,0 +1,1 @@
+{"version":3,"file":"market-catalog.d.ts","sourceRoot":"","sources":["../../../src/client/market-catalog.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH,OAAO,KAAK,EAAE,MAAM,EAAE,MAAM,cAAc,CAAA;AAE1C,MAAM,WAAW,kBAAkB;IACjC,IAAI,EAAE,MAAM,CAAA;IACZ,mDAAmD;IACnD,cAAc,EAAE,MAAM,CAAA;CACvB;AAED,8BAA8B;AAC9B,eAAO,MAAM,cAAc,EAAE,SAAS,kBAAkB,EAKvD,CAAA"}
