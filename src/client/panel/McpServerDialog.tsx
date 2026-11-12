@@ -64,7 +64,7 @@ function draftOf(server: McpServerInfo | undefined): Draft {
   const http = server.http
   return {
     serverName: server.serverName,
-    transport: server.transport,
+    transport: server.transport ?? 'stdio',
     command: stdio?.command ?? '',
     args: (stdio?.args ?? []).join('\n'),
     cwd: stdio?.cwd ?? '',
@@ -72,7 +72,7 @@ function draftOf(server: McpServerInfo | undefined): Draft {
     url: http?.url ?? '',
     headers: Object.entries(http?.headers ?? {}).map(([key, value]) => key + ': ' + value).join('\n'),
     toolCallTimeoutMs: String(server.toolCallTimeoutMs),
-    failOnStartupError: server.failOnStartupError,
+    failOnStartupError: server.failOnStartupError ?? false,
     maxInstructionBytes: server.maxInstructionBytes === undefined ? '' : String(server.maxInstructionBytes),
   }
 }

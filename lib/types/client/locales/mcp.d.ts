@@ -1,9 +1,4 @@
-/**
- * MCP 分类页的文案。工具名/命令等动态值走插值，不在这里。
- *
- * 状态词只用「已加载 / 启动中 / 启动失败 / 已禁用」：dsh 没有暴露 MCP 会话的
- * 连接状态，写「已连接」就是把不知道的事说成知道。
- */
+/** Localized MCP labels. Connected states apply only to native manager views. */
 export declare const zhMcp: {
     readonly 'mcp.refresh': "刷新";
     readonly 'mcp.loading': "正在读取 MCP 服务器…";
@@ -15,8 +10,16 @@ export declare const zhMcp: {
     readonly 'mcp.transport.stdio': "stdio";
     readonly 'mcp.transport.http': "HTTP";
     readonly 'mcp.status.running': "已加载";
+    readonly 'mcp.status.connected': "已连接";
+    readonly 'mcp.status.reconnecting': "重新连接中";
+    readonly 'mcp.status.waitingCredentials': "等待凭据";
+    readonly 'mcp.status.closed': "已关闭";
+    readonly 'mcp.source.manager': "DSH MCP 管理器";
+    readonly 'mcp.source.retained': "清理记录";
+    readonly 'mcp.detail.source': "来源";
+    readonly 'mcp.readonly.nativeManager': "由 DSH MCP 管理器拥有；本页仅显示状态和工具，不编辑此条目。";
     readonly 'mcp.status.starting': "启动中";
-    readonly 'mcp.status.failed': "启动失败";
+    readonly 'mcp.status.failed': "失败";
     readonly 'mcp.status.disabled': "已禁用";
     readonly 'mcp.toolCount': "{count} 个工具";
     readonly 'mcp.readonly.management': "dsh 自己管理的插件，面板不能开关";
@@ -103,6 +106,14 @@ export declare const enMcp: {
     readonly 'mcp.transport.stdio': "stdio";
     readonly 'mcp.transport.http': "HTTP";
     readonly 'mcp.status.running': "Loaded";
+    readonly 'mcp.status.connected': "Connected";
+    readonly 'mcp.status.reconnecting': "Reconnecting";
+    readonly 'mcp.status.waitingCredentials': "Waiting for credentials";
+    readonly 'mcp.status.closed': "Closed";
+    readonly 'mcp.source.manager': "DSH MCP manager";
+    readonly 'mcp.source.retained': "Cleanup record";
+    readonly 'mcp.detail.source': "Source";
+    readonly 'mcp.readonly.nativeManager': "Owned by the DSH MCP manager; this page shows status and tools without editing the entry.";
     readonly 'mcp.status.starting': "Starting";
     readonly 'mcp.status.failed': "Failed";
     readonly 'mcp.status.disabled': "Disabled";

@@ -13,9 +13,9 @@ The panel remembers the page you left — the top-level category (AGENTS.md / Sk
 - **Scan** — the whole project tree recursively, hard-pruning `.git` and `node_modules`, plus the page-local “excluded directories” list (`.agent-work` by default; it only affects this page). Workspaces whose directory is gone are skipped entirely; a nested workspace's subtree belongs only to the nested group, never to its parent. The scan itself never writes; only saving a body does.
 - **Index cache + stepped rescan** — the host keeps the last completed index: opening the page lays it out in one go (no cache → skip straight to the first scan), then rescans scope by scope — step 0 is the user level, one step per workspace — replacing the same position in the list as each step lands, so the page never flashes empty and converges to the fresh inventory; the result becomes the next cache. That index is also persisted to `$DSH_HOME/plugin/data/custom-instruction-manager/agents-index.json` and read back when the plugin loads (so on every dsh start), which means the first visit after a restart has content before the scan runs; if the home, the shared agents root or the excluded list changed, the stored key no longer matches and the file is treated as no cache. While scanning, “Rescan” turns into a disabled “Scanning (x%)”, where x = completed steps / total steps.
 
-**Sidebar → Other Plugins → MCP** — the MCP servers configured in this dsh Loader. In dsh an MCP server is not an entry in a config file but **one `@deepseek-ai/dsh-mcp-client` plugin row each**, so this page reads the running rows (whether they come from a bundle layer, the profile patch or the home patch):
+**Sidebar → Other Plugins → MCP** — legacy `@deepseek-ai/dsh-mcp-client` Loader rows and DSH 0.2.2-rc.2 native MCP manager entries. Manager entries show their reported connection state, source and tools as read-only rows. Removed entries retained during failed or unfinished cleanup remain visible. The public manager view does not include transport, commands, credentials or configuration; the hub does not invent these values or edit/toggle/delete manager entries. Refresh reads their current state. Existing Loader rows retain their configuration controls (whether they come from a bundle layer, the profile patch or the home patch):
 
-- **One row per server** — name, transport (stdio / Streamable HTTP), status and current tool count. Status is only Loaded / Starting / Failed / Disabled: dsh exposes no MCP session state, so the page never claims “connected”.
+- **One row per server** — name, transport (stdio / Streamable HTTP), status and current tool count. Loader status is Loaded / Starting / Failed / Disabled and describes plugin phase only. Manager entries show their reported connection, reconnect, waiting-credentials, closed or failure state.
 - **Config summary** — expand for the command/args/working directory or the URL, plus environment variables and headers; values are masked as `••••••` until “Show values”. The call timeout, abort-on-startup-failure flag and the patch row id ride along.
 - **Tools** — expand to list the tools the server currently registers (public name `mcp__<server>__<tool>`, description, parameter names). Tools that belong to no server listed here (a server inside an agent preset, or a truncated/rewritten name) are listed separately as unattributed.
 - **Toggle** — the per-row switch goes through dsh's plugin manager: it only writes the enablement flag into the profile patch and never edits the server config. The result is reported honestly (applied / restart required / overridden / failed). Rows without an `id` in the patch (e.g. insert rows written by other products) and dsh-managed plugins are read-only, with the reason on the row.
@@ -82,7 +82,7 @@ The skill catalog reads `ctx.skills.snapshot/get`; the Host registers its HTTP h
 | --- | --- | --- |
 | `/api/skill-hub/catalog?cwd=` | GET | skills + diagnostics + duplicates |
 | `/api/skill-hub/skill?name=&cwd=` | GET | skill body |
-| `/api/skill-hub/mcp` | GET | MCP servers (Loader rows + config + tools + writability) |
+| `/api/skill-hub/mcp` | GET | MCP servers (Loader config, read-only manager states, tool ownership and writability) |
 | `/api/skill-hub/mcp/toggle` | POST | `{entryId, enabled}` through dsh's plugin manager, returns the refreshed list |
 | `/api/skill-hub/mcp/save` | POST | `{entryId?, server}` — create (no id) or edit; a 400 carries per-field `fields` |
 | `/api/skill-hub/mcp/remove` | POST | `{entryId}` — delete a row from the managed block |
@@ -116,3 +116,7 @@ The skill catalog reads `ctx.skills.snapshot/get`; the Host registers its HTTP h
 
 
 The plugin update check queries only this fork's GitHub releases; no published release is reported as unavailable, not as an upstream update.
+
+## DSH 0.2.2-rc.2 Web verification scope
+
+Real Web acceptance with all 14 local plugins verified a connected native-manager server as read-only with correctly attributed tools, a newly added legacy HTTP row alongside it, saving a temporary AGENTS.md file to disk, and discovery of a fixture skill. No native MCP configuration migration was performed. Desktop interaction and online account services remain untested.

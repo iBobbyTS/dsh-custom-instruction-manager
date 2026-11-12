@@ -1,12 +1,6 @@
 /**
- * MCP 域的纯投影：把「Loader 行 + 行配置 + 当前工具表」折成面板要的服务器列表。
- *
- * 这一层没有 IO，方便单测；真正的读取（pluginManager / loader / tools）在
- * ./mcp-runtime.ts，路由只做参数校验与错误映射。
- *
- * 之所以不读配置文件：dsh 里 MCP 服务器的唯一事实源是**组合后的 Loader 行**
- * （bundle 层 / profile 补丁 / home 补丁 / 启动 overlay 都可能插入或覆盖它），
- * 只有运行中的行才带生效值与当前工具。
+ * Pure MCP projection from legacy Loader rows, sanitized native manager views,
+ * and current tools. Manager rows stay read-only and carry no inferred config.
  */
 import type { McpApplication, McpEditBlockedReason, McpPhase, McpReadOnlyReason, McpResponse, McpServerInfo, McpServerInput } from './protocol.ts';
 /** dsh 的 MCP 客户端插件模块名（每个服务器一行）。 */
@@ -42,9 +36,18 @@ export interface McpProjection {
     orphanTools: string[];
     warnings: string[];
 }
+/** Sanitized native manager view; excludes configuration and credentials. */
+export interface McpManagerServerFact {
+    name: string;
+    configured: boolean;
+    status: {
+        state: 'closed' | 'waiting-credentials' | 'connecting' | 'connected' | 'reconnecting' | 'failed' | 'disabled';
+    };
+}
 /** host 侧一次读取的完整事实集。 */
 export interface McpListFacts {
     facts: McpServerFacts[];
+    managerServers?: readonly McpManagerServerFact[];
     tools: McpToolFact[];
     /** profile 补丁文件绝对路径；取不到时为 null。 */
     configPath: string | null;
@@ -64,6 +67,7 @@ export interface McpListFacts {
 }
 /** 投影要知道的可写能力（列表事实里的可编辑性字段）。 */
 export interface McpCapabilities {
+    managerServers?: readonly McpManagerServerFact[];
     managedIds?: readonly string[];
     editableIds?: readonly string[];
     editBlocked?: Readonly<Record<string, McpEditBlockedReason>>;

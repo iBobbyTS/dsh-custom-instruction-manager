@@ -1,9 +1,4 @@
-/**
- * MCP 分类页的文案。工具名/命令等动态值走插值，不在这里。
- *
- * 状态词只用「已加载 / 启动中 / 启动失败 / 已禁用」：dsh 没有暴露 MCP 会话的
- * 连接状态，写「已连接」就是把不知道的事说成知道。
- */
+/** Localized MCP labels. Connected states apply only to native manager views. */
 export const zhMcp = {
   'mcp.refresh': '刷新',
   'mcp.loading': '正在读取 MCP 服务器…',
@@ -15,8 +10,16 @@ export const zhMcp = {
   'mcp.transport.stdio': 'stdio',
   'mcp.transport.http': 'HTTP',
   'mcp.status.running': '已加载',
+  'mcp.status.connected': '已连接',
+  'mcp.status.reconnecting': '重新连接中',
+  'mcp.status.waitingCredentials': '等待凭据',
+  'mcp.status.closed': '已关闭',
+  'mcp.source.manager': 'DSH MCP 管理器',
+  'mcp.source.retained': '清理记录',
+  'mcp.detail.source': '来源',
+  'mcp.readonly.nativeManager': '由 DSH MCP 管理器拥有；本页仅显示状态和工具，不编辑此条目。',
   'mcp.status.starting': '启动中',
-  'mcp.status.failed': '启动失败',
+  'mcp.status.failed': '失败',
   'mcp.status.disabled': '已禁用',
   'mcp.toolCount': '{count} 个工具',
   'mcp.readonly.management': 'dsh 自己管理的插件，面板不能开关',
@@ -104,6 +107,14 @@ export const enMcp = {
   'mcp.transport.stdio': 'stdio',
   'mcp.transport.http': 'HTTP',
   'mcp.status.running': 'Loaded',
+  'mcp.status.connected': 'Connected',
+  'mcp.status.reconnecting': 'Reconnecting',
+  'mcp.status.waitingCredentials': 'Waiting for credentials',
+  'mcp.status.closed': 'Closed',
+  'mcp.source.manager': 'DSH MCP manager',
+  'mcp.source.retained': 'Cleanup record',
+  'mcp.detail.source': 'Source',
+  'mcp.readonly.nativeManager': 'Owned by the DSH MCP manager; this page shows status and tools without editing the entry.',
   'mcp.status.starting': 'Starting',
   'mcp.status.failed': 'Failed',
   'mcp.status.disabled': 'Disabled',

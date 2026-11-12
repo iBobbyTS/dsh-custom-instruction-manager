@@ -116,8 +116,16 @@ export declare const zh: {
     readonly 'mcp.transport.stdio': "stdio";
     readonly 'mcp.transport.http': "HTTP";
     readonly 'mcp.status.running': "已加载";
+    readonly 'mcp.status.connected': "已连接";
+    readonly 'mcp.status.reconnecting': "重新连接中";
+    readonly 'mcp.status.waitingCredentials': "等待凭据";
+    readonly 'mcp.status.closed': "已关闭";
+    readonly 'mcp.source.manager': "DSH MCP 管理器";
+    readonly 'mcp.source.retained': "清理记录";
+    readonly 'mcp.detail.source': "来源";
+    readonly 'mcp.readonly.nativeManager': "由 DSH MCP 管理器拥有；本页仅显示状态和工具，不编辑此条目。";
     readonly 'mcp.status.starting': "启动中";
-    readonly 'mcp.status.failed': "启动失败";
+    readonly 'mcp.status.failed': "失败";
     readonly 'mcp.status.disabled': "已禁用";
     readonly 'mcp.toolCount': "{count} 个工具";
     readonly 'mcp.readonly.management': "dsh 自己管理的插件，面板不能开关";

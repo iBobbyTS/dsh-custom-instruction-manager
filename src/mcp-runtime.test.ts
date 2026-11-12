@@ -212,3 +212,48 @@ describe('createMcpAccess.setEnabled', () => {
     await expect(access.setEnabled('mcp-x', true)).rejects.toThrow(/pluginManager service is absent/)
   })
 })
+
+describe('native rc.2 MCP manager views', () => {
+  it('lists native servers without exposing configuration or diagnostics', async () => {
+    const access = createMcpAccess(ctxOf({
+      mcpManager: { list: () => [{ name: 'native', configured: true, status: { state: 'connected', toolCount: 1, connectedAt: 0, lastError: 'private detail' } }] },
+      pluginManager: { listPlugins: async () => [] }, loader: loaderOf([]),
+      tools: { schemas: () => [{ name: 'mcp__native__search' }] },
+    }))
+    const facts = await access.list()
+    expect(facts.managerServers).toEqual([{ name: 'native', configured: true, status: { state: 'connected' } }])
+    expect(JSON.stringify(facts)).not.toContain('private detail')
+    const { buildMcpResponse } = await import('./mcp.ts')
+    const response = buildMcpResponse(facts)
+    expect(response.orphanTools).toEqual([])
+    expect(response.servers[0]).toMatchObject({ source: 'mcp-manager', status: 'connected', editable: false, removable: false, readOnlyReason: 'native-manager', tools: [{ name: 'mcp__native__search' }] })
+    expect(response.servers[0]).not.toHaveProperty('transport')
+    expect(response.servers[0]).not.toHaveProperty('toolCallTimeoutMs')
+    await expect(access.setEnabled('mcp-manager:native', false)).rejects.toThrow('unknown MCP server entry')
+  })
+  it('preserves disabled and removed cleanup states without reporting them connected', async () => {
+    const access = createMcpAccess(ctxOf({
+      mcpManager: { list: () => [
+        { name: 'off', configured: true, status: { state: 'disabled' } },
+        { name: 'cleanup', configured: false, status: { state: 'failed', reason: 'cleanup', result: {} } },
+      ] },
+      pluginManager: { listPlugins: async () => [] }, loader: loaderOf([]),
+    }))
+    const { buildMcpResponse } = await import('./mcp.ts')
+    const response = buildMcpResponse(await access.list())
+    expect(response.servers.map(({ status, enabled, managerEntryPresent }) => ({ status, enabled, managerEntryPresent }))).toEqual([
+      { status: 'disabled', enabled: false, managerEntryPresent: true },
+      { status: 'failed', enabled: false, managerEntryPresent: false },
+    ])
+  })
+  it('keeps legacy rows when the manager status read fails', async () => {
+    const access = createMcpAccess(ctxOf({
+      mcpManager: { list: () => { throw new Error('unavailable') } },
+      pluginManager: { listPlugins: async () => [row()] },
+      loader: loaderOf([{ id: 'mcp-codegraph', config: { serverName: 'codegraph', command: 'x' } }]),
+    }))
+    const facts = await access.list()
+    expect(facts.facts).toHaveLength(1)
+    expect(facts.warnings).toContain('mcpManager.list() failed: unavailable')
+  })
+})

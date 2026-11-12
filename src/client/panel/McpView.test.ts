@@ -231,3 +231,20 @@ describe('MCP page', () => {
     expect(html).toContain('正在读取 MCP 服务器')
   })
 })
+
+it('renders manager source and retained cleanup state without invented configuration or write controls', () => {
+  const native = server({
+    entryId: 'mcp-manager:native', serverName: 'native', source: 'mcp-manager',
+    managerEntryPresent: false, transport: undefined, stdio: undefined, patchId: undefined,
+    status: 'failed', enabled: false, readOnlyReason: 'native-manager', editable: false,
+    removable: false, managed: false, toolCallTimeoutMs: undefined, failOnStartupError: undefined,
+  })
+  const html = render({ data: { ...data, servers: [native] }, expanded: new Set([native.entryId]) })
+  expect(html).toContain('DSH MCP 管理器')
+  expect(html).toContain('清理记录')
+  expect(html).toContain('本页仅显示状态和工具')
+  expect(html).not.toContain('undefined ms')
+  expect(html).not.toContain('调用超时')
+  expect(html).not.toContain('>编辑<')
+  expect(html).not.toContain('>删除<')
+})

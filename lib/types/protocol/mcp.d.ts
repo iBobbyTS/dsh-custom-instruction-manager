@@ -1,16 +1,4 @@
-/**
- * MCP 分类页的线上形状。
- *
- * MCP 服务器在 dsh 里不是一份配置清单，而是 Loader 里一行一个
- * `@deepseek-ai/dsh-mcp-client` 插件实例。这一页读到的是**运行中的投影**：
- * 行（启用态、阶段、能否寻址）+ 行配置 + 该命名空间当前注册的工具。
- *
- * 两个入口：GET /api/skill-hub/mcp（列表）与 POST /api/skill-hub/mcp/toggle
- * （开关）。开关走 dsh 插件管理接口，不直接改配置文件。
- *
- * 字段命名与 dsh 的 PluginInventoryEntry / ToolSchema 对齐，但在这里重新拼成
- * 纯 JSON 形状——浏览器半不能依赖宿主 SDK 包。
- */
+/** JSON protocol for legacy Loader servers and read-only native manager views. */
 /** Loader 行的运行阶段（与 dsh 的 PluginFiberPhase 同值；null = 没有活 fiber）。 */
 export type McpPhase = 'pending' | 'loading' | 'active' | 'failed' | 'unloading' | null;
 /**
@@ -21,12 +9,9 @@ export type McpPhase = 'pending' | 'loading' | 'active' | 'failed' | 'unloading'
  *   - `no-manager`：本部署根本没有插件管理服务，这一页只能读（本插件自定义的
  *     降级值，不属于 dsh 的 ReadOnlyReason）。
  */
-export type McpReadOnlyReason = 'management-required' | 'unaddressable' | 'no-manager';
-/**
- * 面板展示用的状态。**注意**：没有连接状态 API，`running` 只表示这一行插件
- * 起来了（并带着当前注册的工具数），不表示 MCP 会话一定连着。
- */
-export type McpStatus = 'running' | 'starting' | 'failed' | 'disabled';
+export type McpReadOnlyReason = 'management-required' | 'unaddressable' | 'no-manager' | 'native-manager';
+/** Manager rows report native connection states; running is legacy plugin phase only. */
+export type McpStatus = 'running' | 'starting' | 'failed' | 'disabled' | 'connected' | 'reconnecting' | 'waiting-credentials' | 'closed';
 /** dsh 只支持这两种传输。 */
 export type McpTransport = 'stdio' | 'streamable-http';
 /** 一个工具：公开名（模型看到的名字）、原始名与参数名清单。 */
@@ -66,7 +51,11 @@ export interface McpServerInfo {
     /** Loader 条目 id（开关接口认它）。 */
     entryId: string;
     serverName: string;
-    transport: McpTransport;
+    transport?: McpTransport;
+    /** Native manager status view; never a writable Loader identity. */
+    source?: 'mcp-manager';
+    /** False when only an unfinished cleanup record remains. */
+    managerEntryPresent?: boolean;
     enabled: boolean;
     phase: McpPhase;
     status: McpStatus;
@@ -83,8 +72,8 @@ export interface McpServerInfo {
     editBlockedReason?: McpEditBlockedReason;
     stdio?: McpStdioConfig;
     http?: McpHttpConfig;
-    toolCallTimeoutMs: number;
-    failOnStartupError: boolean;
+    toolCallTimeoutMs?: number;
+    failOnStartupError?: boolean;
     /** 归属给模型的服务说明上限（字节）；未配置时缺省。 */
     maxInstructionBytes?: number;
     /** 当前归属到这个名字空间的工具。 */

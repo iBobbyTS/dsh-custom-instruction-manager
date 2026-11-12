@@ -1,16 +1,4 @@
-/**
- * MCP 分类页：一行一台 MCP 服务器。
- *
- * 服务器在 dsh 里是 Loader 的一行插件实例，所以这一页没有"新建/导入"这类
- * 动作（增删改是 P2）；这一期只做三件事：把行照出来（名称、传输、状态、
- * 配置摘要）、展开看它注册了哪些工具、按行启用/禁用。
- *
- * 状态词只到「已加载 / 启动中 / 启动失败 / 已禁用」：dsh 不暴露 MCP 会话的
- * 连接状态，写「已连接」就是骗人。
- *
- * `env` / `headers` 的值按行默认遮掩（点「显示值」才展开）：它们经回环 +
- * 会话栅栏返回，但屏幕上的暴露面越小越好。
- */
+/** MCP server list: legacy configuration controls and native manager status/tool views. */
 
 import { useState } from 'react'
 import type { McpFieldError, McpResponse, McpServerInput, McpServerInfo, McpStatus } from '../../protocol.ts'
@@ -57,11 +45,15 @@ const STATUS_KEY: Record<McpStatus, HubKey> = {
   starting: 'mcp.status.starting',
   failed: 'mcp.status.failed',
   disabled: 'mcp.status.disabled',
+  connected: 'mcp.status.connected',
+  reconnecting: 'mcp.status.reconnecting',
+  'waiting-credentials': 'mcp.status.waitingCredentials',
+  closed: 'mcp.status.closed',
 }
 
 /** 状态 → 徽标配色（只标"好/坏"两档，其余用中性底色）。 */
 function statusClass(status: McpStatus): string {
-  if (status === 'running') return css.statusOk
+  if (status === 'running' || status === 'connected') return css.statusOk
   if (status === 'failed') return css.statusError
   return ''
 }
@@ -83,12 +75,13 @@ function McpDetail(props: { server: McpServerInfo }): React.JSX.Element {
   const stdio = server.stdio
   const http = server.http
   const pairs = stdio !== undefined ? Object.entries(stdio.env) : Object.entries(http?.headers ?? {})
-  const target = stdio !== undefined
+  const target = server.source === 'mcp-manager' ? tt('mcp.source.manager') : stdio !== undefined
     ? [stdio.command, ...stdio.args].filter((part) => part !== '').join(' ')
     : (http?.url ?? '')
   return (
     <div className={css.mcpDetail}>
-      <MetaLine label={stdio !== undefined ? tt('mcp.detail.command') : tt('mcp.detail.url')}>
+      {server.source === 'mcp-manager' ? <MetaLine label={tt('mcp.detail.source')}>{tt('mcp.source.manager')}{server.managerEntryPresent === false ? ' · ' + tt('mcp.source.retained') : ''}</MetaLine> : null}
+      {server.source !== 'mcp-manager' ? <><MetaLine label={stdio !== undefined ? tt('mcp.detail.command') : tt('mcp.detail.url')}>
         <span className={css.mcpMono}>{target !== '' ? target : '—'}</span>
       </MetaLine>
       {stdio !== undefined && stdio.cwd !== ''
@@ -113,6 +106,7 @@ function McpDetail(props: { server: McpServerInfo }): React.JSX.Element {
         : null}
       <MetaLine label={tt('mcp.detail.timeout')}><span className={css.mcpMono}>{server.toolCallTimeoutMs + ' ms'}</span></MetaLine>
       <MetaLine label={tt('mcp.detail.failFast')}>{server.failOnStartupError ? tt('mcp.yes') : tt('mcp.no')}</MetaLine>
+      </> : null}
       {server.patchId !== undefined ? <MetaLine label={tt('mcp.detail.patch')}><span className={css.mcpMono}>{server.patchId}</span></MetaLine> : null}
       <MetaLine label={tt('mcp.tools')}>
         <span className={css.mcpTools}>
@@ -146,7 +140,7 @@ function McpServerRow(props: {
   const { server, open, busy, canManage } = props
   const readOnly = server.readOnlyReason !== undefined
   const reason = readOnly
-    ? tt(server.readOnlyReason === 'management-required'
+    ? tt(server.readOnlyReason === 'native-manager' ? 'mcp.readonly.nativeManager' : server.readOnlyReason === 'management-required'
       ? 'mcp.readonly.management'
       : server.readOnlyReason === 'no-manager' ? 'mcp.readonly.noManager' : 'mcp.readonly.unaddressable')
     : canManage ? undefined : tt('mcp.noManager')
@@ -157,7 +151,7 @@ function McpServerRow(props: {
     ? undefined
     : tt(editBlockedKey(server.editBlockedReason))
   const stdio = server.stdio
-  const target = stdio !== undefined
+  const target = server.source === 'mcp-manager' ? tt('mcp.source.manager') : stdio !== undefined
     ? [stdio.command, ...stdio.args].filter((part) => part !== '').join(' ')
     : (server.http?.url ?? '')
   return (
@@ -173,7 +167,7 @@ function McpServerRow(props: {
           <span className={css.chevron + (open ? '' : ' ' + css.chevronCollapsed)} aria-hidden='true' />
           <span className={css.mcpName}>{server.serverName}</span>
           <span className={css.badges}>
-            <span className={css.badge}>{tt(server.transport === 'stdio' ? 'mcp.transport.stdio' : 'mcp.transport.http')}</span>
+            <span className={css.badge}>{tt(server.source === 'mcp-manager' ? 'mcp.source.manager' : server.transport === 'stdio' ? 'mcp.transport.stdio' : 'mcp.transport.http')}</span>
             <span className={css.badge + ' ' + statusClass(server.status)}>{tt(STATUS_KEY[server.status])}</span>
             {readOnly ? <span className={css.badge + ' ' + css.badgeReadonly} title={reason}>{tt('mcp.readonly.badge')}</span> : null}
             {server.managed ? <span className={css.badge}>{tt('mcp.managedBadge')}</span> : null}

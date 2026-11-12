@@ -8,7 +8,7 @@ This is a fork of [cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-s
 
 ## Compatibility
 
-Verified: DSH 0.2.2-rc.1 (source review and automated checks); Desktop testing has not been completed.
+Verified: DSH 0.2.2-rc.2 (source review, target SDK checks and Web acceptance with all 14 local plugins). Web checks covered a connected native-manager server displayed read-only with its tools attributed, a legacy HTTP row added alongside it, saving a temporary AGENTS.md file to disk, and discovering a fixture skill. Desktop interaction and online account services have not been tested.
 
 ## Install
 

@@ -1,12 +1,6 @@
 /**
- * MCP 域的纯投影：把「Loader 行 + 行配置 + 当前工具表」折成面板要的服务器列表。
- *
- * 这一层没有 IO，方便单测；真正的读取（pluginManager / loader / tools）在
- * ./mcp-runtime.ts，路由只做参数校验与错误映射。
- *
- * 之所以不读配置文件：dsh 里 MCP 服务器的唯一事实源是**组合后的 Loader 行**
- * （bundle 层 / profile 补丁 / home 补丁 / 启动 overlay 都可能插入或覆盖它），
- * 只有运行中的行才带生效值与当前工具。
+ * Pure MCP projection from legacy Loader rows, sanitized native manager views,
+ * and current tools. Manager rows stay read-only and carry no inferred config.
  */
 
 import type {
@@ -62,9 +56,17 @@ export interface McpProjection {
   warnings: string[]
 }
 
+/** Sanitized native manager view; excludes configuration and credentials. */
+export interface McpManagerServerFact {
+  name: string
+  configured: boolean
+  status: { state: 'closed' | 'waiting-credentials' | 'connecting' | 'connected' | 'reconnecting' | 'failed' | 'disabled' }
+}
+
 /** host 侧一次读取的完整事实集。 */
 export interface McpListFacts {
   facts: McpServerFacts[]
+  managerServers?: readonly McpManagerServerFact[]
   tools: McpToolFact[]
   /** profile 补丁文件绝对路径；取不到时为 null。 */
   configPath: string | null
@@ -85,6 +87,7 @@ export interface McpListFacts {
 
 /** 投影要知道的可写能力（列表事实里的可编辑性字段）。 */
 export interface McpCapabilities {
+  managerServers?: readonly McpManagerServerFact[]
   managedIds?: readonly string[]
   editableIds?: readonly string[]
   editBlocked?: Readonly<Record<string, McpEditBlockedReason>>
@@ -253,6 +256,7 @@ export function projectMcpServers(
   const warnings: string[] = []
   const servers: McpServerInfo[] = []
   const byName = new Map<string, McpServerInfo>()
+  const ambiguousNames = new Set<string>()
   const managedIds = new Set(capabilities.managedIds ?? [])
   const editableIds = new Set(capabilities.editableIds ?? [])
   const editBlocked = capabilities.editBlocked ?? {}
@@ -326,8 +330,31 @@ export function projectMcpServers(
     servers.push(server)
   }
 
+  // Native manager entries have no writable Loader patch identity.
+  for (const fact of capabilities.managerServers ?? []) {
+    if (byName.has(fact.name)) {
+      warnings.push(`MCP server "${fact.name}" appears in both Loader and native manager inventories; tool attribution is ambiguous`)
+      ambiguousNames.add(fact.name)
+    }
+    const state = fact.status.state
+    const server: McpServerInfo = {
+      entryId: 'mcp-manager:' + fact.name,
+      serverName: fact.name,
+      source: 'mcp-manager',
+      managerEntryPresent: fact.configured,
+      enabled: fact.configured && state !== 'disabled',
+      phase: null,
+      status: state === 'connecting' ? 'starting' : state,
+      readOnlyReason: 'native-manager',
+      managed: false, editable: false, removable: false, tools: [],
+    }
+    byName.set(fact.name, server)
+    servers.push(server)
+  }
+
   // 归属：最长命名空间优先（serverName 本身允许下划线，`a` 与 `a__b` 可能同时存在）。
   const prefixes = [...servers]
+    .filter(server => !ambiguousNames.has(server.serverName))
     .map((server) => ({ server, prefix: MCP_TOOL_PREFIX + server.serverName + '__' }))
     .sort((left, right) => right.prefix.length - left.prefix.length)
   const orphanTools: string[] = []
@@ -355,6 +382,7 @@ export function projectMcpServers(
 /** 合并投影与环境信息，得到 GET /mcp 的完整响应体。 */
 export function buildMcpResponse(facts: McpListFacts): McpResponse {
   const projection = projectMcpServers(facts.facts, facts.tools, {
+    managerServers: facts.managerServers,
     managedIds: facts.managedIds,
     editableIds: facts.editableIds,
     editBlocked: facts.editBlocked,
